@@ -1,6 +1,6 @@
 # 能力 2：Primitives 层 — 浏览器操作原语
 
-> 上游文档：[技术架构设计](../../2026-03-17-site-use-design.md) — Primitives 层章节，[M1 里程碑](../overview.md) — 能力 2
+> 上游文档：[技术架构设计](../../site-use-design.md) — Primitives 层章节，[M1 里程碑](../overview.md) — 能力 2
 > 状态：待讨论
 
 ## 目标
@@ -92,13 +92,13 @@
 getRawPage(site?: string): Promise<Page>
 ```
 
-少数情况下 Primitives 接口无法覆盖（如 `page.authenticate()` 设置代理认证），站点层可以通过 escape hatch 拿到底层 Puppeteer Page。这是例外不是常态（详见[技术架构设计 — 模块边界原则](../../2026-03-17-site-use-design.md)）。
+少数情况下 Primitives 接口无法覆盖（如 `page.authenticate()` 设置代理认证），站点层可以通过 escape hatch 拿到底层 Puppeteer Page。这是例外不是常态（详见[技术架构设计 — 模块边界原则](../../site-use-design.md)）。
 
 **为什么提供 escape hatch 而不是不断扩展 Primitives 接口**：Primitives 接口对齐 devtools-mcp 的工具定义，保持精简。如果为每个偶发需求（如代理认证、cookie 操作、特殊事件监听）都加原语，接口会膨胀失控。escape hatch 承认"抽象不可能覆盖所有场景"，但把它限制在已知的少数入口，而不是让 workflow 到处 import Puppeteer。
 
 ### 与 Extractor 接口的关系
 
-Primitives 接口的设计直接支撑了 extractors 的架构预留 R1（[技术架构设计 — LLM 兜底路径架构预留](../../2026-03-17-site-use-design.md)）：extractor 对 workflow 暴露统一签名，workflow 不关心内部用了哪个 Primitives 原语（`evaluate` 还是 `interceptRequest`）。这要求 Primitives 接口保持稳定——M1 定义全部 8 个原语类型正是为此。
+Primitives 接口的设计直接支撑了 extractors 的架构预留 R1（[技术架构设计 — LLM 兜底路径架构预留](../../site-use-design.md)）：extractor 对 workflow 暴露统一签名，workflow 不关心内部用了哪个 Primitives 原语（`evaluate` 还是 `interceptRequest`）。这要求 Primitives 接口保持稳定——M1 定义全部 8 个原语类型正是为此。
 
 ---
 

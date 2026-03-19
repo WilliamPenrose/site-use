@@ -1,6 +1,6 @@
 # 能力 1：Browser 层 — 启动并连接 Chrome
 
-> 上游文档：[技术架构设计](../../2026-03-17-site-use-design.md) — Browser 层章节，[M1 里程碑](../overview.md) — 能力 1
+> 上游文档：[技术架构设计](../../site-use-design.md) — Browser 层章节，[M1 里程碑](../overview.md) — 能力 1
 > 状态：待讨论
 
 ## 目标

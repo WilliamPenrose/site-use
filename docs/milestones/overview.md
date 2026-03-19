@@ -2,7 +2,7 @@
 
 > 日期：2026-03-19
 > 状态：设计已确认，待为每个里程碑编写实施计划
-> 上游文档：[技术架构设计](../2026-03-17-site-use-design.md)
+> 上游文档：[技术架构设计](../site-use-design.md)
 
 ## 策略
 
@@ -23,7 +23,7 @@
 
 ### 架构选择及理由
 
-> 每项决策的详细理由见[技术架构设计](../2026-03-17-site-use-design.md)，此处仅追踪里程碑归属。
+> 每项决策的详细理由见[技术架构设计](../site-use-design.md)，此处仅追踪里程碑归属。
 
 | 设计决策 | 选择 | 里程碑归属 |
 |----------|------|-----------|
@@ -49,11 +49,11 @@
 
 ### 与 devtools-mcp 的有意差异
 
-> 详见[技术架构设计 — 与 devtools-mcp 的关系](../2026-03-17-site-use-design.md#primitives-层与-devtools-mcp-同构)。此处仅记录里程碑相关要点：实现时不应"补齐"这些差异，它们是有意简化。
+> 详见[技术架构设计 — 与 devtools-mcp 的关系](../site-use-design.md#primitives-层与-devtools-mcp-同构)。此处仅记录里程碑相关要点：实现时不应"补齐"这些差异，它们是有意简化。
 
 ### 排除决策
 
-> 详见[技术架构设计 — 有意不做的事项](../2026-03-17-site-use-design.md)。此处仅列出里程碑归属相关的排除项。
+> 详见[技术架构设计 — 有意不做的事项](../site-use-design.md)。此处仅列出里程碑归属相关的排除项。
 
 | 不做什么 | 里程碑影响 |
 |----------|-----------|
@@ -63,7 +63,7 @@
 
 ### 模块边界原则
 
-> 详见[技术架构设计 — 模块边界](../2026-03-17-site-use-design.md)。跨所有里程碑适用，实现时以设计文档为准。
+> 详见[技术架构设计 — 模块边界](../site-use-design.md)。跨所有里程碑适用，实现时以设计文档为准。
 
 ### 反爬三层体系总览
 
@@ -167,7 +167,7 @@ M1 中设计的三个扩展点，供未来替换：
 
 **M1 开始前**，需要先验证 Twitter timeline 推文能否通过 `evaluate()`/DOM 解析提取。如果不行（例如推文时间戳只能通过 GraphQL 获取），则需要将 `interceptRequest` 提前到 M1。
 
-本次 research spike 按照[技术架构设计 — 新站点接入决策流程](../2026-03-17-site-use-design.md)执行——Twitter 是第一个实例，同时也验证该流程本身的可用性。后续扩展新站点时沿用同一流程。
+本次 research spike 按照[技术架构设计 — 新站点接入决策流程](../site-use-design.md)执行——Twitter 是第一个实例，同时也验证该流程本身的可用性。后续扩展新站点时沿用同一流程。
 
 **验证方法**（对应决策树三步）：
 
@@ -189,7 +189,7 @@ Anti-crawl level: Medium
 Special notes: Infinite scroll triggers new GraphQL requests (same endpoint)
 ```
 
-**新站点接入决策流程**：详见[技术架构设计 — 新站点接入决策流程](../2026-03-17-site-use-design.md)（含决策树、站点分类矩阵、research spike 清单）。Twitter 的 research spike 同时验证此流程本身的可用性，后续新站点沿用同一流程。
+**新站点接入决策流程**：详见[技术架构设计 — 新站点接入决策流程](../site-use-design.md)（含决策树、站点分类矩阵、research spike 清单）。Twitter 的 research spike 同时验证此流程本身的可用性，后续新站点沿用同一流程。
 
 #### 能力 1：Browser 层 — 启动并连接 Chrome
 
@@ -284,7 +284,7 @@ TimelineMeta: { tweetCount, coveredUsers, coveredUserCount, timeRange: { from, t
 - `extractors.ts` 作为独立模块 M1 就分离出来。即使 M2 升级提取策略，extractor 接口不变（输入参数 + 输出 `Tweet[]`），仅调用时机可能微调
 - `TimelineMeta` M1 就返回完整结构（`coveredUsers`、`timeRange` 等）— 这是产品差异化的关键（"这次采集覆盖了哪些人"）
 
-**提取策略栈**：详见[技术架构设计 — 内容提取策略](../2026-03-17-site-use-design.md)（含 5 层策略定义、优先级、R1/R2/R3 架构预留）。里程碑归属：
+**提取策略栈**：详见[技术架构设计 — 内容提取策略](../site-use-design.md)（含 5 层策略定义、优先级、R1/R2/R3 架构预留）。里程碑归属：
 
 | 层 | 策略 | 里程碑 |
 |----|------|--------|
@@ -384,9 +384,9 @@ AI：  分析推文内容，生成摘要报告
 |------|---------|---------|
 | Throttle 增强 | M1 throttle 架构 | 点击坐标抖动（±3px）、渐进式滚动、站点级频率控制 |
 | Auth Guard 中间件化 | M1 的 `checkAuth()` 函数 | 将 M1 的显式调用改为自动中间件（避免每个 workflow 手动调用的重复代码和遗漏风险，小型结构重构，检测逻辑不变） |
-| 错误处理增强 | M1 基础错误类型（3 个） | 新增 `RateLimited`、`NavigationFailed` + 所有错误增强为完整上下文（操作步骤、页面状态）+ 自动截图（复用 M1 已有的 `screenshot()` 原语）。每类错误明确标注**重试策略**：哪些在 Primitives 层内部重试、哪些直接抛给 caller（详见[技术架构设计 — 错误分类](../2026-03-17-site-use-design.md)） |
+| 错误处理增强 | M1 基础错误类型（3 个） | 新增 `RateLimited`、`NavigationFailed` + 所有错误增强为完整上下文（操作步骤、页面状态）+ 自动截图（复用 M1 已有的 `screenshot()` 原语）。每类错误明确标注**重试策略**：哪些在 Primitives 层内部重试、哪些直接抛给 caller（详见[技术架构设计 — 错误分类](../site-use-design.md)） |
 | 反爬第 1 层增强 | M1 browser.ts | Canvas 指纹噪声（防跨站关联追踪）+ WebRTC 泄露防护（代理模式下防真实 IP 泄露） |
-| 广告/追踪域名屏蔽 | M1 browser.ts | 站点级可选配置：通过 `page.setRequestInterception()` 屏蔽广告和追踪域名，减少页面加载时间和噪声 DOM（详见[技术架构设计 — 反爬体系](../2026-03-17-site-use-design.md)） |
+| 广告/追踪域名屏蔽 | M1 browser.ts | 站点级可选配置：通过 `page.setRequestInterception()` 屏蔽广告和追踪域名，减少页面加载时间和噪声 DOM（详见[技术架构设计 — 反爬体系](../site-use-design.md)） |
 | 反爬第 3 层 | Sites 层 | 限流信号检测（429 / 验证码页面）→ 抛 `RateLimited`。Cloudflare 挑战处理 M3 不实现（Twitter 不使用 Cloudflare），扩展新站点时按需启用 |
 
 ### 产品形态

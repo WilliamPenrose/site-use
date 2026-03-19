@@ -16,5 +16,8 @@ chrome-profile/
 # CocoIndex code search cache
 .cocoindex_code/
 
+# Claude Code local settings (contains machine-specific paths)
+.claude/
+
 # Superpowers intermediate process docs
 docs/superpowers/

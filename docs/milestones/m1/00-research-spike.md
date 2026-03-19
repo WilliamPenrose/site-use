@@ -1,6 +1,6 @@
 # 前置任务：Twitter 内容提取策略 Research Spike
 
-> 上游文档：[技术架构设计 — 新站点接入决策流程](../../2026-03-17-site-use-design.md)、[M1 里程碑](../overview.md) — 能力 4 前置任务
+> 上游文档：[技术架构设计 — 新站点接入决策流程](../../site-use-design.md)、[M1 里程碑](../overview.md) — 能力 4 前置任务
 > 状态：已完成（2026-03-19）
 
 ## 目标
@@ -27,7 +27,7 @@ M1 原计划只实现 6/8 个 Primitives 原语，`interceptRequest` 推迟到 M
 
 ## 背景
 
-本 spike 是[技术架构设计 — 新站点接入决策流程](../../2026-03-17-site-use-design.md)的首次实例。Twitter 作为第一个站点，同时验证该流程本身的可用性。决策树、站点分类矩阵、research spike 检查清单详见设计文档，此处不重复。
+本 spike 是[技术架构设计 — 新站点接入决策流程](../../site-use-design.md)的首次实例。Twitter 作为第一个站点，同时验证该流程本身的可用性。决策树、站点分类矩阵、research spike 检查清单详见设计文档，此处不重复。
 
 Twitter timeline 页面的内容可能来自多种渠道，对应设计文档中 5 层提取策略栈的前 4 层（第 5 层 LLM 兜底在多站点扩展时按需引入，本 spike 不评估）：
 
@@ -194,7 +194,7 @@ Path A/B/C 都不可行
 3. **提取代码草案**：选定路径的 `page.evaluate()` 表达式
 4. **风险评估**：选定路径的脆弱点，以及当它失效时的降级方案
 5. **对 M1 范围的影响**：是否需要扩大 Primitives 层的实现范围
-6. **策略决策记录**：按[技术架构设计 — research spike 检查清单](../../2026-03-17-site-use-design.md)模板填写：
+6. **策略决策记录**：按[技术架构设计 — research spike 检查清单](../../site-use-design.md)模板填写：
    ```
    站点：twitter.com (x.com)
    提取策略：[选定路径 + 对应策略栈层]

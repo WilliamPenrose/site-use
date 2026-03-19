@@ -1,6 +1,6 @@
 # 能力 4：Twitter Sites 层
 
-> 上游文档：[技术架构设计](../../2026-03-17-site-use-design.md) — 站点适配层章节，[M1 里程碑](../overview.md) — 能力 4
+> 上游文档：[技术架构设计](../../site-use-design.md) — 站点适配层章节，[M1 里程碑](../overview.md) — 能力 4
 > 依赖：[Research Spike](00-research-spike.md) 的结论决定 extractors 策略
 > 状态：待讨论
 
@@ -109,7 +109,7 @@ Caller（Skill）可以将 `coveredUsers` 与 following 列表对比，识别被
 
 ### 设计原则
 
-- 不使用 CSS 选择器，使用辅助功能树的 `role` + `name` 语义匹配（详见[技术架构设计 — matchers.ts](../../2026-03-17-site-use-design.md)）
+- 不使用 CSS 选择器，使用辅助功能树的 `role` + `name` 语义匹配（详见[技术架构设计 — matchers.ts](../../site-use-design.md)）
 - 所有 Twitter 匹配规则集中在此文件——Twitter UI 改版时只改这里
 - 通过 `Matcher` 接口抽象，M4 可以换成 `CompositeMatcher`（ARIA → 指纹 fallback），workflow 不改
 
@@ -175,11 +175,11 @@ M4 替换时，workflow 中只需要把 `matchByRule(snapshot, rule)` 改为 `ma
 
 提取策略取决于 [00-research-spike.md](00-research-spike.md) 的结论。此处描述模块接口和职责边界，具体实现在 spike 完成后确定。
 
-关于 5 层提取策略栈的完整定义、优先级和触发条件，详见[技术架构设计 — extractors.ts 内容提取](../../2026-03-17-site-use-design.md)。M1 只实现第 2、3 层。
+关于 5 层提取策略栈的完整定义、优先级和触发条件，详见[技术架构设计 — extractors.ts 内容提取](../../site-use-design.md)。M1 只实现第 2、3 层。
 
 ### 架构预留（不写代码，确保设计不阻断）
 
-以下三条架构预留来自[技术架构设计 — LLM 兜底路径的架构预留](../../2026-03-17-site-use-design.md)，M1 实现时需遵守：
+以下三条架构预留来自[技术架构设计 — LLM 兜底路径的架构预留](../../site-use-design.md)，M1 实现时需遵守：
 
 - **R1：Extractor 接口不暴露提取策略** — extractor 对 workflow 暴露统一签名 `(primitives) => Promise<RawTweetData[]>`，workflow 不关心内部用的是 DOM 解析还是 JS 状态对象。下文的"模块内部分两层"正是 R1 的体现。
 - **R2：清洗层独立性** — 如果提取过程中需要 DOM 清洗逻辑，应作为独立工具函数，不绑定在特定提取路径内部。
@@ -241,7 +241,7 @@ buildTimelineMeta(tweets)            → TimelineMeta       // 纯函数
 
 **为什么 workflow 不做 AI 分析**：site-use 的定位是"确定性 workflow 工具"，把 AI 专注于内容理解而非页面操作。如果 `getTimeline` 内部调 LLM 做摘要，那 site-use 就变成了一个 AI agent，与产品定位矛盾。保持原子性：site-use 输出结构化数据，AI 分析由上层 Skill（OpenClaw 或 Claude）完成。这也意味着 site-use 的调用成本是确定的（只有浏览器操作开销，没有 LLM token 开销）。
 
-**外部内容不可信**（[技术架构设计 — 模块边界原则 #4](../../2026-03-17-site-use-design.md)）：未来如果引入 LLM 兜底提取路径（策略栈第 5 层），任何将页面内容传给 LLM 的路径必须加入对抗性文本防护（prompt injection 防御）。M1 不涉及 LLM 路径，但 extractors 的接口设计（R1）已为此预留。
+**外部内容不可信**（[技术架构设计 — 模块边界原则 #4](../../site-use-design.md)）：未来如果引入 LLM 兜底提取路径（策略栈第 5 层），任何将页面内容传给 LLM 的路径必须加入对抗性文本防护（prompt injection 防御）。M1 不涉及 LLM 路径，但 extractors 的接口设计（R1）已为此预留。
 
 **为什么 workflow 不直接调 Puppeteer**：workflow 通过 Primitives 接口操作浏览器。这保证了：(1) 所有操作经过 throttle 节流，(2) 未来切换到 devtools-mcp-backend 时 workflow 零改动，(3) 测试时可以 mock Primitives。唯一的例外是通过 `getRawPage()` escape hatch，但这在 M1 中仅用于代理认证（在 server.ts 中，不在 workflow 中）。
 
