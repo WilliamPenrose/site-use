@@ -12,6 +12,7 @@ export interface Config {
   dataDir: string;
   chromeProfileDir: string;
   proxy?: ProxyConfig;
+  proxySource?: string;
 }
 
 export function getConfig(): Config {
@@ -20,9 +21,24 @@ export function getConfig(): Config {
   const chromeProfileDir = path.join(dataDir, 'chrome-profile');
 
   let proxy: ProxyConfig | undefined;
-  const proxyServer = process.env.SITE_USE_PROXY;
-  if (proxyServer) {
-    proxy = { server: proxyServer };
+  let proxySource: string | undefined;
+
+  // Fallback chain: SITE_USE_PROXY → HTTPS_PROXY → HTTP_PROXY
+  const proxyEntries: [string, string | undefined][] = [
+    ['SITE_USE_PROXY', process.env.SITE_USE_PROXY],
+    ['HTTPS_PROXY', process.env.HTTPS_PROXY],
+    ['HTTP_PROXY', process.env.HTTP_PROXY],
+  ];
+
+  for (const [envName, envValue] of proxyEntries) {
+    if (envValue) {
+      proxy = { server: envValue };
+      proxySource = envName;
+      break;
+    }
+  }
+
+  if (proxy) {
     const username = process.env.SITE_USE_PROXY_USER;
     const password = process.env.SITE_USE_PROXY_PASS;
     if (username) {
@@ -33,5 +49,5 @@ export function getConfig(): Config {
     }
   }
 
-  return { dataDir, chromeProfileDir, proxy };
+  return { dataDir, chromeProfileDir, proxy, proxySource };
 }

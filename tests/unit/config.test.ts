@@ -28,6 +28,8 @@ describe('getConfig', () => {
 
   it('returns no proxy when SITE_USE_PROXY is not set', () => {
     vi.stubEnv('SITE_USE_PROXY', '');
+    vi.stubEnv('HTTPS_PROXY', '');
+    vi.stubEnv('HTTP_PROXY', '');
     const config = getConfig();
     expect(config.proxy).toBeUndefined();
   });
@@ -52,5 +54,54 @@ describe('getConfig', () => {
     expect(config.proxy).toEqual({
       server: 'socks5://127.0.0.1:1080',
     });
+  });
+
+  it('falls back to HTTPS_PROXY when SITE_USE_PROXY is not set', () => {
+    vi.stubEnv('SITE_USE_PROXY', '');
+    vi.stubEnv('HTTPS_PROXY', 'http://fallback:8080');
+    vi.stubEnv('HTTP_PROXY', '');
+    const config = getConfig();
+    expect(config.proxy).toEqual({ server: 'http://fallback:8080' });
+    expect(config.proxySource).toBe('HTTPS_PROXY');
+  });
+
+  it('falls back to HTTP_PROXY when SITE_USE_PROXY and HTTPS_PROXY are not set', () => {
+    vi.stubEnv('SITE_USE_PROXY', '');
+    vi.stubEnv('HTTPS_PROXY', '');
+    vi.stubEnv('HTTP_PROXY', 'http://httpfallback:3128');
+    const config = getConfig();
+    expect(config.proxy).toEqual({ server: 'http://httpfallback:3128' });
+    expect(config.proxySource).toBe('HTTP_PROXY');
+  });
+
+  it('prefers SITE_USE_PROXY over HTTPS_PROXY', () => {
+    vi.stubEnv('SITE_USE_PROXY', 'socks5://preferred:1080');
+    vi.stubEnv('HTTPS_PROXY', 'http://fallback:8080');
+    const config = getConfig();
+    expect(config.proxy?.server).toBe('socks5://preferred:1080');
+    expect(config.proxySource).toBe('SITE_USE_PROXY');
+  });
+
+  it('sets proxySource to undefined when no proxy configured', () => {
+    vi.stubEnv('SITE_USE_PROXY', '');
+    vi.stubEnv('HTTPS_PROXY', '');
+    vi.stubEnv('HTTP_PROXY', '');
+    const config = getConfig();
+    expect(config.proxy).toBeUndefined();
+    expect(config.proxySource).toBeUndefined();
+  });
+
+  it('applies SITE_USE_PROXY_USER/PASS credentials to fallback proxy', () => {
+    vi.stubEnv('SITE_USE_PROXY', '');
+    vi.stubEnv('HTTPS_PROXY', 'http://fallback:8080');
+    vi.stubEnv('SITE_USE_PROXY_USER', 'user');
+    vi.stubEnv('SITE_USE_PROXY_PASS', 'pass');
+    const config = getConfig();
+    expect(config.proxy).toEqual({
+      server: 'http://fallback:8080',
+      username: 'user',
+      password: 'pass',
+    });
+    expect(config.proxySource).toBe('HTTPS_PROXY');
   });
 });
