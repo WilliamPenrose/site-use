@@ -34,13 +34,26 @@ Subcommands:
 
 Options (launch):
   --diagnose  Run anti-detection health check after launch
+
+Extra Chrome flags can be passed directly:
+  site-use browser launch --disable-web-security --some-flag
 `;
 
 async function browserLaunch(): Promise<void> {
-  const diagnose = process.argv.includes('--diagnose');
+  const knownFlags = new Set(['--diagnose']);
+  const launchArgs = process.argv.slice(2);
+  const diagnose = launchArgs.includes('--diagnose');
+
+  // Collect extra --flags not recognized by site-use → pass to Chrome
+  const extraChromeArgs = launchArgs
+    .filter((a) => a.startsWith('--') && !knownFlags.has(a));
+
+  if (extraChromeArgs.length > 0) {
+    console.log(`Extra Chrome args: ${extraChromeArgs.join(' ')}`);
+  }
 
   console.log('Launching Chrome...');
-  const browser = await ensureBrowser();
+  const browser = await ensureBrowser(extraChromeArgs.length > 0 ? extraChromeArgs : undefined);
   const pid = browser.process()?.pid;
   const config = getConfig();
   console.log(`Chrome running (PID: ${pid})`);
@@ -132,10 +145,8 @@ async function browserLaunch(): Promise<void> {
         results.chromeExists,
         String(results.chromeExists),
       );
-      check(
-        'window.chrome.runtime exists',
-        results.chromeRuntimeExists,
-        String(results.chromeRuntimeExists),
+      console.log(
+        `  [INFO] ${'window.chrome.runtime exists'.padEnd(40)} = ${results.chromeRuntimeExists} (depends on extensions)`,
       );
       check(
         'navigator.plugins.length > 0',

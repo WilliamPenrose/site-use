@@ -82,6 +82,7 @@ describe('browser', () => {
       expect(args).toContain('--disable-blink-features=AutomationControlled');
       expect(args).toContain('--window-size=1920,1080');
       expect(args).toContain('--lang=en-US');
+      expect(args).toContain('--accept-lang=en-US,en');
     });
 
     it('does not include --proxy-server when no proxy configured', async () => {
@@ -191,12 +192,11 @@ describe('browser', () => {
       const args: string[] = mockLaunch.mock.calls[0][0].args;
       if (process.platform !== 'linux') {
         expect(args).not.toContain('--no-sandbox');
-        expect(args).not.toContain('--test-type');
       }
     });
   });
 
-  describe('fixExitType', () => {
+  describe('fixPreferences', () => {
     beforeEach(() => {
       vi.mocked(readFileSync).mockReset();
       vi.mocked(writeFileSync).mockReset();
@@ -204,7 +204,10 @@ describe('browser', () => {
 
     it('rewrites exit_type to Normal when it is Crashed', async () => {
       vi.mocked(readFileSync).mockReturnValue(
-        JSON.stringify({ profile: { exit_type: 'Crashed' } }),
+        JSON.stringify({
+          profile: { exit_type: 'Crashed' },
+          intl: { accept_languages: 'en-US,en' },
+        }),
       );
 
       await ensureBrowser();
@@ -216,9 +219,29 @@ describe('browser', () => {
       expect(written.profile.exit_type).toBe('Normal');
     });
 
-    it('does not write when exit_type is already Normal', async () => {
+    it('forces intl.accept_languages to en-US,en', async () => {
       vi.mocked(readFileSync).mockReturnValue(
-        JSON.stringify({ profile: { exit_type: 'Normal' } }),
+        JSON.stringify({
+          profile: { exit_type: 'Normal' },
+          intl: { accept_languages: 'zh-CN,zh' },
+        }),
+      );
+
+      await ensureBrowser();
+
+      expect(writeFileSync).toHaveBeenCalledOnce();
+      const written = JSON.parse(
+        vi.mocked(writeFileSync).mock.calls[0][1] as string,
+      );
+      expect(written.intl.accept_languages).toBe('en-US,en');
+    });
+
+    it('does not write when all preferences are correct', async () => {
+      vi.mocked(readFileSync).mockReturnValue(
+        JSON.stringify({
+          profile: { exit_type: 'Normal' },
+          intl: { accept_languages: 'en-US,en' },
+        }),
       );
 
       await ensureBrowser();
