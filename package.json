@@ -27,7 +27,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.8.0",
     "dotenv": "^16.4.7",
-    "puppeteer": "^24.4.0",
+    "puppeteer-core": "^24.39.1",
     "zod": "^3.24.2"
   },
   "devDependencies": {
@@ -37,8 +37,7 @@
   },
   "pnpm": {
     "onlyBuiltDependencies": [
-      "esbuild",
-      "puppeteer"
+      "esbuild"
     ]
   }
 }

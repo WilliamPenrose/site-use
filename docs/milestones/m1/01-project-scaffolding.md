@@ -1,7 +1,7 @@
 # 能力 5：项目工程基础
 
 > 上游文档：[M1 里程碑](../overview.md) — 能力 5
-> 状态：待讨论
+> 状态：已完成（2026-03-19，commit 0842655）
 
 ## 目标
 
@@ -23,7 +23,7 @@
 | 包 | 用途 | 为什么选它 |
 |---|------|-----------|
 | `@modelcontextprotocol/sdk` | MCP server + stdio transport | MCP 协议的官方 SDK，所有主流 MCP client（Claude Desktop、Cursor、VS Code）天然支持。不自己实现 JSON-RPC |
-| `puppeteer` | 浏览器控制（通过 CDP） | Node.js 生态下 CDP 控制的事实标准。devtools-mcp 同样用 Puppeteer，保持同构便于参考代码。不选 Playwright 是因为 Primitives 层的设计围绕 CDP 原生 API（Accessibility.getFullAXTree），Playwright 封装了一层自己的 accessibility API，反而增加了对齐 devtools-mcp 的难度 |
+| `puppeteer-core` | 浏览器控制（通过 CDP） | 用 `-core` 而非完整 `puppeteer`，因为 site-use 通过 `channel: 'chrome'` 使用用户本地 Chrome，不需要捆绑 ~170MB 的 Chromium。Node.js 生态下 CDP 控制的事实标准。devtools-mcp 同样用 Puppeteer，保持同构便于参考代码。不选 Playwright 是因为 Primitives 层的设计围绕 CDP 原生 API（Accessibility.getFullAXTree），Playwright 封装了一层自己的 accessibility API，反而增加了对齐 devtools-mcp 的难度 |
 | `zod` | MCP 工具参数 schema 定义 | `@modelcontextprotocol/sdk` 的 `server.tool()` 原生用 Zod 定义参数 schema，不是自选的依赖，是 SDK 要求的 |
 
 ### 开发依赖

@@ -1,7 +1,7 @@
 export interface ErrorContext {
   url?: string;
   step?: string;
-  snapshotSummary?: string;
+  snapshotSummary?: string; // accessibility tree summary when ARIA matching fails, helps diagnose page state
   screenshotBase64?: string; // M3 enhancement, field reserved now
 }
 
