@@ -21,3 +21,6 @@ chrome-profile/
 
 # Superpowers intermediate process docs
 docs/superpowers/
+
+# Git worktrees
+.worktrees/
