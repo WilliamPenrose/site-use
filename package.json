@@ -11,6 +11,7 @@
     "dev": "tsc --watch",
     "test": "vitest run",
     "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
     "test:contract": "vitest run tests/contract",
     "test:watch": "vitest"
   },
