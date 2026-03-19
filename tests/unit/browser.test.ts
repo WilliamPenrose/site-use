@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { readFileSync, writeFileSync } from 'node:fs';
 
 // Mock puppeteer-core before importing browser module
 const mockBrowser = {
@@ -12,6 +13,17 @@ const mockLaunch = vi.fn().mockResolvedValue(mockBrowser);
 vi.mock('puppeteer-core', () => ({
   default: { launch: mockLaunch },
 }));
+
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs')>();
+  return {
+    ...actual,
+    readFileSync: vi.fn(() => {
+      throw new Error('ENOENT');
+    }),
+    writeFileSync: vi.fn(),
+  };
+});
 
 // Mutable config for per-test overrides
 let testConfig = {
@@ -67,6 +79,9 @@ describe('browser', () => {
       expect(args).toContain('--remote-debugging-port=0');
       expect(args).toContain('--no-first-run');
       expect(args).toContain('--no-default-browser-check');
+      expect(args).toContain('--disable-blink-features=AutomationControlled');
+      expect(args).toContain('--window-size=1920,1080');
+      expect(args).toContain('--lang=en-US');
     });
 
     it('does not include --proxy-server when no proxy configured', async () => {
@@ -108,6 +123,14 @@ describe('browser', () => {
         'disconnected',
         expect.any(Function),
       );
+    });
+
+    it('does not register targetcreated listener for webdriver masking', async () => {
+      await ensureBrowser();
+      const onCalls = mockBrowser.on.mock.calls.map(
+        (c: [string, Function]) => c[0],
+      );
+      expect(onCalls).not.toContain('targetcreated');
     });
   });
 
@@ -159,6 +182,58 @@ describe('browser', () => {
       await ensureBrowser();
       const args: string[] = mockLaunch.mock.calls[0][0].args;
       expect(args).toContain('--proxy-server=socks5://127.0.0.1:1080');
+    });
+  });
+
+  describe('platform-specific args', () => {
+    it('does not include --no-sandbox on non-linux platforms', async () => {
+      await ensureBrowser();
+      const args: string[] = mockLaunch.mock.calls[0][0].args;
+      if (process.platform !== 'linux') {
+        expect(args).not.toContain('--no-sandbox');
+        expect(args).not.toContain('--test-type');
+      }
+    });
+  });
+
+  describe('fixExitType', () => {
+    beforeEach(() => {
+      vi.mocked(readFileSync).mockReset();
+      vi.mocked(writeFileSync).mockReset();
+    });
+
+    it('rewrites exit_type to Normal when it is Crashed', async () => {
+      vi.mocked(readFileSync).mockReturnValue(
+        JSON.stringify({ profile: { exit_type: 'Crashed' } }),
+      );
+
+      await ensureBrowser();
+
+      expect(writeFileSync).toHaveBeenCalledOnce();
+      const written = JSON.parse(
+        vi.mocked(writeFileSync).mock.calls[0][1] as string,
+      );
+      expect(written.profile.exit_type).toBe('Normal');
+    });
+
+    it('does not write when exit_type is already Normal', async () => {
+      vi.mocked(readFileSync).mockReturnValue(
+        JSON.stringify({ profile: { exit_type: 'Normal' } }),
+      );
+
+      await ensureBrowser();
+
+      expect(writeFileSync).not.toHaveBeenCalled();
+    });
+
+    it('silently handles missing Preferences file', async () => {
+      vi.mocked(readFileSync).mockImplementation(() => {
+        throw new Error('ENOENT');
+      });
+
+      // Should not throw
+      const browser = await ensureBrowser();
+      expect(browser).toBe(mockBrowser);
     });
   });
 
