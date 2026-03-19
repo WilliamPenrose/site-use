@@ -19,6 +19,10 @@ MCP Server (server.ts)
             └── Browser (browser/)
 ```
 
+## Workflow
+
+- **Always rebuild after code changes.** Run `pnpm run build` after modifying any `.ts` file, before testing CLI commands or telling the user it's ready. Don't wait for the user to build.
+
 ## Design Documents
 
 - `docs/site-use-design.md` — Overall design

@@ -1,7 +1,131 @@
 #!/usr/bin/env node
-import { main } from './server.js';
+import { main as startServer } from './server.js';
+import { ensureBrowser, closeBrowser, isBrowserConnected } from './browser/browser.js';
+import { getConfig } from './config.js';
 
-main().catch((err) => {
-  console.error('site-use failed to start:', err);
+const HELP = `\
+site-use — Site-level browser automation via MCP
+
+Usage: site-use <command> [subcommand]
+
+Commands:
+  serve              Start MCP server (stdio transport)
+  browser launch     Launch Chrome and keep it running
+  browser status     Show connection status, PID, and profile path
+  browser close      Detach from Chrome (process stays alive)
+  help               Show this help message
+
+Environment:
+  SITE_USE_DATA_DIR      Data directory (default: ~/.site-use)
+  SITE_USE_PROXY         Proxy server URL
+  HTTPS_PROXY            Fallback proxy (if SITE_USE_PROXY not set)
+  HTTP_PROXY             Fallback proxy (if neither above is set)
+  SITE_USE_PROXY_USER    Proxy auth username
+  SITE_USE_PROXY_PASS    Proxy auth password
+`;
+
+const BROWSER_HELP = `\
+site-use browser — Chrome lifecycle management
+
+Subcommands:
+  launch    Launch Chrome and keep it running until Ctrl+C
+  status    Show connection status, PID, and profile path
+  close     Detach from Chrome (process stays alive)
+`;
+
+async function browserLaunch(): Promise<void> {
+  console.log('Launching Chrome...');
+  const browser = await ensureBrowser();
+  const pid = browser.process()?.pid;
+  const config = getConfig();
+  console.log(`Chrome running (PID: ${pid})`);
+  console.log(`Profile: ${config.chromeProfileDir}`);
+  console.log('Press Ctrl+C to detach (Chrome will stay open)');
+
+  await new Promise<void>((resolve) => {
+    process.on('SIGINT', () => {
+      console.log('\nDetaching from Chrome (process stays alive)');
+      closeBrowser();
+      resolve();
+    });
+    // On Windows, handle the close event too
+    process.on('SIGTERM', () => {
+      closeBrowser();
+      resolve();
+    });
+  });
+}
+
+async function browserStatus(): Promise<void> {
+  const config = getConfig();
+  console.log(`Profile: ${config.chromeProfileDir}`);
+
+  if (config.proxy) {
+    console.log(`Proxy: ${config.proxy.server} (from ${config.proxySource})`);
+  } else {
+    console.log('Proxy: none');
+  }
+
+  // Cannot check singleton state from a fresh process — just report config
+  console.log('\nNote: status reflects config only. Browser state is per-process.');
+}
+
+async function browserClose(): Promise<void> {
+  closeBrowser();
+  console.log('Singleton reference cleared. Chrome process (if any) stays alive.');
+}
+
+async function run(): Promise<void> {
+  const args = process.argv.slice(2);
+  const command = args[0];
+
+  switch (command) {
+    case 'serve':
+      await startServer();
+      break;
+
+    case undefined:
+      console.log(HELP);
+      break;
+
+    case 'browser': {
+      const sub = args[1];
+      switch (sub) {
+        case 'launch':
+          await browserLaunch();
+          break;
+        case 'status':
+          await browserStatus();
+          break;
+        case 'close':
+          await browserClose();
+          break;
+        case undefined:
+        case 'help':
+          console.log(BROWSER_HELP);
+          break;
+        default:
+          console.error(`Unknown browser subcommand: ${sub}\n`);
+          console.log(BROWSER_HELP);
+          process.exit(1);
+      }
+      break;
+    }
+
+    case 'help':
+    case '--help':
+    case '-h':
+      console.log(HELP);
+      break;
+
+    default:
+      console.error(`Unknown command: ${command}\n`);
+      console.log(HELP);
+      process.exit(1);
+  }
+}
+
+run().catch((err) => {
+  console.error('site-use failed:', err);
   process.exit(1);
 });

@@ -16,6 +16,7 @@ export async function ensureBrowser(): Promise<Browser> {
     '--remote-debugging-port=0',
     '--no-first-run',
     '--no-default-browser-check',
+    '--disable-blink-features=AutomationControlled',
   ];
 
   if (config.proxy) {
@@ -39,6 +40,18 @@ export async function ensureBrowser(): Promise<Browser> {
       `Failed to launch Chrome: ${err instanceof Error ? err.message : String(err)}`,
     );
   }
+
+  // Remove navigator.webdriver via CDP on every new page
+  browserInstance.on('targetcreated', async (target) => {
+    const page = await target.page();
+    if (page) {
+      await page.evaluateOnNewDocument(() => {
+        Object.defineProperty(navigator, 'webdriver', {
+          get: () => undefined,
+        });
+      });
+    }
+  });
 
   browserInstance.on('disconnected', () => {
     browserInstance = null;
