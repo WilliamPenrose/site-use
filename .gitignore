@@ -1,0 +1,20 @@
+node_modules/
+dist/
+
+# Private environment variables
+.env
+
+# Chrome user data (contains cookies, login state)
+chrome-profile/
+
+# SQLite fingerprint databases (M4)
+*.db
+
+# Local site-use data directory
+.site-use/
+
+# CocoIndex code search cache
+.cocoindex_code/
+
+# Superpowers intermediate process docs
+docs/superpowers/
