@@ -31,15 +31,150 @@ Subcommands:
   launch    Launch Chrome and keep it running until Ctrl+C
   status    Show connection status, PID, and profile path
   close     Detach from Chrome (process stays alive)
+
+Options (launch):
+  --diagnose  Run anti-detection health check after launch
 `;
 
 async function browserLaunch(): Promise<void> {
+  const diagnose = process.argv.includes('--diagnose');
+
   console.log('Launching Chrome...');
   const browser = await ensureBrowser();
   const pid = browser.process()?.pid;
   const config = getConfig();
   console.log(`Chrome running (PID: ${pid})`);
   console.log(`Profile: ${config.chromeProfileDir}`);
+
+  if (diagnose) {
+    console.log('\n--- Anti-detection diagnostic ---\n');
+
+    // Print actual Chrome launch args
+    const spawnargs = browser.process()?.spawnargs ?? [];
+    console.log('Chrome launch args:');
+    for (const arg of spawnargs) {
+      if (arg.startsWith('--')) {
+        console.log(`  ${arg}`);
+      }
+    }
+    console.log('');
+
+    const page = await browser.newPage();
+    try {
+      await page.goto('about:blank');
+      const results = await page.evaluate(() => {
+        const nav = navigator as unknown as Record<string, unknown>;
+        const desc =
+          Object.getOwnPropertyDescriptor(navigator, 'webdriver') ||
+          Object.getOwnPropertyDescriptor(
+            Object.getPrototypeOf(navigator),
+            'webdriver',
+          );
+        const conn = (nav.connection ?? {}) as Record<string, unknown>;
+        const chrome = (window as unknown as Record<string, unknown>).chrome as
+          | Record<string, unknown>
+          | undefined;
+        return {
+          webdriver: nav.webdriver,
+          webdriverType: typeof nav.webdriver,
+          webdriverIn: 'webdriver' in navigator,
+          webdriverDesc: desc
+            ? { enumerable: desc.enumerable, configurable: desc.configurable }
+            : null,
+          chromeExists: !!chrome,
+          chromeRuntimeExists: !!chrome?.runtime,
+          pluginsLength: navigator.plugins.length,
+          languages: Array.from(navigator.languages),
+          rtt: conn.rtt as number | undefined,
+          outerWidth: window.outerWidth,
+          outerHeight: window.outerHeight,
+          innerHeight: window.innerHeight,
+        };
+      });
+
+      let passed = 0;
+      let total = 0;
+
+      function check(label: string, ok: boolean, actual: string): void {
+        total++;
+        if (ok) {
+          passed++;
+          console.log(`  [PASS] ${label.padEnd(40)} = ${actual}`);
+        } else {
+          console.log(`  [FAIL] ${label.padEnd(40)} = ${actual}`);
+        }
+      }
+
+      console.log('Checks:');
+      check(
+        'navigator.webdriver',
+        results.webdriver === false,
+        String(results.webdriver),
+      );
+      check(
+        'typeof navigator.webdriver',
+        results.webdriverType === 'boolean',
+        results.webdriverType,
+      );
+      check(
+        '"webdriver" in navigator',
+        results.webdriverIn === true,
+        String(results.webdriverIn),
+      );
+      check(
+        'webdriver descriptor',
+        results.webdriverDesc?.enumerable === true &&
+          results.webdriverDesc?.configurable === true,
+        JSON.stringify(results.webdriverDesc),
+      );
+      check(
+        'window.chrome exists',
+        results.chromeExists,
+        String(results.chromeExists),
+      );
+      check(
+        'window.chrome.runtime exists',
+        results.chromeRuntimeExists,
+        String(results.chromeRuntimeExists),
+      );
+      check(
+        'navigator.plugins.length > 0',
+        results.pluginsLength > 0,
+        `true (${results.pluginsLength})`,
+      );
+      check(
+        'navigator.languages includes en-US',
+        results.languages.includes('en-US'),
+        `true (${results.languages.join(', ')})`,
+      );
+      check(
+        'navigator.connection.rtt > 0',
+        (results.rtt ?? 0) > 0,
+        `true (${results.rtt})`,
+      );
+      check(
+        'window.outerWidth',
+        results.outerWidth === 1920,
+        String(results.outerWidth),
+      );
+      check(
+        'window.outerHeight > 0',
+        results.outerHeight > 0,
+        `true (${results.outerHeight})`,
+      );
+
+      const uiOverhead = results.outerHeight - results.innerHeight;
+      console.log(
+        `  [INFO] ${'Chrome UI overhead'.padEnd(40)} = ${uiOverhead}px (outerHeight - innerHeight)`,
+      );
+
+      console.log(`\nResults: ${passed}/${total} passed`);
+      console.log('--- end diagnostic ---\n');
+    } finally {
+      await page.close();
+    }
+  }
+
   console.log('Press Ctrl+C to detach (Chrome will stay open)');
 
   await new Promise<void>((resolve) => {
