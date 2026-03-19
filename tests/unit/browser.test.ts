@@ -2,10 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { readFileSync, writeFileSync } from 'node:fs';
 
 // Mock puppeteer-core before importing browser module
+const mockPage = { url: () => 'about:blank', close: vi.fn(), goto: vi.fn() };
 const mockBrowser = {
   connected: true,
   on: vi.fn(),
   process: () => ({ pid: 12345 }),
+  pages: vi.fn().mockResolvedValue([mockPage]),
 };
 
 const mockLaunch = vi.fn().mockResolvedValue(mockBrowser);
@@ -37,6 +39,10 @@ let testConfig = {
 
 vi.mock('../../src/config.js', () => ({
   getConfig: vi.fn(() => testConfig),
+}));
+
+vi.mock('../../src/browser/welcome.js', () => ({
+  buildWelcomeHTML: () => '<html>welcome</html>',
 }));
 
 // Import after mocks
@@ -83,6 +89,7 @@ describe('browser', () => {
       expect(args).toContain('--window-size=1920,1080');
       expect(args).toContain('--lang=en-US');
       expect(args).toContain('--accept-lang=en-US,en');
+      expect(args).toContain('--restore-last-session');
     });
 
     it('does not include --proxy-server when no proxy configured', async () => {
@@ -110,6 +117,7 @@ describe('browser', () => {
         connected: true,
         on: vi.fn(),
         process: () => ({ pid: 67890 }),
+        pages: vi.fn().mockResolvedValue([mockPage]),
       };
       mockLaunch.mockResolvedValueOnce(newMockBrowser);
 
@@ -241,6 +249,7 @@ describe('browser', () => {
         JSON.stringify({
           profile: { exit_type: 'Normal' },
           intl: { accept_languages: 'en-US,en' },
+          session: { restore_on_startup: 1 },
         }),
       );
 

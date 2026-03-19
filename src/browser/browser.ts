@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { getConfig } from '../config.js';
 import { BrowserDisconnected } from '../errors.js';
+import { buildWelcomeHTML } from './welcome.js';
 
 let browserInstance: Browser | null = null;
 
@@ -16,6 +17,13 @@ function fixPreferences(profileDir: string): void {
     // Prevent "Chrome didn't shut down correctly" restore prompt
     if (prefs.profile?.exit_type !== 'Normal') {
       prefs.profile.exit_type = 'Normal';
+      dirty = true;
+    }
+
+    // Restore previous tabs on startup (Chrome "Continue where you left off")
+    if (!prefs.session) prefs.session = {};
+    if (prefs.session.restore_on_startup !== 1) {
+      prefs.session.restore_on_startup = 1;
       dirty = true;
     }
 
@@ -51,6 +59,7 @@ export async function ensureBrowser(extraArgs?: string[]): Promise<Browser> {
     '--window-size=1920,1080',
     '--lang=en-US',
     '--accept-lang=en-US,en',
+    '--restore-last-session',
   ];
 
   if (process.platform === 'linux') {
@@ -76,6 +85,7 @@ export async function ensureBrowser(extraArgs?: string[]): Promise<Browser> {
     browserInstance = await puppeteer.launch({
       channel: 'chrome',
       headless: false,
+      defaultViewport: null,
       args,
       ignoreDefaultArgs: ['--enable-automation'],
     });
@@ -88,6 +98,20 @@ export async function ensureBrowser(extraArgs?: string[]): Promise<Browser> {
   browserInstance.on('disconnected', () => {
     browserInstance = null;
   });
+
+  // First launch: show the welcome page via data URL
+  // Session restore: close the extra about:blank tab Puppeteer opens
+  const pages = await browserInstance.pages();
+  const blank = pages.find((p) => p.url() === 'about:blank');
+  if (blank) {
+    if (pages.length === 1) {
+      const html = buildWelcomeHTML();
+      const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
+      await blank.goto(dataUrl, { waitUntil: 'domcontentloaded' });
+    } else {
+      await blank.close();
+    }
+  }
 
   return browserInstance;
 }
