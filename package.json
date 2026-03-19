@@ -1,0 +1,44 @@
+{
+  "name": "site-use",
+  "version": "0.1.0",
+  "description": "Site-level browser automation via MCP — deterministic workflows for Chrome, so AI can focus on content understanding.",
+  "type": "module",
+  "bin": {
+    "site-use": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:unit": "vitest run tests/unit",
+    "test:contract": "vitest run tests/contract",
+    "test:watch": "vitest"
+  },
+  "keywords": [
+    "mcp",
+    "browser-automation",
+    "twitter",
+    "puppeteer"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.8.0",
+    "dotenv": "^16.4.7",
+    "puppeteer": "^24.4.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.9"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "puppeteer"
+    ]
+  }
+}
