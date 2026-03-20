@@ -3,7 +3,7 @@
 // Distinguishes production deps from devDependencies.
 // Usage: node scripts/check-deps-size.mjs
 
-import { readdirSync, statSync, existsSync, realpathSync, readFileSync } from 'node:fs';
+import { readdirSync, statSync, existsSync, realpathSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import path from 'node:path';
 

@@ -115,4 +115,5 @@ fs.mkdirSync(distDir, { recursive: true });
 fs.copyFileSync(srcHtml, path.join(distDir, 'index.html'));
 console.log('[build] Copied index.html to dist/diagnose/');
 
+
 console.log('[build] Done.');

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { main as startServer } from './server.js';
-import { ensureBrowser, closeBrowser, isBrowserConnected } from './browser/browser.js';
+import { ensureBrowser, closeBrowser } from './browser/browser.js';
 import { runDiagnose } from './diagnose/runner.js';
 import { getConfig } from './config.js';
 
@@ -69,16 +69,15 @@ async function browserLaunch(): Promise<void> {
   console.log('Press Ctrl+C to detach (Chrome will stay open)');
 
   await new Promise<void>((resolve) => {
-    process.on('SIGINT', () => {
+    const onExit = () => {
       console.log('\nDetaching from Chrome (process stays alive)');
       closeBrowser();
       resolve();
-    });
-    // On Windows, handle the close event too
-    process.on('SIGTERM', () => {
-      closeBrowser();
-      resolve();
-    });
+      // Force exit — keep-open diagnose server or other handles may linger
+      process.exit(0);
+    };
+    process.once('SIGINT', onExit);
+    process.once('SIGTERM', onExit);
   });
 }
 

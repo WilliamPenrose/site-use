@@ -5,6 +5,7 @@ export interface CheckMeta {
   runtime: 'browser' | 'node';
   expected: string;
   knownFail?: boolean;
+  info?: boolean;
 }
 
 export interface CheckResult {

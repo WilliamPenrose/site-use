@@ -87,15 +87,19 @@ export async function runDiagnose(
     let passed = 0;
     let knownFail = 0;
     let failed = 0;
+    let info = 0;
 
     for (const r of allResults) {
-      const tag = r.result.pass
-        ? '[PASS]'
-        : r.meta.knownFail
-          ? '[KNOWN]'
-          : '[FAIL]';
+      const tag = r.meta.info
+        ? '[INFO]'
+        : r.result.pass
+          ? '[PASS]'
+          : r.meta.knownFail
+            ? '[KNOWN]'
+            : '[FAIL]';
 
-      if (r.result.pass) passed++;
+      if (r.meta.info) info++;
+      else if (r.result.pass) passed++;
       else if (r.meta.knownFail) knownFail++;
       else failed++;
 
@@ -107,7 +111,7 @@ export async function runDiagnose(
 
     const total = allResults.length;
     console.log(
-      `\n  ${passed} passed, ${knownFail} known-fail, ${failed} failed (${total} total)`,
+      `\n  ${passed} passed, ${knownFail} known-fail, ${failed} failed, ${info} info (${total} total)`,
     );
 
     if (options.keepOpen) {

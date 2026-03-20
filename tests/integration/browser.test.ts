@@ -3,7 +3,6 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { ensureBrowser, closeBrowser, isBrowserConnected } from '../../src/browser/browser.js';
-import type { Browser } from 'puppeteer-core';
 
 // Use a temp directory as SITE_USE_DATA_DIR so we don't pollute the real profile
 let tmpDir: string;

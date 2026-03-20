@@ -14,6 +14,7 @@ import { meta as popupCrashMeta, run as popupCrashRun } from './popup-crash.js';
 import { meta as runtimeEnabledMeta, run as runtimeEnabledRun } from './runtime-enabled.js';
 import { meta as seleniumInjectionMeta, run as seleniumInjectionRun } from './selenium-injection.js';
 import { meta as uaOverrideMeta, run as uaOverrideRun } from './ua-override.js';
+import { meta as uaWorkerMeta, run as uaWorkerRun } from './ua-worker.js';
 import { meta as webdriverDescriptorMeta, run as webdriverDescriptorRun } from './webdriver-descriptor.js';
 import { meta as webdriverTypeMeta, run as webdriverTypeRun } from './webdriver-type.js';
 import { meta as webdriverMeta, run as webdriverRun } from './webdriver.js';
@@ -38,6 +39,7 @@ export const checks: BrowserCheckEntry[] = [
   { meta: runtimeEnabledMeta, run: runtimeEnabledRun },
   { meta: seleniumInjectionMeta, run: seleniumInjectionRun },
   { meta: uaOverrideMeta, run: uaOverrideRun },
+  { meta: uaWorkerMeta, run: uaWorkerRun },
   { meta: webdriverDescriptorMeta, run: webdriverDescriptorRun },
   { meta: webdriverTypeMeta, run: webdriverTypeRun },
   { meta: webdriverMeta, run: webdriverRun },

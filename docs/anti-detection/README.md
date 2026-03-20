@@ -81,6 +81,36 @@
 
 ---
 
+## `chrome.runtime` 检测点分析
+
+### 历史背景
+
+Chrome 106（2022-09）之前，Chrome 内置名为 **CryptoToken** 的隐藏组件扩展，它对所有 URL 声明了 `externally_connectable`，因此任何真实浏览器上 `window.chrome.runtime` 都存在。Puppeteer 的 `--disable-extensions` 默认参数会禁用 CryptoToken → `chrome.runtime` 变为 `undefined` → 成为确定性的自动化指纹。
+
+puppeteer-real-browser 等项目正是在这个时期通过"不禁用扩展"来保持 `chrome.runtime` 正常（见 [puppeteer-real-browser 架构文档](file:///D:/src/knowledge/browser-use/puppeteer-real-browser-architecture-guide.md) §3.2）。
+
+### Chrome 106+ 后的变化
+
+Chrome 106 移除了 CryptoToken，`chrome.runtime` 的存在变为取决于三个条件的组合：
+
+1. 用户是否安装了扩展
+2. 该扩展的 manifest 是否声明了 [`externally_connectable.matches`](https://developer.chrome.com/docs/extensions/reference/manifest/externally-connectable)
+3. 当前页面 URL 是否匹配该 `matches` 模式（不支持全通配 `*://*/*`，至少需要二级域名）
+
+这意味着即使是真实浏览器，在没有匹配扩展的域名上 `chrome.runtime` 也是 `undefined`。该检测点已从**确定性指纹**降级为**统计性信号**。
+
+**参考来源：**
+- [chrome.runtime will no longer be defined unconditionally (Chrome 106)](https://groups.google.com/a/chromium.org/g/chromium-extensions/c/tCWVZRq77cg) — Chromium Extensions 官方公告
+- [externally_connectable manifest key](https://developer.chrome.com/docs/extensions/reference/manifest/externally-connectable) — Chrome Extensions 文档
+
+### site-use 的处理
+
+- `ignoreDefaultArgs` 中排除 `--disable-extensions`：让用户手动安装的扩展正常工作
+- 诊断中标记为 `[INFO]`：仅报告当前值，不判定 pass/fail
+- 不尝试通过 stub extension 注入 `chrome.runtime`：`externally_connectable.matches` 不支持全通配，无法覆盖所有目标站点
+
+---
+
 ## 待实现项
 
 | 优先级 | Feature | 里程碑 | 实现成本 |
@@ -120,3 +150,60 @@
 - **拒绝**（11 UC + 5 DP）：架构不匹配或设计冲突
 - **已覆盖**（5 DP）：Puppeteer 等价能力
 - **未来**（2 个）：DP-12、DP-15（M3）
+
+---
+
+## 阶段性验证结论（2026-03-20）
+
+### 测试环境
+
+- Chrome 146.0 + Puppeteer CDP 直连，非 headless
+- Windows 10，Intel UHD Graphics，1920×1080
+- 39 个启动参数（含 Puppeteer 默认参数 + site-use 自定义参数）
+- **人工操作**（非自动化脚本）
+
+### 第三方检测结果
+
+| 测试站点 | 结果 | 说明 |
+|----------|------|------|
+| [browserleaks.com/javascript](https://browserleaks.com/javascript) | ✅ 通过 | 浏览器属性一致，无异常 |
+| [CreepJS](https://abrahamjuliot.github.io/creepjs/) — Headless | ⚠️ 25% like headless | 误判：`noContentIndex`/`noContactsManager`/`noDownlinkMax` 三个 API 在桌面 Chrome 上本就不存在（Android 专属），非真实泄露 |
+| [CreepJS](https://abrahamjuliot.github.io/creepjs/) — Resistance | ✅ 全部 unknown | 未检测到反指纹工具或 stealth 插件 |
+| [bot.sannysoft.com](https://bot.sannysoft.com) | ✅ 全部通过 | WebDriver/Chrome Object/Selenium/PhantomJS/Debug Tools 全部 pass |
+| [nowsecure.nl](https://nowsecure.nl) (Cloudflare) | ✅ Success | 通过 Cloudflare 反机器人检测 |
+
+### 结论
+
+**浏览器指纹层面已达标**：当前 Chrome 配置 + 人工操作可通过全部主流检测站点（含商业级 Cloudflare）。反检测的基础工作（`--disable-blink-features=AutomationControlled`、真实 Chrome、持久 profile、语言/viewport 标准化）已生效。
+
+### 已知风险：启动参数指纹
+
+当前 39 个启动参数中约 17 个来自 Puppeteer 默认参数（如 `--disable-background-networking`、`--disable-client-side-phishing-detection`、`--password-store=basic`、`--use-mock-keychain` 等），这些是已知的自动化框架特征。虽然当前测试站点未因此检测失败，但更严格的检测系统（如参数指纹匹配）可能识别。
+
+### 未验证维度
+
+当前验证仅覆盖**人工操作**场景。自动化操作还需额外验证：
+
+1. **行为指纹** — 鼠标轨迹（直线/匀速）、点击事件链完整性（mouseover → mousedown → mouseup → click）、操作节奏
+2. **CDP 痕迹** — `Runtime.enable` 导致的 `nameLookupCount` 异常、`page.evaluate()` 暴露的 `puppeteer_eval` 调用栈（诊断系统已标记为 knownFail）
+
+---
+
+## 后续 TODO
+
+### 近期（M1 范围）
+
+| 优先级 | 项目 | 说明 |
+|--------|------|------|
+| **高** | 清理 Puppeteer 默认启动参数 | 精简 39 → ~15 个参数，移除不必要的自动化框架特征参数（`--disable-background-networking`、`--export-tagged-pdf`、`--use-mock-keychain` 等） |
+| **高** | DP-3: `Emulation.setFocusEmulationEnabled` | 一行 CDP 调用，防 `document.hasFocus()` 检测 |
+| **中** | DP-7: `--disable-features=PrivacySandboxSettings4` | 一个启动参数 |
+| **中** | 自动化操作通过 nowsecure.nl | 用 site-use 自动化访问 nowsecure.nl，验证非人工场景的检测结果 |
+
+### 中期（M3 范围）
+
+| 优先级 | 项目 | 说明 |
+|--------|------|------|
+| **高** | 鼠标轨迹模拟 | 贝塞尔曲线/噪声注入，解决直线匀速点击问题 |
+| **中** | CDP 痕迹消除 | 研究 `Runtime.enable` nameLookupCount 和 puppeteer_eval 调用栈的规避方案 |
+| **低** | locale/timezone/voices 一致性检查 | 添加到诊断系统，检测 `en-US` locale 与中文语音/亚洲时区的不匹配 |

@@ -21,8 +21,8 @@ const statusEl = document.getElementById('status')!;
 function addRow(meta: CheckMeta, result: CheckResult): void {
   allResults.push({ meta, result });
   const tr = document.createElement('tr');
-  const statusClass = result.pass ? 'pass' : meta.knownFail ? 'warn' : 'fail';
-  const statusText = result.pass ? 'PASS' : meta.knownFail ? 'KNOWN' : 'FAIL';
+  const statusClass = meta.info ? 'info' : result.pass ? 'pass' : meta.knownFail ? 'warn' : 'fail';
+  const statusText = meta.info ? 'INFO' : result.pass ? 'PASS' : meta.knownFail ? 'KNOWN' : 'FAIL';
   tr.innerHTML =
     `<td>${meta.name}</td>` +
     `<td>${meta.expected}</td>` +
@@ -35,13 +35,15 @@ function updateStatus(): void {
   let passed = 0;
   let knownFail = 0;
   let failed = 0;
+  let info = 0;
   for (const r of allResults) {
-    if (r.result.pass) passed++;
+    if (r.meta.info) info++;
+    else if (r.result.pass) passed++;
     else if (r.meta.knownFail) knownFail++;
     else failed++;
   }
   const total = allResults.length;
-  statusEl.textContent = `${passed} passed, ${knownFail} known-fail, ${failed} failed (${total} total)`;
+  statusEl.textContent = `${passed} passed, ${knownFail} known-fail, ${failed} failed, ${info} info (${total} total)`;
 }
 
 async function runAll(): Promise<void> {

@@ -2,6 +2,7 @@ import type { CheckMeta, CheckResult } from './types.js';
 import type { Page } from 'puppeteer-core';
 import { meta as browserInfoMeta, run as browserInfoRun } from './checks/browser-info.js';
 import { meta as stackSignatureMeta, run as stackSignatureRun } from './checks/stack-signature.js';
+import { meta as launchArgsMeta, run as launchArgsRun } from './checks/launch-args.js';
 
 export interface NodeCheckEntry {
   meta: CheckMeta & { runtime: 'node' };
@@ -11,4 +12,5 @@ export interface NodeCheckEntry {
 export const nodeChecks: NodeCheckEntry[] = [
   { meta: browserInfoMeta, run: browserInfoRun },
   { meta: stackSignatureMeta, run: stackSignatureRun },
+  { meta: launchArgsMeta, run: launchArgsRun },
 ];

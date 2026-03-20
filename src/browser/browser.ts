@@ -82,7 +82,7 @@ export async function ensureBrowser(extraArgs?: string[]): Promise<Browser> {
       headless: false,
       defaultViewport: null,
       args,
-      ignoreDefaultArgs: ['--enable-automation'],
+      ignoreDefaultArgs: ['--enable-automation', '--disable-extensions'],
     });
   } catch (err) {
     throw new BrowserDisconnected(

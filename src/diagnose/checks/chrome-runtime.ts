@@ -3,9 +3,10 @@ import type { CheckMeta, CheckResult } from '../types.js';
 export const meta: CheckMeta & { runtime: 'browser' } = {
   id: 'chrome-runtime',
   name: 'window.chrome.runtime exists',
-  description: 'window.chrome.runtime should exist (depends on extensions)',
+  description: 'Report whether chrome.runtime is available (depends on installed extensions)',
   runtime: 'browser',
-  expected: 'true',
+  expected: 'depends on extensions',
+  info: true,
 };
 
 export function run(): CheckResult {
@@ -16,6 +17,5 @@ export function run(): CheckResult {
   return {
     pass: exists,
     actual: String(exists),
-    detail: exists ? undefined : 'may depend on installed extensions',
   };
 }
