@@ -22,7 +22,12 @@
 
 ## 文件
 
-- `src/browser/browser.ts` — 本能力的唯一文件
+- `src/browser/browser.ts` — Chrome 生命周期管理
+- `src/browser/welcome.ts` — 首次启动欢迎页
+- `src/config.ts` — 配置模块（环境变量、代理、数据目录）
+- `src/errors.ts` — 错误类型定义
+- `src/index.ts` — CLI 入口和命令路由
+- `src/diagnose/` — 反检测诊断系统（runner、registry、22 个检查项）
 
 ---
 
@@ -83,8 +88,15 @@ isBrowserConnected(): boolean
 | `--remote-debugging-port=0` | 随机 CDP 端口。用默认 9222 的风险：恶意网页可以通过 `fetch('http://localhost:9222/json')` 探测到 CDP 端口并注入命令。随机端口不能完全消除风险，但大幅提高探测成本 | 固定值 |
 | `--no-first-run` | 跳过首次运行向导 | 固定值 |
 | `--no-default-browser-check` | 跳过默认浏览器检查 | 固定值 |
+| `--hide-crash-restore-bubble` | 抑制 Chrome 崩溃恢复提示栏 | 固定值 |
+| `--disable-blink-features=AutomationControlled` | 防止 `navigator.webdriver=true`，比去掉 `--enable-automation` 更彻底 | 固定值 |
+| `--window-size=1920,1080` | 标准化窗口尺寸，避免异常分辨率被用作指纹 | 固定值 |
+| `--lang=en-US` | 浏览器界面语言（Sites 层 ARIA matchers 依赖英文界面） | 固定值 |
+| `--accept-lang=en-US,en` | HTTP Accept-Language 头 | 固定值 |
+| `--restore-last-session` | 配合 Preferences 的会话恢复设置 | 固定值 |
+| `--no-sandbox` | Linux 专用，无沙盒环境下必需 | 仅 Linux |
 | `--proxy-server=<proxy>` | HTTP/SOCKS5 代理 | `config.proxy.server`（仅当配置了代理时） |
-| `ignoreDefaultArgs: ['--enable-automation']` | 去掉 automation 标志。Puppeteer 默认加 `--enable-automation`，导致 `navigator.webdriver=true`，这是反爬系统最基本的检测维度。去掉后 Chrome 与正常用户的浏览器无法区分 | Puppeteer 选项 |
+| `ignoreDefaultArgs: ['--enable-automation', '--disable-extensions']` | 去掉 automation 标志 + 允许用户扩展正常工作 | Puppeteer 选项 |
 
 ### Puppeteer launch 配置
 
@@ -216,6 +228,84 @@ interface ErrorContext {
   screenshotBase64?: string; // 自动截图（M3 增强，M1 预留字段）
 }
 ```
+
+---
+
+## 实现记录（超出原始设计的新增功能）
+
+以下功能是在实现 Browser 层过程中有机长出来的，原始设计文档没有覆盖。
+
+### CLI 命令体系
+
+原始设计只定义了 `ensureBrowser()` 作为程序化接口。实现时增加了完整的 CLI，方便开发调试：
+
+```
+site-use serve              # 启动 MCP server（stdio transport）
+site-use browser launch     # 启动 Chrome 并保持运行
+site-use browser status     # 显示配置信息（profile 路径、代理）
+site-use browser close      # 清除单例引用（Chrome 进程保留）
+site-use help               # 帮助信息
+```
+
+**launch 选项**：
+- `--diagnose` — 启动后运行反检测诊断
+- `--keep-open` — 诊断后保持浏览器和检测页面打开
+- 额外 `--flags` 直接透传给 Chrome（如 `--disable-web-security`）
+
+文件：`src/index.ts`
+
+### 反检测诊断系统
+
+用于验证 Chrome 配置是否能通过反爬检测。通过 `site-use browser launch --diagnose` 触发。
+
+**架构**：
+- 本地 HTTP 服务器（127.0.0.1 随机端口），提供检测页面
+- 模块化检查注册机制（`src/diagnose/registry.ts`）
+- 浏览器端检查编译为 IIFE bundle（`dist/diagnose/checks.js`）
+- 构建时自动生成 barrel 文件（`_browser-barrel.ts`）
+
+**22 个检查项**（18 browser + 3 node + 1 deferred input）：
+
+| 类别 | 检查项 | 说明 |
+|------|--------|------|
+| WebDriver | `navigator.webdriver`、descriptor、`in` operator | 基础自动化检测 |
+| Chrome 对象 | `window.chrome`、`chrome.runtime` | 浏览器真实性 |
+| 浏览器属性 | plugins、languages、connection.rtt、window size | 环境一致性 |
+| 注入检测 | CDC globals、Selenium、Playwright | 自动化框架痕迹 |
+| 行为检测 | input trusted、input coords | 事件真实性 |
+| 其他 | canvas visualizer、pdf style、popup crash、UA override、UA worker | 各类指纹 |
+| Node 端 | browser info、stack signature、launch args | 进程级检测 |
+
+**结果状态**：`PASS` / `FAIL` / `KNOWN`（已知失败）/ `INFO`（仅报告，不判定）
+
+文件：`src/diagnose/`
+
+### Chrome 启动增强
+
+原始设计只列出 6 个启动参数，实现时增加了以下参数：
+
+| 参数 | 作用 |
+|------|------|
+| `--disable-blink-features=AutomationControlled` | 比去掉 `--enable-automation` 更强的反检测措施 |
+| `--window-size=1920,1080` | 标准化窗口尺寸，避免异常分辨率成为指纹 |
+| `--lang=en-US` + `--accept-lang=en-US,en` | 语言一致性（配合 Preferences 文件，三层强制） |
+| `--hide-crash-restore-bubble` | 抑制崩溃恢复提示 |
+| `--restore-last-session` | 配合会话恢复 |
+| `ignoreDefaultArgs` 新增 `--disable-extensions` | 允许用户已安装的扩展正常工作 |
+
+### 会话恢复
+
+通过 `fixPreferences()` 在启动前修改 Chrome Preferences 文件：
+- `session.restore_on_startup = 1` — 下次启动自动恢复之前的标签页
+- `intl.accept_languages = 'en-US,en'` — 语言第三层强制（profile 级别，覆盖 Chrome 内部保存的语言偏好）
+
+### 欢迎页
+
+首次启动时（只有一个 about:blank 标签），展示欢迎页面（`src/browser/welcome.ts`）。会话恢复时（有多个标签），自动关闭多余的 about:blank 标签。
+
+### 进程退出处理
+
+`browser launch` 模式下，SIGINT/SIGTERM 清除单例引用后 `process.exit(0)` 强制退出，避免诊断服务器等 handle 阻止进程结束。
 
 ---
 
