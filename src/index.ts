@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { main as startServer } from './server.js';
 import { ensureBrowser, closeBrowser, isBrowserConnected } from './browser/browser.js';
-import { buildDetectHTML } from './browser/detect.js';
+import { runDiagnose } from './diagnose/runner.js';
 import { getConfig } from './config.js';
 
 const HELP = `\
@@ -34,16 +34,18 @@ Subcommands:
   close     Detach from Chrome (process stays alive)
 
 Options (launch):
-  --diagnose  Run anti-detection health check after launch
+  --diagnose    Run anti-detection health check after launch
+  --keep-open   Keep browser and detection page open after diagnose
 
 Extra Chrome flags can be passed directly:
   site-use browser launch --disable-web-security --some-flag
 `;
 
 async function browserLaunch(): Promise<void> {
-  const knownFlags = new Set(['--diagnose']);
+  const knownFlags = new Set(['--diagnose', '--keep-open']);
   const launchArgs = process.argv.slice(2);
   const diagnose = launchArgs.includes('--diagnose');
+  const keepOpen = launchArgs.includes('--keep-open');
 
   // Collect extra --flags not recognized by site-use → pass to Chrome
   const extraChromeArgs = launchArgs
@@ -61,184 +63,7 @@ async function browserLaunch(): Promise<void> {
   console.log(`Profile: ${config.chromeProfileDir}`);
 
   if (diagnose) {
-    console.log('\n--- Anti-detection diagnostic ---\n');
-
-    // Browser identity
-    const cdpSession = await browser.target().createCDPSession();
-    const versionInfo = await cdpSession.send('Browser.getVersion') as {
-      product: string; userAgent: string; revision: string;
-    };
-    await cdpSession.detach();
-
-    const product = versionInfo.product; // e.g. "Chrome/146.0.6247.0" or "HeadlessChrome/..."
-    const isHeadless = product.toLowerCase().includes('headless');
-    const isCfT = versionInfo.userAgent.includes('Chrome for Testing')
-      || versionInfo.userAgent.includes('HeadlessChrome');
-
-    console.log('Browser info:');
-    console.log(`  Product:              ${product}`);
-    console.log(`  User-Agent:           ${versionInfo.userAgent}`);
-    console.log(`  Protocol revision:    ${versionInfo.revision}`);
-    console.log(`  Headless:             ${isHeadless}`);
-    console.log(`  Chrome for Testing:   ${isCfT}`);
-    console.log('');
-
-    // Print actual Chrome launch args
-    const spawnargs = browser.process()?.spawnargs ?? [];
-    console.log('Chrome launch args:');
-    for (const arg of spawnargs) {
-      if (arg.startsWith('--')) {
-        console.log(`  ${arg}`);
-      }
-    }
-    console.log('');
-
-    const page = await browser.newPage();
-    try {
-      await page.goto('about:blank');
-      const results = await page.evaluate(() => {
-        const nav = navigator as unknown as Record<string, unknown>;
-        const desc =
-          Object.getOwnPropertyDescriptor(navigator, 'webdriver') ||
-          Object.getOwnPropertyDescriptor(
-            Object.getPrototypeOf(navigator),
-            'webdriver',
-          );
-        const conn = (nav.connection ?? {}) as Record<string, unknown>;
-        const chrome = (window as unknown as Record<string, unknown>).chrome as
-          | Record<string, unknown>
-          | undefined;
-        return {
-          webdriver: nav.webdriver,
-          webdriverType: typeof nav.webdriver,
-          webdriverIn: 'webdriver' in navigator,
-          webdriverDesc: desc
-            ? { enumerable: desc.enumerable, configurable: desc.configurable }
-            : null,
-          chromeExists: !!chrome,
-          chromeRuntimeExists: !!chrome?.runtime,
-          pluginsLength: navigator.plugins.length,
-          languages: Array.from(navigator.languages),
-          rtt: conn.rtt as number | undefined,
-          outerWidth: window.outerWidth,
-          outerHeight: window.outerHeight,
-          innerHeight: window.innerHeight,
-        };
-      });
-
-      let passed = 0;
-      let total = 0;
-
-      function check(label: string, ok: boolean, actual: string): void {
-        total++;
-        if (ok) {
-          passed++;
-          console.log(`  [PASS] ${label.padEnd(40)} = ${actual}`);
-        } else {
-          console.log(`  [FAIL] ${label.padEnd(40)} = ${actual}`);
-        }
-      }
-
-      console.log('Checks:');
-      check(
-        'navigator.webdriver',
-        results.webdriver === false,
-        String(results.webdriver),
-      );
-      check(
-        'typeof navigator.webdriver',
-        results.webdriverType === 'boolean',
-        results.webdriverType,
-      );
-      check(
-        '"webdriver" in navigator',
-        results.webdriverIn === true,
-        String(results.webdriverIn),
-      );
-      check(
-        'webdriver descriptor',
-        results.webdriverDesc?.enumerable === true &&
-          results.webdriverDesc?.configurable === true,
-        JSON.stringify(results.webdriverDesc),
-      );
-      check(
-        'window.chrome exists',
-        results.chromeExists,
-        String(results.chromeExists),
-      );
-      console.log(
-        `  [INFO] ${'window.chrome.runtime exists'.padEnd(40)} = ${results.chromeRuntimeExists} (depends on extensions)`,
-      );
-      check(
-        'navigator.plugins.length > 0',
-        results.pluginsLength > 0,
-        `true (${results.pluginsLength})`,
-      );
-      check(
-        'navigator.languages includes en-US',
-        results.languages.includes('en-US'),
-        `true (${results.languages.join(', ')})`,
-      );
-      check(
-        'navigator.connection.rtt > 0',
-        (results.rtt ?? 0) > 0,
-        `true (${results.rtt})`,
-      );
-      check(
-        'window.outerWidth',
-        results.outerWidth === 1920,
-        String(results.outerWidth),
-      );
-      check(
-        'window.outerHeight > 0',
-        results.outerHeight > 0,
-        `true (${results.outerHeight})`,
-      );
-
-      const uiOverhead = results.outerHeight - results.innerHeight;
-      console.log(
-        `  [INFO] ${'Chrome UI overhead'.padEnd(40)} = ${uiOverhead}px (outerHeight - innerHeight)`,
-      );
-
-      console.log(`\nResults: ${passed}/${total} passed`);
-
-      // Advanced detection checks (Brotector-style, fully offline)
-      console.log('\n--- Advanced detection checks ---\n');
-      const detectHTML = buildDetectHTML();
-      const detectUrl = `data:text/html;charset=utf-8,${encodeURIComponent(detectHTML)}`;
-      await page.goto(detectUrl, { waitUntil: 'domcontentloaded' });
-
-      // Wait for async checks to finish
-      await new Promise((r) => setTimeout(r, 2_000));
-
-      // Trigger mouse events for input checks, then finalize
-      await page.mouse.move(100, 100);
-      await page.mouse.click(100, 100);
-      await page.evaluate(() => {
-        (window as unknown as Record<string, () => void>).__detectRecordInput();
-      });
-
-      const detectResults = await page.evaluate(() => {
-        return (window as unknown as Record<string, unknown>).__detectResults as
-          Array<{ name: string; passed: boolean; detail: string }>;
-      });
-
-      let advPassed = 0;
-      let advTotal = 0;
-      for (const r of detectResults) {
-        advTotal++;
-        if (r.passed) advPassed++;
-        console.log(
-          `  ${r.passed ? '[PASS]' : '[FAIL]'} ${r.name.padEnd(30)} ${r.detail}`,
-        );
-      }
-      console.log(`\nAdvanced: ${advPassed}/${advTotal} passed`);
-      console.log('--- end diagnostic ---\n');
-    } catch (err) {
-      // If detection page fails, still continue — don't block the launch
-      console.error('  Detection check error:', err instanceof Error ? err.message : err);
-    }
-    // Leave the detection results page open in the browser for the user to inspect
+    await runDiagnose(browser, { keepOpen });
   }
 
   console.log('Press Ctrl+C to detach (Chrome will stay open)');
