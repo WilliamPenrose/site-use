@@ -13,6 +13,7 @@
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",
     "test:contract": "vitest run tests/contract",
+    "test:e2e": "vitest run tests/e2e",
     "test:watch": "vitest"
   },
   "keywords": [

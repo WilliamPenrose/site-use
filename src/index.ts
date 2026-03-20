@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { main as startServer } from './server.js';
 import { ensureBrowser, closeBrowser, isBrowserConnected } from './browser/browser.js';
+import { buildDetectHTML } from './browser/detect.js';
 import { getConfig } from './config.js';
 
 const HELP = `\
@@ -61,6 +62,26 @@ async function browserLaunch(): Promise<void> {
 
   if (diagnose) {
     console.log('\n--- Anti-detection diagnostic ---\n');
+
+    // Browser identity
+    const cdpSession = await browser.target().createCDPSession();
+    const versionInfo = await cdpSession.send('Browser.getVersion') as {
+      product: string; userAgent: string; revision: string;
+    };
+    await cdpSession.detach();
+
+    const product = versionInfo.product; // e.g. "Chrome/146.0.6247.0" or "HeadlessChrome/..."
+    const isHeadless = product.toLowerCase().includes('headless');
+    const isCfT = versionInfo.userAgent.includes('Chrome for Testing')
+      || versionInfo.userAgent.includes('HeadlessChrome');
+
+    console.log('Browser info:');
+    console.log(`  Product:              ${product}`);
+    console.log(`  User-Agent:           ${versionInfo.userAgent}`);
+    console.log(`  Protocol revision:    ${versionInfo.revision}`);
+    console.log(`  Headless:             ${isHeadless}`);
+    console.log(`  Chrome for Testing:   ${isCfT}`);
+    console.log('');
 
     // Print actual Chrome launch args
     const spawnargs = browser.process()?.spawnargs ?? [];
@@ -180,10 +201,44 @@ async function browserLaunch(): Promise<void> {
       );
 
       console.log(`\nResults: ${passed}/${total} passed`);
+
+      // Advanced detection checks (Brotector-style, fully offline)
+      console.log('\n--- Advanced detection checks ---\n');
+      const detectHTML = buildDetectHTML();
+      const detectUrl = `data:text/html;charset=utf-8,${encodeURIComponent(detectHTML)}`;
+      await page.goto(detectUrl, { waitUntil: 'domcontentloaded' });
+
+      // Wait for async checks to finish
+      await new Promise((r) => setTimeout(r, 2_000));
+
+      // Trigger mouse events for input checks, then finalize
+      await page.mouse.move(100, 100);
+      await page.mouse.click(100, 100);
+      await page.evaluate(() => {
+        (window as unknown as Record<string, () => void>).__detectRecordInput();
+      });
+
+      const detectResults = await page.evaluate(() => {
+        return (window as unknown as Record<string, unknown>).__detectResults as
+          Array<{ name: string; passed: boolean; detail: string }>;
+      });
+
+      let advPassed = 0;
+      let advTotal = 0;
+      for (const r of detectResults) {
+        advTotal++;
+        if (r.passed) advPassed++;
+        console.log(
+          `  ${r.passed ? '[PASS]' : '[FAIL]'} ${r.name.padEnd(30)} ${r.detail}`,
+        );
+      }
+      console.log(`\nAdvanced: ${advPassed}/${advTotal} passed`);
       console.log('--- end diagnostic ---\n');
-    } finally {
-      await page.close();
+    } catch (err) {
+      // If detection page fails, still continue — don't block the launch
+      console.error('  Detection check error:', err instanceof Error ? err.message : err);
     }
+    // Leave the detection results page open in the browser for the user to inspect
   }
 
   console.log('Press Ctrl+C to detach (Chrome will stay open)');
