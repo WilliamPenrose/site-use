@@ -90,6 +90,7 @@ describe('browser', () => {
       expect(args).toContain('--lang=en-US');
       expect(args).toContain('--accept-lang=en-US,en');
       expect(args).toContain('--restore-last-session');
+      expect(args).toContain('--hide-crash-restore-bubble');
     });
 
     it('does not include --proxy-server when no proxy configured', async () => {
@@ -210,27 +211,9 @@ describe('browser', () => {
       vi.mocked(writeFileSync).mockReset();
     });
 
-    it('rewrites exit_type to Normal when it is Crashed', async () => {
-      vi.mocked(readFileSync).mockReturnValue(
-        JSON.stringify({
-          profile: { exit_type: 'Crashed' },
-          intl: { accept_languages: 'en-US,en' },
-        }),
-      );
-
-      await ensureBrowser();
-
-      expect(writeFileSync).toHaveBeenCalledOnce();
-      const written = JSON.parse(
-        vi.mocked(writeFileSync).mock.calls[0][1] as string,
-      );
-      expect(written.profile.exit_type).toBe('Normal');
-    });
-
     it('forces intl.accept_languages to en-US,en', async () => {
       vi.mocked(readFileSync).mockReturnValue(
         JSON.stringify({
-          profile: { exit_type: 'Normal' },
           intl: { accept_languages: 'zh-CN,zh' },
         }),
       );
@@ -247,7 +230,6 @@ describe('browser', () => {
     it('does not write when all preferences are correct', async () => {
       vi.mocked(readFileSync).mockReturnValue(
         JSON.stringify({
-          profile: { exit_type: 'Normal' },
           intl: { accept_languages: 'en-US,en' },
           session: { restore_on_startup: 1 },
         }),

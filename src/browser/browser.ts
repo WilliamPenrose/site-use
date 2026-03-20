@@ -14,12 +14,6 @@ function fixPreferences(profileDir: string): void {
     const prefs = JSON.parse(raw);
     let dirty = false;
 
-    // Prevent "Chrome didn't shut down correctly" restore prompt
-    if (prefs.profile?.exit_type !== 'Normal') {
-      prefs.profile.exit_type = 'Normal';
-      dirty = true;
-    }
-
     // Restore previous tabs on startup (Chrome "Continue where you left off")
     if (!prefs.session) prefs.session = {};
     if (prefs.session.restore_on_startup !== 1) {
@@ -55,6 +49,7 @@ export async function ensureBrowser(extraArgs?: string[]): Promise<Browser> {
     '--remote-debugging-port=0',
     '--no-first-run',
     '--no-default-browser-check',
+    '--hide-crash-restore-bubble',
     '--disable-blink-features=AutomationControlled',
     '--window-size=1920,1080',
     '--lang=en-US',

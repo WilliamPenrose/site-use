@@ -265,14 +265,14 @@ if (process.platform === 'linux') {
 
 ---
 
-### Feature 11: `exit_type` 标记修复
+### Feature 11: Crash restore bubble suppression
 
 | | |
 |---|---|
-| **决定** | 采纳（已实现，扩展为 `fixPreferences`） |
+| **决定** | 采纳（已实现，使用 `--hide-crash-restore-bubble`） |
 | **里程碑影响** | M1 ✅ |
 
-**功能**：在 Chrome 启动前修改用户 profile 中 `Default/Preferences` 文件的 `profile.exit_type` 为 `null`，防止"Chrome 未正确关闭——恢复页面？"提示。
+**功能**：防止"Chrome 未正确关闭——恢复页面？"提示干扰自动化。
 
 > 来源：[反检测文档 §Feature 11](../../knowledge/browser-use/undetected-chromedriver-anti-detection-guide.md) — `__init__.py:424-440`
 
@@ -281,31 +281,13 @@ if (process.platform === 'linux') {
 1. 干扰自动导航（页面恢复到之前的 URL，而非预期目标）
 2. 可能导致 `takeSnapshot()` 捕获恢复栏而非实际页面内容
 
-**实现**（来自反检测文档提供的 TypeScript 参考代码）：
+**实现**：使用 Chrome 原生启动参数 `--hide-crash-restore-bubble`，在 `ensureBrowser()` 的 args 数组中传入。相比原始文档中修改 `Preferences` JSON 的方案，Chrome flag 更可靠：
 
-```typescript
-import { readFileSync, writeFileSync } from 'fs';
-import { join } from 'path';
+- 无文件 I/O 时序问题
+- 不篡改 `exit_type` 状态（保留真实崩溃信息）
+- Chrome 原生支持，无需维护 JSON 解析逻辑
 
-function fixExitType(userDataDir: string) {
-  const prefsPath = join(userDataDir, 'Default', 'Preferences');
-  try {
-    const config = JSON.parse(readFileSync(prefsPath, 'latin1'));
-    if (config.profile?.exit_type != null) {
-      config.profile.exit_type = null;
-      writeFileSync(prefsPath, JSON.stringify(config), 'latin1');
-    }
-  } catch {
-    // Preferences 文件在新 profile 中可能不存在
-  }
-}
-```
-
-> 来源：[反检测文档 §Feature 11「Node/TypeScript 实现」](../../knowledge/browser-use/undetected-chromedriver-anti-detection-guide.md)
-
-在 `ensureBrowser()` 中 `puppeteer.launch()` 之前调用。
-
-**实际实现**：扩展为 `fixPreferences()`，同时处理 `exit_type` 修复和语言强制设置（Feature 18 联动）。将 `exit_type` 设为 `'Normal'`（而非原始文档的 `null`），同时将 `intl.accept_languages` 强制设为 `'en-US,en'`。详见 [browser.ts](../src/browser/browser.ts) 中的 `fixPreferences()` 函数。
+> 原始文档方案是在启动前将 `profile.exit_type` 设为 `null`，site-use 最初采用此方案（设为 `'Normal'`），后改为 `--hide-crash-restore-bubble` flag。
 
 ---
 
@@ -507,7 +489,7 @@ if (prefs.intl.accept_languages !== 'en-US,en') {
 | 8 | `--disable-blink-features` | ✅ 采纳 | M1 ✅ | 非 headless 最关键反检测 |
 | 9 | `--no-sandbox` + `--test-type` | ⚡ 部分采纳 | M1 ✅ | `--no-sandbox` 仅 Linux；`--test-type` 不默认启用 |
 | 10 | `--no-first-run` 等 | ✅ 采纳 | M1 ✅ | 自动化稳定性 |
-| 11 | `exit_type` 修复 | ✅ 采纳 | M1 ✅ | 扩展为 `fixPreferences` |
+| 11 | Crash restore 抑制 | ✅ 采纳 | M1 ✅ | 使用 `--hide-crash-restore-bubble` |
 | 12 | `--headless=new` 适配 | ❌ 拒绝 | — | 非 headless：不适用 |
 | 13 | 进程分离 | ❌ 拒绝 | — | Selenium/ChromeDriver 专属 |
 | 14 | `reconnect()` | ❌ 拒绝 | — | Selenium/ChromeDriver 专属 |
