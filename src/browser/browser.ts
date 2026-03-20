@@ -1,4 +1,4 @@
-import puppeteer, { type Browser } from 'puppeteer-core';
+import puppeteer, { type Browser, type Page } from 'puppeteer-core';
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { getConfig } from '../config.js';
@@ -6,6 +6,22 @@ import { BrowserDisconnected } from '../errors.js';
 import { buildWelcomeHTML } from './welcome.js';
 
 let browserInstance: Browser | null = null;
+
+async function emulateFocus(pages: Page[]): Promise<void> {
+  for (const page of pages) {
+    try {
+      const cdp = await page.createCDPSession();
+      await cdp.send('Emulation.setFocusEmulationEnabled', { enabled: true });
+      await cdp.detach();
+    } catch (err) {
+      console.error(
+        '[site-use] WARNING: Emulation.setFocusEmulationEnabled failed — ' +
+          'document.hasFocus() may return false when window is in background. ' +
+          `${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+}
 
 function fixPreferences(profileDir: string): void {
   const prefsPath = path.join(profileDir, 'Default', 'Preferences');
@@ -98,6 +114,17 @@ export async function ensureBrowser(extraArgs?: string[]): Promise<Browser> {
   // Session restore: close the extra about:blank tab Puppeteer opens
   const pages = await browserInstance.pages();
   const blank = pages.find((p) => p.url() === 'about:blank');
+
+  // Keep pages focused even when browser window is in background.
+  // Also locks document.visibilityState to "visible".
+  // Must be set per-page (Emulation is a page-level CDP domain).
+  await emulateFocus(pages);
+  browserInstance.on('targetcreated', async (target) => {
+    if (target.type() === 'page') {
+      const page = await target.page();
+      if (page) await emulateFocus([page]);
+    }
+  });
   if (blank) {
     if (pages.length === 1) {
       const html = buildWelcomeHTML();

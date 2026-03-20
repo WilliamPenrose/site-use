@@ -3,11 +3,13 @@ import { readFileSync, writeFileSync } from 'node:fs';
 
 // Mock puppeteer-core before importing browser module
 const mockPage = { url: () => 'about:blank', close: vi.fn(), goto: vi.fn() };
+const mockCdpSession = { send: vi.fn(), detach: vi.fn() };
 const mockBrowser = {
   connected: true,
   on: vi.fn(),
   process: () => ({ pid: 12345 }),
   pages: vi.fn().mockResolvedValue([mockPage]),
+  target: () => ({ createCDPSession: vi.fn().mockResolvedValue(mockCdpSession) }),
 };
 
 const mockLaunch = vi.fn().mockResolvedValue(mockBrowser);
@@ -135,12 +137,12 @@ describe('browser', () => {
       );
     });
 
-    it('does not register targetcreated listener for webdriver masking', async () => {
+    it('registers targetcreated listener for focus emulation on new tabs', async () => {
       await ensureBrowser();
       const onCalls = mockBrowser.on.mock.calls.map(
         (c: [string, Function]) => c[0],
       );
-      expect(onCalls).not.toContain('targetcreated');
+      expect(onCalls).toContain('targetcreated');
     });
   });
 

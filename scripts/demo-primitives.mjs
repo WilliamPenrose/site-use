@@ -81,6 +81,65 @@ async function main() {
   for (const n of interesting) {
     console.log(`  ${n.uid.padEnd(5)}| ${n.role.padEnd(8)}| ${n.name}`);
   }
+
+  // Diagnostics: count links with empty name
+  let linkTotal = 0;
+  let linkEmptyName = 0;
+  for (const [, node] of snapshot.idToNode) {
+    if (node.role === 'link') {
+      linkTotal++;
+      if (!node.name.trim()) linkEmptyName++;
+    }
+  }
+  console.log(`\n  Link stats: ${linkTotal} total, ${linkEmptyName} with empty name`);
+
+  // Dump full snapshot to file (tree format with indentation)
+  const snapshotPath = join(tmpdir(), 'site-use-demo-snapshot.txt');
+  const lines = [];
+  lines.push(`Snapshot: ${snapshot.idToNode.size} nodes`);
+  lines.push('='.repeat(80));
+
+  // Build child->parent set to find root nodes
+  const hasParent = new Set();
+  for (const [, node] of snapshot.idToNode) {
+    if (node.children) {
+      for (const childUid of node.children) hasParent.add(childUid);
+    }
+  }
+
+  function renderNode(uid, depth) {
+    const node = snapshot.idToNode.get(uid);
+    if (!node) return;
+
+    const indent = '  '.repeat(depth);
+    const attrs = [];
+    if (node.focused) attrs.push('focused');
+    if (node.disabled) attrs.push('disabled');
+    if (node.expanded != null) attrs.push(`expanded=${node.expanded}`);
+    if (node.selected) attrs.push('selected');
+    if (node.level != null) attrs.push(`level=${node.level}`);
+    if (node.value != null) attrs.push(`value="${node.value}"`);
+
+    const name = node.name ? ` "${node.name}"` : '';
+    const suffix = attrs.length ? `  {${attrs.join(', ')}}` : '';
+    lines.push(`${indent}[${uid}] ${node.role}${name}${suffix}`);
+
+    if (node.children) {
+      for (const childUid of node.children) {
+        renderNode(childUid, depth + 1);
+      }
+    }
+  }
+
+  // Render from root nodes (nodes without a parent)
+  for (const [uid] of snapshot.idToNode) {
+    if (!hasParent.has(uid)) {
+      renderNode(uid, 0);
+    }
+  }
+
+  writeFileSync(snapshotPath, lines.join('\n'), 'utf-8');
+  console.log(`  Full snapshot saved to: ${snapshotPath}`);
   await waitForEnter();
 
   // ── Step 3: Click ──
