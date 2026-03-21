@@ -51,3 +51,32 @@ export function getConfig(): Config {
 
   return { dataDir, chromeProfileDir, proxy, proxySource };
 }
+
+export interface ClickEnhancementConfig {
+  /** Bezier curve mouse trajectory before clicking. Default: true */
+  trajectory: boolean;
+  /** Fix MouseEvent screenX/screenY to match real events. Default: true */
+  coordFix: boolean;
+  /** Random ±3px offset on click coordinates. Default: true */
+  jitter: boolean;
+  /** Check for element occlusion before clicking. Default: true */
+  occlusionCheck: boolean;
+  /** Wait for element position to stabilize (CSS animations). Default: true */
+  stabilityWait: boolean;
+}
+
+function envBool(key: string, defaultValue: boolean): boolean {
+  const val = process.env[key];
+  if (val === undefined) return defaultValue;
+  return val !== 'false' && val !== '0';
+}
+
+export function getClickEnhancementConfig(): ClickEnhancementConfig {
+  return {
+    trajectory: envBool('SITE_USE_CLICK_TRAJECTORY', true),
+    coordFix: envBool('SITE_USE_CLICK_COORD_FIX', true),
+    jitter: envBool('SITE_USE_CLICK_JITTER', true),
+    occlusionCheck: envBool('SITE_USE_CLICK_OCCLUSION', true),
+    stabilityWait: envBool('SITE_USE_CLICK_STABILITY', true),
+  };
+}

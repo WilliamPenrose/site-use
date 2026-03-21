@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { generateBezierPath, applyJitter, isPositionStable } from '../../src/primitives/click-enhanced.js';
+import { getClickEnhancementConfig } from '../../src/config.js';
 
 describe('generateBezierPath', () => {
   it('returns at least 10 points for a non-trivial distance', () => {
@@ -82,5 +83,32 @@ describe('isPositionStable', () => {
   it('returns false when fewer samples than required', () => {
     const samples = [{ x: 100, y: 200 }];
     expect(isPositionStable(samples, 3)).toBe(false);
+  });
+});
+
+describe('getClickEnhancementConfig', () => {
+  it('returns all enhancements enabled by default', () => {
+    const config = getClickEnhancementConfig();
+    expect(config.trajectory).toBe(true);
+    expect(config.coordFix).toBe(true);
+    expect(config.jitter).toBe(true);
+    expect(config.occlusionCheck).toBe(true);
+    expect(config.stabilityWait).toBe(true);
+  });
+
+  it('respects environment variable overrides', () => {
+    process.env.SITE_USE_CLICK_TRAJECTORY = 'false';
+    process.env.SITE_USE_CLICK_JITTER = 'false';
+    try {
+      const config = getClickEnhancementConfig();
+      expect(config.trajectory).toBe(false);
+      expect(config.jitter).toBe(false);
+      expect(config.coordFix).toBe(true);
+      expect(config.occlusionCheck).toBe(true);
+      expect(config.stabilityWait).toBe(true);
+    } finally {
+      delete process.env.SITE_USE_CLICK_TRAJECTORY;
+      delete process.env.SITE_USE_CLICK_JITTER;
+    }
   });
 });
