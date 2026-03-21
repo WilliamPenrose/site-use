@@ -162,6 +162,33 @@ async function main() {
   await waitForEnter();
   await m6.pg.close();
 
+  // ── Mode 7: Integrated primitives.click(uid) ──
+  console.log('\n  MODE 7: Integrated primitives.click(uid)');
+  const { PuppeteerBackend } = await import('../dist/primitives/puppeteer-backend.js');
+  const m7backend = new PuppeteerBackend(browser);
+  await m7backend.navigate(PROBE_URL, 'probe');
+  await new Promise(r => setTimeout(r, 500));
+
+  // Take snapshot to get uid for the target button
+  const snapshot = await m7backend.takeSnapshot('probe');
+  const targetNode = Array.from(snapshot.idToNode.values()).find(
+    n => n.role === 'button' && n.name === 'CLICK ME'
+  );
+
+  if (targetNode) {
+    console.log(`  Found target button: uid=${targetNode.uid}, role=${targetNode.role}, name="${targetNode.name}"`);
+    await m7backend.click(targetNode.uid, 'probe');
+    await new Promise(r => setTimeout(r, 300));
+
+    const m7page = await m7backend.getRawPage('probe');
+    printResults('Integrated click', await getResults(m7page));
+  } else {
+    console.log('  ERROR: Could not find target button in snapshot');
+  }
+  await waitForEnter();
+  const m7pageFinal = await m7backend.getRawPage('probe');
+  await m7pageFinal.close();
+
   // ── Summary ──
   console.log('\n\n  ' + '='.repeat(40));
   console.log('  EXPECTED DIFFERENCES:');
@@ -171,6 +198,7 @@ async function main() {
   console.log('  Mode 4: 10+ mousemove, coord fixed, click offset from center');
   console.log('  Mode 5: Detects occluder, provides fallback coordinates');
   console.log('  Mode 6: Waits ~2s for animation, then clicks stable position');
+  console.log('  Mode 7: Integrated primitives.click(uid) — full pipeline');
   console.log('  ' + '='.repeat(40));
 
   await waitForEnter('\n  Press Enter to close browser...');
