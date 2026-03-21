@@ -1,5 +1,23 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+// Mock config and click-enhanced modules
+vi.mock('../../src/config.js', () => ({
+  getClickEnhancementConfig: vi.fn(() => ({
+    trajectory: false,
+    coordFix: false,
+    jitter: false,
+    occlusionCheck: false,
+    stabilityWait: false,
+  })),
+}));
+
+vi.mock('../../src/primitives/click-enhanced.js', () => ({
+  applyJitter: vi.fn((x: number, y: number) => ({ x, y })),
+  checkOcclusion: vi.fn().mockResolvedValue({ occluded: false }),
+  waitForElementStable: vi.fn().mockResolvedValue({ x: 0, y: 0 }),
+  clickWithTrajectory: vi.fn().mockResolvedValue(undefined),
+}));
+
 // --- Mocks ---
 
 const mockGoto = vi.fn().mockResolvedValue(undefined);

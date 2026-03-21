@@ -1,5 +1,12 @@
 import type { Browser, Page } from 'puppeteer-core';
 import { ElementNotFound } from '../errors.js';
+import { getClickEnhancementConfig } from '../config.js';
+import {
+  applyJitter,
+  checkOcclusion,
+  waitForElementStable,
+  clickWithTrajectory,
+} from './click-enhanced.js';
 import type {
   Primitives,
   Snapshot,
@@ -157,24 +164,51 @@ export class PuppeteerBackend implements Primitives {
     }
 
     const page = await this.getPage(site);
-    const client = await page.createCDPSession();
+    const config = getClickEnhancementConfig();
 
-    try {
-      // Verify node exists and get box model
-      const { model } = await client.send('DOM.getBoxModel', { backendNodeId });
-      const quad = model.content; // [x1,y1, x2,y2, x3,y3, x4,y4]
+    // Step 1: Wait for element position to stabilize (CSS animations)
+    let centerX: number;
+    let centerY: number;
 
-      // Compute center of the content quad
-      const centerX = (quad[0] + quad[2] + quad[4] + quad[6]) / 4;
-      const centerY = (quad[1] + quad[3] + quad[5] + quad[7]) / 4;
-
-      await page.mouse.click(centerX, centerY);
-
-      // Wait for DOM stability (brief pause for any triggered updates)
-      await new Promise((r) => setTimeout(r, 100));
-    } finally {
-      await client.detach();
+    if (config.stabilityWait) {
+      const stable = await waitForElementStable(page, backendNodeId);
+      centerX = stable.x;
+      centerY = stable.y;
+    } else {
+      const client = await page.createCDPSession();
+      try {
+        const { model } = await client.send('DOM.getBoxModel', { backendNodeId });
+        const quad = model.content;
+        centerX = (quad[0] + quad[2] + quad[4] + quad[6]) / 4;
+        centerY = (quad[1] + quad[3] + quad[5] + quad[7]) / 4;
+      } finally {
+        await client.detach();
+      }
     }
+
+    // Step 2: Check for occlusion
+    if (config.occlusionCheck) {
+      const result = await checkOcclusion(page, centerX, centerY, backendNodeId);
+      if (result.occluded && result.fallback) {
+        centerX = result.fallback.x;
+        centerY = result.fallback.y;
+      }
+    }
+
+    // Step 3: Click with trajectory + jitter, or direct click
+    if (config.trajectory) {
+      await clickWithTrajectory(page, centerX, centerY, {
+        jitter: config.jitter,
+      });
+    } else {
+      const target = config.jitter
+        ? applyJitter(centerX, centerY, 3)
+        : { x: centerX, y: centerY };
+      await page.mouse.click(target.x, target.y);
+    }
+
+    // Wait for DOM stability
+    await new Promise((r) => setTimeout(r, 100));
   }
 
   async type(_uid: string, _text: string, _site?: string): Promise<void> {

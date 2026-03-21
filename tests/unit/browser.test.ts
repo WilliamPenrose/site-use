@@ -41,6 +41,13 @@ let testConfig = {
 
 vi.mock('../../src/config.js', () => ({
   getConfig: vi.fn(() => testConfig),
+  getClickEnhancementConfig: vi.fn(() => ({
+    trajectory: false,
+    coordFix: false,
+    jitter: false,
+    occlusionCheck: false,
+    stabilityWait: false,
+  })),
 }));
 
 vi.mock('../../src/browser/welcome.js', () => ({
