@@ -1,6 +1,6 @@
 import type { Browser, Page } from 'puppeteer-core';
 import { ElementNotFound } from '../errors.js';
-import { getClickEnhancementConfig, getScrollEnhancementConfig } from '../config.js';
+import { getClickEnhancementConfig } from '../config.js';
 import { humanScroll, scrollElementIntoView } from './scroll-enhanced.js';
 import {
   applyJitter,
@@ -214,26 +214,7 @@ export class PuppeteerBackend implements Primitives {
     const direction = options.direction === 'up' ? -1 : 1;
     const totalDelta = amount * direction;
 
-    const scrollConfig = getScrollEnhancementConfig();
-    if (scrollConfig.humanize) {
-      await humanScroll(page, 0, totalDelta);
-      return;
-    }
-
-    // Fallback: mechanical scroll (original behavior)
-    const STEP_COUNT = 3;
-    const stepDelta = totalDelta / STEP_COUNT;
-    const STEP_PAUSE_MS = 80;
-
-    for (let i = 0; i < STEP_COUNT; i++) {
-      await page.mouse.wheel({ deltaY: stepDelta });
-      if (i < STEP_COUNT - 1) {
-        await new Promise((r) => setTimeout(r, STEP_PAUSE_MS));
-      }
-    }
-
-    // Wait for lazy-loaded content after scroll completes
-    await new Promise((r) => setTimeout(r, 500));
+    await humanScroll(page, 0, totalDelta);
   }
 
   async scrollIntoView(uid: string, site?: string): Promise<void> {

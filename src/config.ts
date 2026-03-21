@@ -78,13 +78,3 @@ export function getClickEnhancementConfig(): ClickEnhancementConfig {
   };
 }
 
-export interface ScrollEnhancementConfig {
-  /** Enable humanized scrolling (step jitter + random delays). Default: true */
-  humanize: boolean;
-}
-
-export function getScrollEnhancementConfig(): ScrollEnhancementConfig {
-  return {
-    humanize: envBool('SITE_USE_SCROLL_HUMANIZE', true),
-  };
-}

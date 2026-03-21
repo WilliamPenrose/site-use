@@ -8,9 +8,6 @@ vi.mock('../../src/config.js', () => ({
     jitter: false,
     occlusionCheck: false,
   })),
-  getScrollEnhancementConfig: vi.fn(() => ({
-    humanize: false,
-  })),
 }));
 
 vi.mock('../../src/primitives/scroll-enhanced.js', () => ({
@@ -369,30 +366,26 @@ describe('PuppeteerBackend', () => {
   });
 
   describe('scroll', () => {
-    it('scrolls down using mouse wheel', async () => {
+    it('delegates to humanScroll for down scroll', async () => {
       const page = createMockPage();
       mockNewPage.mockResolvedValue(page);
 
       const backend = new PuppeteerBackend(mockBrowser as any);
       await backend.scroll({ direction: 'down' }, 'twitter');
 
-      // mouse.wheel should have been called (possibly multiple times for progressive scroll)
-      expect(page.mouse.wheel).toHaveBeenCalled();
+      const { humanScroll } = await import('../../src/primitives/scroll-enhanced.js');
+      expect(humanScroll).toHaveBeenCalledWith(page, 0, 600);
     });
 
-    it('scrolls up with negative delta', async () => {
+    it('passes negative delta for up scroll', async () => {
       const page = createMockPage();
       mockNewPage.mockResolvedValue(page);
 
       const backend = new PuppeteerBackend(mockBrowser as any);
       await backend.scroll({ direction: 'up' }, 'twitter');
 
-      const calls = page.mouse.wheel.mock.calls;
-      // At least one call should have negative deltaY
-      const hasUpScroll = calls.some(
-        (c: any[]) => c[0]?.deltaY < 0,
-      );
-      expect(hasUpScroll).toBe(true);
+      const { humanScroll } = await import('../../src/primitives/scroll-enhanced.js');
+      expect(humanScroll).toHaveBeenCalledWith(page, 0, -600);
     });
 
     it('respects custom amount', async () => {
@@ -402,12 +395,8 @@ describe('PuppeteerBackend', () => {
       const backend = new PuppeteerBackend(mockBrowser as any);
       await backend.scroll({ direction: 'down', amount: 300 }, 'twitter');
 
-      // Total deltaY across all wheel calls should sum to approximately 300
-      const totalDelta = page.mouse.wheel.mock.calls.reduce(
-        (sum: number, c: any[]) => sum + (c[0]?.deltaY ?? 0),
-        0,
-      );
-      expect(totalDelta).toBeCloseTo(300, -1);
+      const { humanScroll } = await import('../../src/primitives/scroll-enhanced.js');
+      expect(humanScroll).toHaveBeenCalledWith(page, 0, 300);
     });
   });
 
@@ -568,31 +557,4 @@ describe('PuppeteerBackend', () => {
     });
   });
 
-  describe('scroll with humanize config', () => {
-    it('uses mechanical scroll when humanize=false', async () => {
-      const page = createMockPage();
-      mockNewPage.mockResolvedValue(page);
-
-      // Default mock returns humanize: false
-      const backend = new PuppeteerBackend(mockBrowser as any);
-      await backend.scroll({ direction: 'down', amount: 600 }, 'twitter');
-
-      // Mechanical scroll: exactly 3 wheel calls
-      expect(page.mouse.wheel).toHaveBeenCalledTimes(3);
-    });
-
-    it('delegates to humanScroll when humanize=true', async () => {
-      const { getScrollEnhancementConfig } = await import('../../src/config.js');
-      (getScrollEnhancementConfig as ReturnType<typeof vi.fn>).mockReturnValue({ humanize: true });
-
-      const page = createMockPage();
-      mockNewPage.mockResolvedValue(page);
-
-      const backend = new PuppeteerBackend(mockBrowser as any);
-      await backend.scroll({ direction: 'down', amount: 600 }, 'twitter');
-
-      const { humanScroll } = await import('../../src/primitives/scroll-enhanced.js');
-      expect(humanScroll).toHaveBeenCalled();
-    });
-  });
 });
