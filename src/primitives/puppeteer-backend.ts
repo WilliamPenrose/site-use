@@ -7,6 +7,7 @@ import {
   waitForElementStable,
   clickWithTrajectory,
   injectCoordFix,
+  type BoundingBox,
 } from './click-enhanced.js';
 import type {
   Primitives,
@@ -175,11 +176,13 @@ export class PuppeteerBackend implements Primitives {
     // Step 1: Wait for element position to stabilize (CSS animations)
     let centerX: number;
     let centerY: number;
+    let elementBox: BoundingBox | undefined;
 
     if (config.stabilityWait) {
       const stable = await waitForElementStable(page, backendNodeId);
-      centerX = stable.x;
-      centerY = stable.y;
+      centerX = stable.center.x;
+      centerY = stable.center.y;
+      elementBox = stable.box;
     } else {
       const client = await page.createCDPSession();
       try {
@@ -187,6 +190,14 @@ export class PuppeteerBackend implements Primitives {
         const quad = model.content;
         centerX = (quad[0] + quad[2] + quad[4] + quad[6]) / 4;
         centerY = (quad[1] + quad[3] + quad[5] + quad[7]) / 4;
+        const xs = [quad[0], quad[2], quad[4], quad[6]];
+        const ys = [quad[1], quad[3], quad[5], quad[7]];
+        elementBox = {
+          x: Math.min(...xs),
+          y: Math.min(...ys),
+          width: Math.max(...xs) - Math.min(...xs),
+          height: Math.max(...ys) - Math.min(...ys),
+        };
       } finally {
         await client.detach();
       }
@@ -205,10 +216,11 @@ export class PuppeteerBackend implements Primitives {
     if (config.trajectory) {
       await clickWithTrajectory(page, centerX, centerY, {
         jitter: config.jitter,
+        box: elementBox,
       });
     } else {
       const target = config.jitter
-        ? applyJitter(centerX, centerY, 3)
+        ? applyJitter(centerX, centerY, 3, elementBox)
         : { x: centerX, y: centerY };
       await page.mouse.click(target.x, target.y);
     }

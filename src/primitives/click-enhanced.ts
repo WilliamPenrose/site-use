@@ -94,10 +94,12 @@ function truncatedNormal(stddev: number = 0.4): number {
 /**
  * Apply random jitter to click coordinates.
  *
- * - Without `box`: legacy mode, uniform ±maxOffset pixels.
- * - With `box`: element-aware mode, truncated normal distribution within
- *   the bounding box (center-biased, clamped to box edges).
- *   `paddingPct` controls edge padding (0-100, default 15).
+ * - Without `box`: legacy mode, uniform ±maxOffset pixels (x/y used as anchor).
+ * - With `box`: element-aware mode, truncated normal distribution centered on
+ *   the box center (x/y inputs are ignored). `paddingPct` is the total inset
+ *   percentage split equally on both sides (default 15 = 7.5% per edge),
+ *   matching ghost-cursor's paddingPercentage semantics. Result is clamped
+ *   to the full bounding box.
  */
 export function applyJitter(
   x: number,
@@ -239,18 +241,20 @@ export async function waitForElementStable(
   page: Page,
   backendNodeId: number,
   options: { timeoutMs?: number; pollIntervalMs?: number; threshold?: number } = {},
-): Promise<Point> {
+): Promise<{ center: Point; box: BoundingBox }> {
   const { timeoutMs = 3000, pollIntervalMs = 100, threshold = 2 } = options;
   const samples: Point[] = [];
   const startTime = Date.now();
 
   const client = await page.createCDPSession();
   try {
+    let lastQuad: number[] = [];
     while (Date.now() - startTime < timeoutMs) {
       let x: number, y: number;
       try {
         const { model } = await client.send('DOM.getBoxModel', { backendNodeId });
         const quad = model.content;
+        lastQuad = quad;
         x = (quad[0] + quad[2] + quad[4] + quad[6]) / 4;
         y = (quad[1] + quad[3] + quad[5] + quad[7]) / 4;
       } catch {
@@ -265,7 +269,17 @@ export async function waitForElementStable(
       if (samples.length > 3) samples.shift();
 
       if (isPositionStable(samples, 3, threshold)) {
-        return { x, y };
+        const xs = [lastQuad[0], lastQuad[2], lastQuad[4], lastQuad[6]];
+        const ys = [lastQuad[1], lastQuad[3], lastQuad[5], lastQuad[7]];
+        return {
+          center: { x, y },
+          box: {
+            x: Math.min(...xs),
+            y: Math.min(...ys),
+            width: Math.max(...xs) - Math.min(...xs),
+            height: Math.max(...ys) - Math.min(...ys),
+          },
+        };
       }
 
       await new Promise((r) => setTimeout(r, pollIntervalMs));
@@ -314,14 +328,16 @@ export async function clickWithTrajectory(
   page: Page,
   targetX: number,
   targetY: number,
-  options: { jitter?: boolean; stepDelayMs?: number; overshoot?: boolean } = {},
+  options: { jitter?: boolean; stepDelayMs?: number; overshoot?: boolean; box?: BoundingBox } = {},
 ): Promise<void> {
-  const { jitter = true, stepDelayMs = 18, overshoot = true } = options;
+  const { jitter = true, stepDelayMs = 18, overshoot = true, box } = options;
 
   const startX = 0;
   const startY = Math.round(Math.random() * 600);
 
-  const finalTarget = jitter ? applyJitter(targetX, targetY, 3) : { x: targetX, y: targetY };
+  const finalTarget = jitter
+    ? applyJitter(targetX, targetY, 3, box)
+    : { x: targetX, y: targetY };
 
   const dx = finalTarget.x - startX;
   const dy = finalTarget.y - startY;
