@@ -8,7 +8,7 @@
  * Usage: node scripts/demo-click-comparison.mjs
  */
 import { ensureBrowser, closeBrowser } from '../dist/browser/browser.js';
-import { injectCoordFix, clickWithTrajectory, checkOcclusion, waitForElementStable } from '../dist/primitives/click-enhanced.js';
+import { injectCoordFix, clickWithTrajectory, applyJitter, checkOcclusion, waitForElementStable } from '../dist/primitives/click-enhanced.js';
 import { analyzeTrajectory } from '../dist/diagnose/trajectory-analyzer.js';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
@@ -166,7 +166,7 @@ async function main() {
   // ── Mode 3: With Bezier trajectory (no coord fix, no jitter) ──
   const m3 = await runMode('MODE 3: With Bezier trajectory (no jitter)');
   const m3rect = await getButtonRect(m3.pg);
-  await clickWithTrajectory(m3.pg, m3.btn.x, m3.btn.y, { jitter: false });
+  await clickWithTrajectory(m3.pg, m3.btn.x, m3.btn.y);
   await new Promise(r => setTimeout(r, 300));
   const m3results = await getResults(m3.pg);
   printResults('With trajectory', m3results);
@@ -177,7 +177,8 @@ async function main() {
   // ── Mode 4: Full enhancement (coord fix + trajectory + jitter) ──
   const m4 = await runMode('MODE 4: Full enhancement (coord fix + trajectory + jitter)', (pg) => injectCoordFix(pg));
   const m4rect = await getButtonRect(m4.pg);
-  await clickWithTrajectory(m4.pg, m4.btn.x, m4.btn.y, { jitter: true });
+  const m4target = applyJitter(m4.btn.x, m4.btn.y, 3);
+  await clickWithTrajectory(m4.pg, m4target.x, m4target.y);
   await new Promise(r => setTimeout(r, 300));
   const m4results = await getResults(m4.pg);
   printResults('Full enhancement', m4results);

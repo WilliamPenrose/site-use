@@ -328,16 +328,14 @@ export async function clickWithTrajectory(
   page: Page,
   targetX: number,
   targetY: number,
-  options: { jitter?: boolean; stepDelayMs?: number; overshoot?: boolean; box?: BoundingBox } = {},
+  options: { stepDelayMs?: number; overshoot?: boolean; box?: BoundingBox } = {},
 ): Promise<void> {
-  const { jitter = true, stepDelayMs = 18, overshoot = true, box } = options;
+  const { stepDelayMs = 18, overshoot = true } = options;
 
   const startX = 0;
   const startY = Math.round(Math.random() * 600);
 
-  const finalTarget = jitter
-    ? applyJitter(targetX, targetY, 3, box)
-    : { x: targetX, y: targetY };
+  const finalTarget = { x: targetX, y: targetY };
 
   const dx = finalTarget.x - startX;
   const dy = finalTarget.y - startY;

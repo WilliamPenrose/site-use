@@ -187,17 +187,17 @@ export class PuppeteerBackend implements Primitives {
       }
     }
 
-    // Step 3: Click with trajectory + jitter, or direct click
+    // Step 3: Compute click target, then click (with or without trajectory)
+    const clickTarget = config.jitter
+      ? applyJitter(centerX, centerY, 3, elementBox)
+      : { x: centerX, y: centerY };
+
     if (config.trajectory) {
-      await clickWithTrajectory(page, centerX, centerY, {
-        jitter: config.jitter,
+      await clickWithTrajectory(page, clickTarget.x, clickTarget.y, {
         box: elementBox,
       });
     } else {
-      const target = config.jitter
-        ? applyJitter(centerX, centerY, 3, elementBox)
-        : { x: centerX, y: centerY };
-      await page.mouse.click(target.x, target.y);
+      await page.mouse.click(clickTarget.x, clickTarget.y);
     }
 
     // Wait for DOM stability
