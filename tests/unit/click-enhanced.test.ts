@@ -156,7 +156,6 @@ describe('getClickEnhancementConfig', () => {
     expect(config.coordFix).toBe(true);
     expect(config.jitter).toBe(true);
     expect(config.occlusionCheck).toBe(true);
-    expect(config.stabilityWait).toBe(true);
   });
 
   it('respects environment variable overrides', () => {
@@ -168,7 +167,6 @@ describe('getClickEnhancementConfig', () => {
       expect(config.jitter).toBe(false);
       expect(config.coordFix).toBe(true);
       expect(config.occlusionCheck).toBe(true);
-      expect(config.stabilityWait).toBe(true);
     } finally {
       delete process.env.SITE_USE_CLICK_TRAJECTORY;
       delete process.env.SITE_USE_CLICK_JITTER;

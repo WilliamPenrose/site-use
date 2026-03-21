@@ -46,7 +46,6 @@ vi.mock('../../src/config.js', () => ({
     coordFix: false,
     jitter: false,
     occlusionCheck: false,
-    stabilityWait: false,
   })),
 }));
 

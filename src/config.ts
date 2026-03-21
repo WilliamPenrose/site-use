@@ -61,8 +61,6 @@ export interface ClickEnhancementConfig {
   jitter: boolean;
   /** Check for element occlusion before clicking. Default: true */
   occlusionCheck: boolean;
-  /** Wait for element position to stabilize (CSS animations). Default: true */
-  stabilityWait: boolean;
 }
 
 function envBool(key: string, defaultValue: boolean): boolean {
@@ -77,7 +75,6 @@ export function getClickEnhancementConfig(): ClickEnhancementConfig {
     coordFix: envBool('SITE_USE_CLICK_COORD_FIX', true),
     jitter: envBool('SITE_USE_CLICK_JITTER', true),
     occlusionCheck: envBool('SITE_USE_CLICK_OCCLUSION', true),
-    stabilityWait: envBool('SITE_USE_CLICK_STABILITY', true),
   };
 }
 

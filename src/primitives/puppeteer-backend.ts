@@ -8,7 +8,6 @@ import {
   waitForElementStable,
   clickWithTrajectory,
   injectCoordFix,
-  type BoundingBox,
 } from './click-enhanced.js';
 import type {
   Primitives,
@@ -175,34 +174,9 @@ export class PuppeteerBackend implements Primitives {
     const config = getClickEnhancementConfig();
 
     // Step 1: Wait for element position to stabilize (CSS animations)
-    let centerX: number;
-    let centerY: number;
-    let elementBox: BoundingBox | undefined;
-
-    if (config.stabilityWait) {
-      const stable = await waitForElementStable(page, backendNodeId);
-      centerX = stable.center.x;
-      centerY = stable.center.y;
-      elementBox = stable.box;
-    } else {
-      const client = await page.createCDPSession();
-      try {
-        const { model } = await client.send('DOM.getBoxModel', { backendNodeId });
-        const quad = model.content;
-        centerX = (quad[0] + quad[2] + quad[4] + quad[6]) / 4;
-        centerY = (quad[1] + quad[3] + quad[5] + quad[7]) / 4;
-        const xs = [quad[0], quad[2], quad[4], quad[6]];
-        const ys = [quad[1], quad[3], quad[5], quad[7]];
-        elementBox = {
-          x: Math.min(...xs),
-          y: Math.min(...ys),
-          width: Math.max(...xs) - Math.min(...xs),
-          height: Math.max(...ys) - Math.min(...ys),
-        };
-      } finally {
-        await client.detach();
-      }
-    }
+    const { center, box: elementBox } = await waitForElementStable(page, backendNodeId);
+    let centerX = center.x;
+    let centerY = center.y;
 
     // Step 2: Check for occlusion
     if (config.occlusionCheck) {

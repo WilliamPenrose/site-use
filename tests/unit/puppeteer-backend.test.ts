@@ -7,7 +7,6 @@ vi.mock('../../src/config.js', () => ({
     coordFix: false,
     jitter: false,
     occlusionCheck: false,
-    stabilityWait: false,
   })),
   getScrollEnhancementConfig: vi.fn(() => ({
     humanize: false,
@@ -22,7 +21,7 @@ vi.mock('../../src/primitives/scroll-enhanced.js', () => ({
 vi.mock('../../src/primitives/click-enhanced.js', () => ({
   applyJitter: vi.fn((x: number, y: number) => ({ x, y })),
   checkOcclusion: vi.fn().mockResolvedValue({ occluded: false }),
-  waitForElementStable: vi.fn().mockResolvedValue({ x: 0, y: 0 }),
+  waitForElementStable: vi.fn().mockResolvedValue({ center: { x: 150, y: 220 }, box: { x: 100, y: 200, width: 100, height: 40 } }),
   clickWithTrajectory: vi.fn().mockResolvedValue(undefined),
 }));
 
