@@ -2,6 +2,9 @@ import type { Browser } from 'puppeteer-core';
 import type { CheckResult, CheckMeta } from './types.js';
 import { createDiagnoseServer } from './server.js';
 import { nodeChecks } from './registry.js';
+import { humanScroll } from '../primitives/scroll-enhanced.js';
+import { analyzeScrollTrajectory } from './scroll-analyzer.js';
+import type { ScrollDelta } from './scroll-analyzer.js';
 
 export interface DiagnoseResult {
   meta: CheckMeta;
@@ -43,6 +46,56 @@ export async function runDiagnose(
     // Resolve input checks
     await page.evaluate(() => {
       (window as unknown as Record<string, () => void>).__resolveInputChecks();
+    });
+
+    // Trigger scroll events for scroll checks
+    await humanScroll(page, 0, 600);
+
+    // Read collected wheel deltas from browser
+    const scrollDeltas = await page.evaluate(() => {
+      return (window as unknown as Record<string, unknown>).__scrollDeltas as Array<{
+        deltaY: number;
+        deltaX: number;
+        timestamp: number;
+      }>;
+    });
+
+    // Run scroll trajectory analysis (Node-side)
+    if (scrollDeltas && scrollDeltas.length >= 3) {
+      const scrollReport = analyzeScrollTrajectory(scrollDeltas);
+      for (const check of scrollReport.checks) {
+        const checkMeta = {
+          id: `scroll-${check.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+          name: `Scroll: ${check.name}`,
+          description: check.reference,
+          runtime: 'node' as const,
+          expected: check.threshold.min != null
+            ? `>${check.threshold.min}`
+            : `<${check.threshold.max}`,
+        };
+        const checkResult = {
+          pass: check.pass,
+          actual: String(check.value.toFixed(3)),
+          detail: check.reference,
+        };
+        await page.evaluate(
+          (meta, res) => {
+            (
+              window as unknown as Record<
+                string,
+                (m: typeof meta, r: typeof res) => void
+              >
+            ).__addNodeResult(meta, res);
+          },
+          { ...checkMeta } as Record<string, unknown>,
+          { ...checkResult } as Record<string, unknown>,
+        );
+      }
+    }
+
+    // Resolve browser-side scroll info check
+    await page.evaluate(() => {
+      (window as unknown as Record<string, () => void>).__resolveScrollChecks();
     });
 
     // Run node-side checks and inject results
