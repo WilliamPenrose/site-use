@@ -6,8 +6,21 @@ export interface Point {
 }
 
 /**
+ * Ease-in-out cubic: slow start, fast middle, slow end.
+ * Simulates natural hand acceleration/deceleration.
+ */
+export function easeInOutCubic(t: number): number {
+  return t < 0.5
+    ? 4 * t * t * t
+    : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+/**
  * Generate a cubic Bezier curve path from (startX, startY) to (endX, endY).
- * Control points are randomized to simulate natural hand movement.
+ * - Random control points → curved arc trajectory
+ * - Ease-in-out timing → acceleration/deceleration like real hand movement
+ * - Per-point micro-noise (±1px) → hand tremor simulation
+ * Last point is exact (no noise) to ensure accurate final position.
  */
 export function generateBezierPath(
   startX: number,
@@ -24,9 +37,13 @@ export function generateBezierPath(
     return [{ x: endX, y: endY }];
   }
 
-  const numSteps = steps ?? Math.max(10, Math.round(distance / 15));
+  // Fitts' Law: logarithmic step count — fewer steps for long distances,
+  // more steps for short distances compared to linear scaling.
+  const MIN_STEPS = 25;
+  const fittsIndex = Math.log2(distance / 10 + 1);
+  const numSteps = steps ?? Math.max(MIN_STEPS, Math.ceil((fittsIndex + 2) * 3));
 
-  const spread = distance * 0.3;
+  const spread = Math.max(2, Math.min(200, distance * 0.3));
   const cp1x = startX + dx * 0.25 + (Math.random() - 0.5) * spread;
   const cp1y = startY + dy * 0.25 + (Math.random() - 0.5) * spread;
   const cp2x = startX + dx * 0.75 + (Math.random() - 0.5) * spread;
@@ -34,11 +51,21 @@ export function generateBezierPath(
 
   const points: Point[] = [];
   for (let i = 0; i <= numSteps; i++) {
-    const t = i / numSteps;
+    const linearT = i / numSteps;
+    const t = easeInOutCubic(linearT);
     const u = 1 - t;
     const x = u * u * u * startX + 3 * u * u * t * cp1x + 3 * u * t * t * cp2x + t * t * t * endX;
     const y = u * u * u * startY + 3 * u * u * t * cp1y + 3 * u * t * t * cp2y + t * t * t * endY;
-    points.push({ x: Math.round(x), y: Math.round(y) });
+
+    // Last point: no noise, ensure exact final position
+    if (i === numSteps) {
+      points.push({ x: Math.round(x), y: Math.round(y) });
+    } else {
+      // Micro-noise ±1px simulating hand tremor
+      const noiseX = (Math.random() - 0.5) * 2;
+      const noiseY = (Math.random() - 0.5) * 2;
+      points.push({ x: Math.round(x + noiseX), y: Math.round(y + noiseY) });
+    }
   }
 
   return points;
@@ -199,26 +226,82 @@ export async function waitForElementStable(
 }
 
 /**
+ * Generate a random overshoot point near the target.
+ * The overshoot lands within `radius` pixels past the target
+ * along the general direction of travel, with random angular spread.
+ */
+function generateOvershootPoint(
+  startX: number,
+  startY: number,
+  targetX: number,
+  targetY: number,
+  radius: number = 120,
+): Point {
+  const angle = Math.atan2(targetY - startY, targetX - startX);
+  // Overshoot in the general forward direction with ±60° angular spread
+  const spreadAngle = angle + (Math.random() - 0.5) * (Math.PI / 1.5);
+  const overshootDist = Math.random() * radius + 10;
+  return {
+    x: targetX + Math.cos(spreadAngle) * overshootDist,
+    y: targetY + Math.sin(spreadAngle) * overshootDist,
+  };
+}
+
+/** Distance threshold beyond which overshoot is applied (pixels). */
+const OVERSHOOT_THRESHOLD = 500;
+
+/**
  * Move mouse along a Bezier curve from current position to (targetX, targetY),
  * then click with optional jitter.
+ *
+ * For long-distance moves (>500px), simulates human overshoot:
+ * the cursor first moves past the target, then corrects back.
  */
 export async function clickWithTrajectory(
   page: Page,
   targetX: number,
   targetY: number,
-  options: { jitter?: boolean; stepDelayMs?: number } = {},
+  options: { jitter?: boolean; stepDelayMs?: number; overshoot?: boolean } = {},
 ): Promise<void> {
-  const { jitter = true, stepDelayMs = 18 } = options;
+  const { jitter = true, stepDelayMs = 18, overshoot = true } = options;
 
   const startX = 0;
   const startY = Math.round(Math.random() * 600);
 
   const finalTarget = jitter ? applyJitter(targetX, targetY, 3) : { x: targetX, y: targetY };
-  const path = generateBezierPath(startX, startY, finalTarget.x, finalTarget.y);
 
-  for (const point of path) {
-    await page.mouse.move(point.x, point.y);
-    await new Promise((r) => setTimeout(r, stepDelayMs));
+  const dx = finalTarget.x - startX;
+  const dy = finalTarget.y - startY;
+  const distance = Math.sqrt(dx * dx + dy * dy);
+
+  if (overshoot && distance > OVERSHOOT_THRESHOLD) {
+    // Phase 1: Move to overshoot point (past the target)
+    const overshootPt = generateOvershootPoint(startX, startY, finalTarget.x, finalTarget.y);
+    const pathToOvershoot = generateBezierPath(startX, startY, overshootPt.x, overshootPt.y);
+
+    for (const point of pathToOvershoot) {
+      await page.mouse.move(point.x, point.y);
+      await new Promise((r) => setTimeout(r, stepDelayMs));
+    }
+
+    // Brief pause at overshoot — human "oops" moment
+    await new Promise((r) => setTimeout(r, 40 + Math.random() * 60));
+
+    // Phase 2: Correction curve back to actual target
+    const correctionPath = generateBezierPath(overshootPt.x, overshootPt.y, finalTarget.x, finalTarget.y);
+
+    for (const point of correctionPath) {
+      await page.mouse.move(point.x, point.y);
+      await new Promise((r) => setTimeout(r, stepDelayMs));
+    }
+  } else {
+    // Direct path (short distance or overshoot disabled)
+    const path = generateBezierPath(startX, startY, finalTarget.x, finalTarget.y);
+
+    for (const point of path) {
+      await page.mouse.move(point.x, point.y);
+      await new Promise((r) => setTimeout(r, stepDelayMs));
+    }
   }
 
   await page.mouse.click(finalTarget.x, finalTarget.y);

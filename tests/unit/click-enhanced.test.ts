@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateBezierPath, applyJitter, isPositionStable } from '../../src/primitives/click-enhanced.js';
+import { generateBezierPath, applyJitter, isPositionStable, easeInOutCubic } from '../../src/primitives/click-enhanced.js';
 import { getClickEnhancementConfig } from '../../src/config.js';
 
 describe('generateBezierPath', () => {
@@ -8,14 +8,16 @@ describe('generateBezierPath', () => {
     expect(points.length).toBeGreaterThanOrEqual(10);
   });
 
-  it('starts near the origin and ends near the target', () => {
+  it('starts near the origin and ends at the exact target', () => {
     const points = generateBezierPath(0, 0, 800, 600);
     const first = points[0];
     const last = points[points.length - 1];
-    expect(first.x).toBeCloseTo(0, 0);
-    expect(first.y).toBeCloseTo(0, 0);
-    expect(last.x).toBeCloseTo(800, 0);
-    expect(last.y).toBeCloseTo(600, 0);
+    // First point has ±1px micro-noise
+    expect(Math.abs(first.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(first.y)).toBeLessThanOrEqual(1);
+    // Last point has no noise (exact)
+    expect(last.x).toBe(800);
+    expect(last.y).toBe(600);
   });
 
   it('points are not all collinear (has curvature)', () => {
@@ -27,6 +29,28 @@ describe('generateBezierPath', () => {
   it('returns single point when start equals end', () => {
     const points = generateBezierPath(100, 100, 100, 100);
     expect(points.length).toBe(1);
+  });
+});
+
+describe('easeInOutCubic', () => {
+  it('returns 0 at t=0 and 1 at t=1', () => {
+    expect(easeInOutCubic(0)).toBe(0);
+    expect(easeInOutCubic(1)).toBe(1);
+  });
+
+  it('returns 0.5 at t=0.5', () => {
+    expect(easeInOutCubic(0.5)).toBeCloseTo(0.5, 5);
+  });
+
+  it('moves slowly at start and end, fast in middle', () => {
+    // First 20% of t should cover less than 20% of distance (slow start)
+    expect(easeInOutCubic(0.2)).toBeLessThan(0.2);
+    // Last 20% should cover less than 20% too (slow end)
+    expect(1 - easeInOutCubic(0.8)).toBeLessThan(0.2);
+    // Middle should be faster
+    const mid = easeInOutCubic(0.6) - easeInOutCubic(0.4);
+    const edge = easeInOutCubic(0.2) - easeInOutCubic(0.0);
+    expect(mid).toBeGreaterThan(edge);
   });
 });
 

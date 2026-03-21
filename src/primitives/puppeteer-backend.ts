@@ -6,6 +6,7 @@ import {
   checkOcclusion,
   waitForElementStable,
   clickWithTrajectory,
+  injectCoordFix,
 } from './click-enhanced.js';
 import type {
   Primitives,
@@ -34,6 +35,11 @@ export class PuppeteerBackend implements Primitives {
     let page = this.pages.get(key);
     if (!page) {
       page = await this.browser.newPage();
+      // Inject coord fix before any navigation so evaluateOnNewDocument fires on first goto
+      const config = getClickEnhancementConfig();
+      if (config.coordFix) {
+        await injectCoordFix(page);
+      }
       this.pages.set(key, page);
     }
     this.currentSite = key;

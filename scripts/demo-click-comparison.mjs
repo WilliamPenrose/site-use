@@ -9,6 +9,7 @@
  */
 import { ensureBrowser, closeBrowser } from '../dist/browser/browser.js';
 import { injectCoordFix, clickWithTrajectory, checkOcclusion, waitForElementStable } from '../dist/primitives/click-enhanced.js';
+import { analyzeTrajectory } from '../dist/diagnose/trajectory-analyzer.js';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -35,6 +36,55 @@ function printResults(label, results) {
       console.log(`  last click      : (${c.clientX}, ${c.clientY}) screenX=${c.screenX} screenY=${c.screenY} coordOk=${c.coordOk}`);
     }
   }
+}
+
+function printHumannessReport(results, targetRect) {
+  const moves = results.events
+    .filter(e => e.type === 'mousemove')
+    .map(e => ({ x: e.clientX, y: e.clientY, timestamp: e.timestamp }));
+
+  const clicks = results.events.filter(e => e.type === 'click');
+  if (clicks.length === 0) {
+    console.log('\n  Humanness Analysis: no click events recorded');
+    return;
+  }
+
+  const lastClick = clicks[clicks.length - 1];
+  const click = { x: lastClick.clientX, y: lastClick.clientY, timestamp: lastClick.timestamp };
+  const target = {
+    x: targetRect.x + targetRect.width / 2,
+    y: targetRect.y + targetRect.height / 2,
+    width: targetRect.width,
+    height: targetRect.height,
+  };
+
+  const report = analyzeTrajectory(moves, click, target);
+
+  console.log('\n  Humanness Analysis');
+  console.log('  ' + '-'.repeat(56));
+
+  if (moves.length < 3) {
+    console.log('  (insufficient trajectory data for full analysis)');
+  }
+
+  for (const c of report.checks) {
+    const status = c.pass ? 'PASS' : 'FAIL';
+    const pad = c.name.length < 20 ? ' '.repeat(20 - c.name.length) : ' ';
+    let detail;
+    if (c.threshold.min != null && c.threshold.max != null) {
+      detail = `${c.value.toFixed(1)}px, ${c.threshold.min}-${c.threshold.max.toFixed(0)}px`;
+    } else if (c.threshold.min != null) {
+      detail = `${c.value.toFixed(2)}, >${c.threshold.min}`;
+    } else {
+      detail = `${c.value.toFixed(2)}, <${c.threshold.max}`;
+    }
+    const ref = `[${c.reference}]`;
+    console.log(`  ${c.name}${pad}:  ${status}  (${detail})  ${ref}`);
+  }
+
+  const passCount = report.checks.filter(c => c.pass).length;
+  console.log('  ' + '-'.repeat(56));
+  console.log(`  Score: ${passCount}/${report.checks.length} (${report.overallScore.toFixed(2)})`);
 }
 
 async function getResults(page) {
@@ -66,6 +116,14 @@ async function getButtonCenter(page) {
   });
 }
 
+async function getButtonRect(page) {
+  return page.evaluate(() => {
+    const btn = document.getElementById('target-btn');
+    const rect = btn.getBoundingClientRect();
+    return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+  });
+}
+
 async function main() {
   console.log('\n  Click Enhancement Comparison Demo');
   console.log('  ' + '='.repeat(40));
@@ -85,33 +143,45 @@ async function main() {
 
   // ── Mode 1: Vanilla Puppeteer click ──
   const m1 = await runMode('MODE 1: Vanilla Puppeteer click (no enhancements)');
+  const m1rect = await getButtonRect(m1.pg);
   await m1.pg.mouse.click(m1.btn.x, m1.btn.y);
   await new Promise(r => setTimeout(r, 300));
-  printResults('Vanilla click', await getResults(m1.pg));
+  const m1results = await getResults(m1.pg);
+  printResults('Vanilla click', m1results);
+  printHumannessReport(m1results, m1rect);
   await waitForEnter();
   await m1.pg.close();
 
   // ── Mode 2: With coordinate fix ──
   const m2 = await runMode('MODE 2: With screenX/screenY coordinate fix', (pg) => injectCoordFix(pg));
+  const m2rect = await getButtonRect(m2.pg);
   await m2.pg.mouse.click(m2.btn.x, m2.btn.y);
   await new Promise(r => setTimeout(r, 300));
-  printResults('With coord fix', await getResults(m2.pg));
+  const m2results = await getResults(m2.pg);
+  printResults('With coord fix', m2results);
+  printHumannessReport(m2results, m2rect);
   await waitForEnter();
   await m2.pg.close();
 
   // ── Mode 3: With Bezier trajectory (no coord fix, no jitter) ──
   const m3 = await runMode('MODE 3: With Bezier trajectory (no jitter)');
+  const m3rect = await getButtonRect(m3.pg);
   await clickWithTrajectory(m3.pg, m3.btn.x, m3.btn.y, { jitter: false });
   await new Promise(r => setTimeout(r, 300));
-  printResults('With trajectory', await getResults(m3.pg));
+  const m3results = await getResults(m3.pg);
+  printResults('With trajectory', m3results);
+  printHumannessReport(m3results, m3rect);
   await waitForEnter();
   await m3.pg.close();
 
   // ── Mode 4: Full enhancement (coord fix + trajectory + jitter) ──
   const m4 = await runMode('MODE 4: Full enhancement (coord fix + trajectory + jitter)', (pg) => injectCoordFix(pg));
+  const m4rect = await getButtonRect(m4.pg);
   await clickWithTrajectory(m4.pg, m4.btn.x, m4.btn.y, { jitter: true });
   await new Promise(r => setTimeout(r, 300));
-  printResults('Full enhancement', await getResults(m4.pg));
+  const m4results = await getResults(m4.pg);
+  printResults('Full enhancement', m4results);
+  printHumannessReport(m4results, m4rect);
   await waitForEnter();
   await m4.pg.close();
 
@@ -177,11 +247,14 @@ async function main() {
 
   if (targetNode) {
     console.log(`  Found target button: uid=${targetNode.uid}, role=${targetNode.role}, name="${targetNode.name}"`);
+    const m7page = await m7backend.getRawPage('probe');
+    const m7rect = await getButtonRect(m7page);
     await m7backend.click(targetNode.uid, 'probe');
     await new Promise(r => setTimeout(r, 300));
 
-    const m7page = await m7backend.getRawPage('probe');
-    printResults('Integrated click', await getResults(m7page));
+    const m7results = await getResults(m7page);
+    printResults('Integrated click', m7results);
+    printHumannessReport(m7results, m7rect);
   } else {
     console.log('  ERROR: Could not find target button in snapshot');
   }
