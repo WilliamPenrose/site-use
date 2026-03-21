@@ -2,6 +2,8 @@ import puppeteer, { type Browser, type Page } from 'puppeteer-core';
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { getConfig } from '../config.js';
+import { injectCoordFix } from '../primitives/click-enhanced.js';
+import { getClickEnhancementConfig } from '../config.js';
 import { BrowserDisconnected } from '../errors.js';
 import { buildWelcomeHTML } from './welcome.js';
 
@@ -17,6 +19,23 @@ async function emulateFocus(pages: Page[]): Promise<void> {
       console.error(
         '[site-use] WARNING: Emulation.setFocusEmulationEnabled failed — ' +
           'document.hasFocus() may return false when window is in background. ' +
+          `${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+}
+
+async function applyCoordFix(pages: Page[]): Promise<void> {
+  const config = getClickEnhancementConfig();
+  if (!config.coordFix) return;
+
+  for (const page of pages) {
+    try {
+      await injectCoordFix(page);
+    } catch (err) {
+      console.error(
+        '[site-use] WARNING: MouseEvent coordinate fix failed — ' +
+          `screenX/screenY may be inconsistent. ` +
           `${err instanceof Error ? err.message : String(err)}`,
       );
     }
@@ -119,10 +138,12 @@ export async function ensureBrowser(extraArgs?: string[]): Promise<Browser> {
   // Also locks document.visibilityState to "visible".
   // Must be set per-page (Emulation is a page-level CDP domain).
   await emulateFocus(pages);
+  await applyCoordFix(pages);
   browserInstance.on('targetcreated', async (target) => {
     if (target.type() === 'page') {
       const page = await target.page();
       if (page) await emulateFocus([page]);
+      if (page) await applyCoordFix([page]);
     }
   });
   if (blank) {
