@@ -30,7 +30,7 @@ run('npx tsc', 'tsc (main)');
 console.log('[build] Generating browser barrel...');
 const checksDir = path.join(ROOT, 'src', 'diagnose', 'checks');
 const excludePrefix = '_';
-const excludeFiles = new Set(['input-trusted.ts', 'input-coords.ts']);
+const excludeFiles = new Set(['input-trusted.ts', 'input-coords.ts', 'scroll-deltas.ts']);
 
 const entries = fs.readdirSync(checksDir).filter((f) => {
   if (!f.endsWith('.ts')) return false;

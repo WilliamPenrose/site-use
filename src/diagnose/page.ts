@@ -5,6 +5,7 @@
 import { checks as barrelChecks } from './checks/_browser-barrel.js';
 import { setup as setupInputTrusted, run as runInputTrusted, meta as inputTrustedMeta } from './checks/input-trusted.js';
 import { setup as setupInputCoords, run as runInputCoords, meta as inputCoordsMeta } from './checks/input-coords.js';
+import { setup as setupScrollDeltas, run as runScrollDeltas, meta as scrollDeltasMeta, getDeltas as getScrollDeltas } from './checks/scroll-deltas.js';
 import type { CheckMeta, CheckResult } from './types.js';
 
 interface ResultEntry {
@@ -50,6 +51,7 @@ async function runAll(): Promise<void> {
   // Set up deferred input listeners first
   setupInputTrusted();
   setupInputCoords();
+  setupScrollDeltas();
 
   // Run all barrel checks
   for (const check of barrelChecks) {
@@ -78,6 +80,18 @@ async function runAll(): Promise<void> {
   addRow(inputCoordsMeta, runInputCoords());
   updateStatus();
 };
+
+/** Called after Node triggers scroll events to resolve scroll checks */
+(window as unknown as Record<string, () => void>).__resolveScrollChecks = () => {
+  addRow(scrollDeltasMeta, runScrollDeltas());
+  updateStatus();
+};
+
+/** Expose collected scroll deltas for Node runner */
+Object.defineProperty(window, '__scrollDeltas', {
+  get: () => getScrollDeltas(),
+  configurable: true,
+});
 
 /** Called by Node runner to inject node-side check results */
 (window as unknown as Record<string, (meta: CheckMeta, result: CheckResult) => void>).__addNodeResult = (
