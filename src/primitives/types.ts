@@ -66,6 +66,9 @@ export interface Primitives {
   /** Scroll the page. Aligned with devtools-mcp scroll. */
   scroll(options: ScrollOptions, site?: string): Promise<void>;
 
+  /** Scroll element into view if not already visible. */
+  scrollIntoView(uid: string, site?: string): Promise<void>;
+
   /**
    * Execute JS expression in browser context. Aligned with devtools-mcp evaluate_script.
    * Pass string expressions, not function references (runs in browser, no Node.js closures).

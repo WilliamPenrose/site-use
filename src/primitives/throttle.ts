@@ -32,6 +32,7 @@ export function createThrottledPrimitives(
     click: (uid, site?) => throttled(() => inner.click(uid, site)),
     type: (uid, text, site?) => throttled(() => inner.type(uid, text, site)),
     scroll: (options, site?) => throttled(() => inner.scroll(options, site)),
+    scrollIntoView: (uid, site?) => throttled(() => inner.scrollIntoView(uid, site)),
     evaluate: <T = unknown>(expression: string, site?: string) =>
       throttled(() => inner.evaluate<T>(expression, site)),
     interceptRequest: (pattern, handler, site?) =>
