@@ -27,11 +27,13 @@ describe('humanScroll', () => {
     expect(calls.length).toBeLessThanOrEqual(11);
   });
 
-  it('produces single wheel call at scrollSpeed=100', async () => {
+  it('produces fewer wheel calls at scrollSpeed=100 than at scrollSpeed=60', async () => {
     const page = createMockPage();
     await humanScroll(page, 0, 600, { scrollSpeed: 100, scrollDelay: 0 });
     const calls = (page.mouse.wheel as ReturnType<typeof vi.fn>).mock.calls;
-    expect(calls.length).toBe(1);
+    // scrollSpeed=100 → ~6 steps + correction; fewer than scrollSpeed=60 (~10 steps)
+    expect(calls.length).toBeLessThanOrEqual(8);
+    expect(calls.length).toBeGreaterThanOrEqual(4);
   });
 
   it('produces many small steps at scrollSpeed=1', async () => {

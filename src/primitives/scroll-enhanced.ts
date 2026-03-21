@@ -2,14 +2,14 @@ import type { Page } from 'puppeteer-core';
 
 // --- Internal constants ---
 
-const DEFAULT_SCROLL_SPEED = 60;
+const DEFAULT_SCROLL_SPEED = 120;
 const DEFAULT_SCROLL_DELAY = 200;
 const DEFAULT_STEP_DELAY_BASE = 20;
 const DEFAULT_STEP_DELAY_JITTER = 0.3;
-const DEFAULT_STEP_SIZE_JITTER = 0.1;
+const DEFAULT_STEP_SIZE_JITTER = 0.2;
 
 /** Exponential scaling kicks in above this scrollSpeed value. */
-const EXP_SCALE_START = 90;
+const EXP_SCALE_START = 150;
 
 /** Linear interpolation between two ranges (from ghost-cursor math.ts). */
 function linearScale(
@@ -25,7 +25,7 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 export interface HumanScrollOptions {
-  /** Pixels per step (1-89) or exponential scale (90-100). Default: 60 */
+  /** Pixels per step (1-149) or exponential scale (150-200). Default: 120 */
   scrollSpeed?: number;
   /** Post-scroll delay in ms. Default: 200 */
   scrollDelay?: number;
@@ -33,7 +33,7 @@ export interface HumanScrollOptions {
   stepDelayBase?: number;
   /** Inter-step delay jitter factor (0-1). Default: 0.3 */
   stepDelayJitter?: number;
-  /** Step size jitter factor (0-1). Default: 0.1 */
+  /** Step size jitter factor (0-1). Default: 0.2 */
   stepSizeJitter?: number;
 }
 
@@ -60,7 +60,7 @@ export async function humanScroll(
     stepSizeJitter = DEFAULT_STEP_SIZE_JITTER,
   } = options;
 
-  const scrollSpeed = clamp(rawSpeed, 1, 100);
+  const scrollSpeed = clamp(rawSpeed, 1, 200);
 
   const absDeltaX = Math.abs(deltaX);
   const absDeltaY = Math.abs(deltaY);
@@ -98,26 +98,20 @@ export async function humanScroll(
   for (let i = 0; i < numSteps; i++) {
     const isLast = i === numSteps - 1;
 
-    let pStep: number;
-    let sStep: number;
+    // Bell-shaped speed profile: scale step size by sin curve
+    // so first/last steps are smaller (acceleration/deceleration)
+    const t = numSteps > 1 ? i / (numSteps - 1) : 0.5;
+    const bellScale = 0.3 + 0.7 * Math.sin(Math.PI * t);
 
-    if (isLast) {
-      // Last step: correct for accumulated jitter to preserve total distance
-      pStep = primaryDist - primaryAccum;
-      sStep = secondaryDist - secondaryAccum;
-    } else {
-      // Base step + jitter
-      const pJitter = 1 + (Math.random() * 2 - 1) * stepSizeJitter;
-      const sJitter = 1 + (Math.random() * 2 - 1) * stepSizeJitter;
-      pStep = primaryStepSize * pJitter;
-      sStep = secondaryStepSize * sJitter;
-    }
+    const pJitter = 1 + (Math.random() * 2 - 1) * stepSizeJitter;
+    const sJitter = 1 + (Math.random() * 2 - 1) * stepSizeJitter;
+    const pStep = primaryStepSize * bellScale * pJitter;
+    const sStep = secondaryStepSize * bellScale * sJitter;
 
     primaryAccum += pStep;
     secondaryAccum += sStep;
 
-    // Map back to X/Y with correct signs:
-    // primary axis → pStep, secondary axis → sStep
+    // Map back to X/Y with correct signs
     const wheelDeltaX = primaryIsX ? pStep * xSign : sStep * xSign;
     const wheelDeltaY = primaryIsX ? sStep * ySign : pStep * ySign;
 
@@ -129,6 +123,15 @@ export async function humanScroll(
       const delay = stepDelayBase + (Math.random() * 2 - 1) * jitterRange;
       await new Promise((r) => setTimeout(r, Math.max(0, delay)));
     }
+  }
+
+  // Correction step: emit a small final wheel event to match exact total distance
+  const pRemain = primaryDist - primaryAccum;
+  const sRemain = secondaryDist - secondaryAccum;
+  if (Math.abs(pRemain) > 1 || Math.abs(sRemain) > 1) {
+    const corrX = primaryIsX ? pRemain * xSign : sRemain * xSign;
+    const corrY = primaryIsX ? sRemain * ySign : pRemain * ySign;
+    await page.mouse.wheel({ deltaX: corrX, deltaY: corrY });
   }
 
   // Post-scroll delay
@@ -147,7 +150,7 @@ export interface ScrollIntoViewOptions extends HumanScrollOptions {
  *
  * Decision tree:
  * 1. If element is in viewport (with margin) → no-op
- * 2. If scrollSpeed=100 and no margin → CDP DOM.scrollIntoViewIfNeeded (fast path)
+ * 2. If scrollSpeed=200 (max) and no margin → CDP DOM.scrollIntoViewIfNeeded (fast path)
  * 3. Otherwise → calculate delta and humanScroll()
  * 4. On any failure → JS element.scrollIntoView() fallback
  */
@@ -163,7 +166,7 @@ export async function scrollElementIntoView(
     ...scrollOptions
   } = options;
 
-  const scrollSpeed = clamp(rawSpeed, 1, 100);
+  const scrollSpeed = clamp(rawSpeed, 1, 200);
   const client = await page.createCDPSession();
 
   try {
@@ -210,8 +213,8 @@ export async function scrollElementIntoView(
 
     if (isInViewport) return;
 
-    // CDP fast path: scrollSpeed=100 and no margin
-    if (scrollSpeed === 100 && inViewportMargin <= 0) {
+    // CDP fast path: scrollSpeed=200 (max) and no margin
+    if (scrollSpeed === 200 && inViewportMargin <= 0) {
       try {
         const { object } = await client.send('DOM.resolveNode', { backendNodeId });
         await client.send('DOM.scrollIntoViewIfNeeded', { objectId: object.objectId });
