@@ -212,7 +212,7 @@ DrissionPage 的交互模拟对比（更新于 2026-03-21）：
 | 能力 | site-use | DrissionPage | 状态 |
 |------|----------|-------------|------|
 | 操作间随机延迟 | ✅ throttle.ts | ✅ `wait(min, max)` | ✅ 已覆盖 |
-| 点击坐标抖动 | ✅ `applyJitter()` ±3px | ✅ 遮挡检测+回退 | ✅ 已实现 |
+| 点击坐标抖动 | ✅ `applyJitter()` 元素感知比例化偏移 | ✅ 遮挡检测+回退 | ✅ 已实现 |
 | 渐进式滚动 | ✅ 3步渐进 | ❌ | ✅ site-use 更好 |
 | 逐字输入 | ✅ Puppeteer 内置 | ✅ `interval` 参数 | ✅ 已覆盖 |
 | 鼠标轨迹模拟 | ✅ `clickWithTrajectory()` 贝塞尔曲线 | ✅ 线性插值 50ms 步长 | ✅ site-use 更好（曲线 vs 直线） |
