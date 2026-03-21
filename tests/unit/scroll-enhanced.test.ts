@@ -116,3 +116,108 @@ describe('humanScroll', () => {
     expect(unique.size).toBeGreaterThan(1);
   });
 });
+
+describe('scrollElementIntoView', () => {
+  let scrollElementIntoView: typeof import('../../src/primitives/scroll-enhanced.js').scrollElementIntoView;
+
+  function createMockCDPSession(boxModel: any, viewport: any = { innerWidth: 1280, innerHeight: 720, scrollY: 0, scrollX: 0 }) {
+    return {
+      send: vi.fn().mockImplementation((method: string) => {
+        if (method === 'DOM.getBoxModel') {
+          return Promise.resolve(boxModel);
+        }
+        if (method === 'DOM.scrollIntoViewIfNeeded') {
+          return Promise.resolve();
+        }
+        if (method === 'DOM.resolveNode') {
+          return Promise.resolve({ object: { objectId: 'obj-1' } });
+        }
+        return Promise.resolve({});
+      }),
+      detach: vi.fn().mockResolvedValue(undefined),
+    };
+  }
+
+  function createMockPageWithCDP(session: any, viewport: any = { innerWidth: 1280, innerHeight: 720, scrollY: 0, scrollX: 0 }): Page {
+    return {
+      mouse: { wheel: vi.fn().mockResolvedValue(undefined) },
+      createCDPSession: vi.fn().mockResolvedValue(session),
+      evaluate: vi.fn().mockResolvedValue(viewport),
+    } as unknown as Page;
+  }
+
+  beforeEach(async () => {
+    vi.resetModules();
+    const mod = await import('../../src/primitives/scroll-enhanced.js');
+    scrollElementIntoView = mod.scrollElementIntoView;
+  });
+
+  it('skips scroll when element is already in viewport', async () => {
+    const session = createMockCDPSession({
+      model: { content: [100, 100, 200, 100, 200, 200, 100, 200] },
+    });
+    const page = createMockPageWithCDP(session);
+    await scrollElementIntoView(page, 42);
+    expect((page.mouse.wheel as ReturnType<typeof vi.fn>)).not.toHaveBeenCalled();
+  });
+
+  it('scrolls down when element is below viewport', async () => {
+    const session = createMockCDPSession({
+      model: { content: [100, 800, 200, 800, 200, 900, 100, 900] },
+    });
+    const page = createMockPageWithCDP(session);
+    await scrollElementIntoView(page, 42, { scrollDelay: 0 });
+    expect((page.mouse.wheel as ReturnType<typeof vi.fn>)).toHaveBeenCalled();
+    const totalDeltaY = (page.mouse.wheel as ReturnType<typeof vi.fn>).mock.calls.reduce(
+      (sum: number, c: any[]) => sum + (c[0]?.deltaY ?? 0), 0,
+    );
+    expect(totalDeltaY).toBeGreaterThan(0);
+  });
+
+  it('scrolls up when element is above viewport', async () => {
+    const session = createMockCDPSession({
+      model: { content: [100, -100, 200, -100, 200, -50, 100, -50] },
+    });
+    const page = createMockPageWithCDP(session);
+    await scrollElementIntoView(page, 42, { scrollDelay: 0 });
+    const totalDeltaY = (page.mouse.wheel as ReturnType<typeof vi.fn>).mock.calls.reduce(
+      (sum: number, c: any[]) => sum + (c[0]?.deltaY ?? 0), 0,
+    );
+    expect(totalDeltaY).toBeLessThan(0);
+  });
+
+  it('scrolls right when element is off-screen horizontally', async () => {
+    const session = createMockCDPSession({
+      model: { content: [1400, 100, 1500, 100, 1500, 200, 1400, 200] },
+    });
+    const page = createMockPageWithCDP(session);
+    await scrollElementIntoView(page, 42, { scrollDelay: 0 });
+    const totalDeltaX = (page.mouse.wheel as ReturnType<typeof vi.fn>).mock.calls.reduce(
+      (sum: number, c: any[]) => sum + (c[0]?.deltaX ?? 0), 0,
+    );
+    expect(totalDeltaX).toBeGreaterThan(0);
+  });
+
+  it('falls back to JS scrollIntoView when CDP getBoxModel fails', async () => {
+    const session = {
+      send: vi.fn().mockImplementation((method: string) => {
+        if (method === 'DOM.getBoxModel') {
+          return Promise.reject(new Error('Node not found'));
+        }
+        if (method === 'DOM.resolveNode') {
+          return Promise.resolve({ object: { objectId: 'obj-1' } });
+        }
+        return Promise.resolve({});
+      }),
+      detach: vi.fn().mockResolvedValue(undefined),
+    };
+    const page = {
+      mouse: { wheel: vi.fn().mockResolvedValue(undefined) },
+      createCDPSession: vi.fn().mockResolvedValue(session),
+      evaluate: vi.fn().mockResolvedValue({ innerWidth: 1280, innerHeight: 720, scrollY: 0, scrollX: 0 }),
+    } as unknown as Page;
+
+    // Should not throw — falls back gracefully
+    await scrollElementIntoView(page, 42, { scrollDelay: 0 });
+  });
+});

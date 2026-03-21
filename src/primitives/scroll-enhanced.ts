@@ -136,3 +136,133 @@ export async function humanScroll(
     await new Promise((r) => setTimeout(r, scrollDelay));
   }
 }
+
+export interface ScrollIntoViewOptions extends HumanScrollOptions {
+  /** Extra margin around element for viewport check (px). Default: 0 */
+  inViewportMargin?: number;
+}
+
+/**
+ * Scroll an element into view with humanized scrolling.
+ *
+ * Decision tree:
+ * 1. If element is in viewport (with margin) → no-op
+ * 2. If scrollSpeed=100 and no margin → CDP DOM.scrollIntoViewIfNeeded (fast path)
+ * 3. Otherwise → calculate delta and humanScroll()
+ * 4. On any failure → JS element.scrollIntoView() fallback
+ */
+export async function scrollElementIntoView(
+  page: Page,
+  backendNodeId: number,
+  options: ScrollIntoViewOptions = {},
+): Promise<void> {
+  const {
+    inViewportMargin = 0,
+    scrollSpeed: rawSpeed = DEFAULT_SCROLL_SPEED,
+    scrollDelay = DEFAULT_SCROLL_DELAY,
+    ...scrollOptions
+  } = options;
+
+  const scrollSpeed = clamp(rawSpeed, 1, 100);
+  const client = await page.createCDPSession();
+
+  try {
+    // Get element bounding box
+    let elemBox: { top: number; left: number; bottom: number; right: number };
+    try {
+      const { model } = await client.send('DOM.getBoxModel', { backendNodeId });
+      const quad = model.content as number[];
+      const xs = [quad[0], quad[2], quad[4], quad[6]];
+      const ys = [quad[1], quad[3], quad[5], quad[7]];
+      elemBox = {
+        top: Math.min(...ys),
+        left: Math.min(...xs),
+        bottom: Math.max(...ys),
+        right: Math.max(...xs),
+      };
+    } catch {
+      // Cannot get box model — fall back to JS scrollIntoView
+      await jsFallbackScroll(client, backendNodeId, scrollSpeed);
+      return;
+    }
+
+    // Get viewport dimensions
+    const viewport = await page.evaluate(() => ({
+      innerWidth: window.innerWidth,
+      innerHeight: window.innerHeight,
+      scrollY: window.scrollY,
+      scrollX: window.scrollX,
+    }));
+
+    // Viewport check with margin
+    const marginedBox = {
+      top: elemBox.top - inViewportMargin,
+      left: elemBox.left - inViewportMargin,
+      bottom: elemBox.bottom + inViewportMargin,
+      right: elemBox.right + inViewportMargin,
+    };
+
+    const isInViewport =
+      marginedBox.top >= 0 &&
+      marginedBox.left >= 0 &&
+      marginedBox.bottom <= viewport.innerHeight &&
+      marginedBox.right <= viewport.innerWidth;
+
+    if (isInViewport) return;
+
+    // CDP fast path: scrollSpeed=100 and no margin
+    if (scrollSpeed === 100 && inViewportMargin <= 0) {
+      try {
+        const { object } = await client.send('DOM.resolveNode', { backendNodeId });
+        await client.send('DOM.scrollIntoViewIfNeeded', { objectId: object.objectId });
+        if (scrollDelay > 0) {
+          await new Promise((r) => setTimeout(r, scrollDelay));
+        }
+        return;
+      } catch {
+        // Fall through to humanized scroll
+      }
+    }
+
+    // Calculate deltas
+    let deltaY = 0;
+    let deltaX = 0;
+
+    if (marginedBox.top < 0) {
+      deltaY = marginedBox.top; // scroll up
+    } else if (marginedBox.bottom > viewport.innerHeight) {
+      deltaY = marginedBox.bottom - viewport.innerHeight; // scroll down
+    }
+
+    if (marginedBox.left < 0) {
+      deltaX = marginedBox.left; // scroll left
+    } else if (marginedBox.right > viewport.innerWidth) {
+      deltaX = marginedBox.right - viewport.innerWidth; // scroll right
+    }
+
+    await humanScroll(page, deltaX, deltaY, { scrollSpeed, scrollDelay, ...scrollOptions });
+  } finally {
+    await client.detach();
+  }
+}
+
+/** JS fallback: resolve node and call element.scrollIntoView() */
+async function jsFallbackScroll(
+  client: any,
+  backendNodeId: number,
+  scrollSpeed: number,
+): Promise<void> {
+  try {
+    const { object } = await client.send('DOM.resolveNode', { backendNodeId });
+    const behavior = scrollSpeed < 90 ? "'smooth'" : 'undefined';
+    await client.send('Runtime.callFunctionOn', {
+      objectId: object.objectId,
+      functionDeclaration: `function() {
+        this.scrollIntoView({ block: 'center', behavior: ${behavior} });
+      }`,
+      awaitPromise: false,
+    });
+  } catch {
+    // Last resort failed — nothing more we can do
+  }
+}
