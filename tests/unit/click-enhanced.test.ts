@@ -55,21 +55,60 @@ describe('easeInOutCubic', () => {
 });
 
 describe('applyJitter', () => {
-  it('returns coordinates within ±maxOffset of the original', () => {
-    const maxOffset = 3;
+  it('with no box: returns coordinates within ±maxOffset (legacy mode)', () => {
     for (let i = 0; i < 100; i++) {
-      const { x, y } = applyJitter(500, 300, maxOffset);
-      expect(x).toBeGreaterThanOrEqual(500 - maxOffset);
-      expect(x).toBeLessThanOrEqual(500 + maxOffset);
-      expect(y).toBeGreaterThanOrEqual(300 - maxOffset);
-      expect(y).toBeLessThanOrEqual(300 + maxOffset);
+      const { x, y } = applyJitter(500, 300, 3);
+      expect(x).toBeGreaterThanOrEqual(497);
+      expect(x).toBeLessThanOrEqual(503);
+      expect(y).toBeGreaterThanOrEqual(297);
+      expect(y).toBeLessThanOrEqual(303);
     }
   });
 
-  it('does not always return the same value (has randomness)', () => {
+  it('with box: returns coordinates within the padded bounding box', () => {
+    // 200x100 box at (100, 50), center = (200, 100)
+    const box = { x: 100, y: 50, width: 200, height: 100 };
+    for (let i = 0; i < 200; i++) {
+      const { x, y } = applyJitter(200, 100, 3, box);
+      // Must stay within the box boundaries
+      expect(x).toBeGreaterThanOrEqual(100);
+      expect(x).toBeLessThanOrEqual(300);
+      expect(y).toBeGreaterThanOrEqual(50);
+      expect(y).toBeLessThanOrEqual(150);
+    }
+  });
+
+  it('with box: points spread beyond ±3px for large elements', () => {
+    const box = { x: 0, y: 0, width: 400, height: 200 };
+    let maxDist = 0;
+    for (let i = 0; i < 200; i++) {
+      const { x, y } = applyJitter(200, 100, 3, box);
+      const dist = Math.max(Math.abs(x - 200), Math.abs(y - 100));
+      if (dist > maxDist) maxDist = dist;
+    }
+    // For a 400x200 box, points should spread well beyond 3px
+    expect(maxDist).toBeGreaterThan(10);
+  });
+
+  it('with box: distribution is center-biased (truncated normal)', () => {
+    const box = { x: 0, y: 0, width: 200, height: 200 };
+    let innerCount = 0;
+    const N = 1000;
+    for (let i = 0; i < N; i++) {
+      const { x, y } = applyJitter(100, 100, 3, box);
+      // "Inner 50%" = within ±25% of center = [50, 150] on each axis
+      if (x >= 50 && x <= 150 && y >= 50 && y <= 150) innerCount++;
+    }
+    // Uniform would give ~25% in inner 50% area (0.5*0.5).
+    // Truncated normal should concentrate >50% of points in the inner 50%.
+    expect(innerCount / N).toBeGreaterThan(0.45);
+  });
+
+  it('has randomness (does not always return the same value)', () => {
     const results = new Set<string>();
+    const box = { x: 0, y: 0, width: 200, height: 100 };
     for (let i = 0; i < 20; i++) {
-      const { x, y } = applyJitter(500, 300, 3);
+      const { x, y } = applyJitter(100, 50, 3, box);
       results.add(`${x.toFixed(2)},${y.toFixed(2)}`);
     }
     expect(results.size).toBeGreaterThan(1);

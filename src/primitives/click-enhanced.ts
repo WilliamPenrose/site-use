@@ -71,17 +71,70 @@ export function generateBezierPath(
   return points;
 }
 
+export interface BoundingBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 /**
- * Apply random jitter within +/-maxOffset pixels.
+ * Generate a truncated normal random value in [-1, 1].
+ * Uses Box-Muller transform, clamped to ±1.
+ * stddev controls concentration: lower = tighter center bias.
+ */
+function truncatedNormal(stddev: number = 0.4): number {
+  // Box-Muller transform: two uniform randoms → one normal random
+  const u1 = Math.random() || 1e-10; // avoid log(0)
+  const u2 = Math.random();
+  const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+  return Math.max(-1, Math.min(1, z * stddev));
+}
+
+/**
+ * Apply random jitter to click coordinates.
+ *
+ * - Without `box`: legacy mode, uniform ±maxOffset pixels.
+ * - With `box`: element-aware mode, truncated normal distribution within
+ *   the bounding box (center-biased, clamped to box edges).
+ *   `paddingPct` controls edge padding (0-100, default 15).
  */
 export function applyJitter(
   x: number,
   y: number,
   maxOffset: number = 3,
+  box?: BoundingBox,
+  paddingPct: number = 15,
 ): Point {
+  if (!box) {
+    // Legacy: uniform ±maxOffset
+    return {
+      x: x + (Math.random() * 2 - 1) * maxOffset,
+      y: y + (Math.random() * 2 - 1) * maxOffset,
+    };
+  }
+
+  // Element-aware: truncated normal within padded bounding box
+  const padX = (box.width * paddingPct) / 100;
+  const padY = (box.height * paddingPct) / 100;
+
+  const minX = box.x + padX / 2;
+  const maxX = box.x + box.width - padX / 2;
+  const minY = box.y + padY / 2;
+  const maxY = box.y + box.height - padY / 2;
+
+  const halfW = (maxX - minX) / 2;
+  const halfH = (maxY - minY) / 2;
+  const cx = minX + halfW;
+  const cy = minY + halfH;
+
+  const jitteredX = cx + truncatedNormal() * halfW;
+  const jitteredY = cy + truncatedNormal() * halfH;
+
+  // Clamp to full bounding box (safety net)
   return {
-    x: x + (Math.random() * 2 - 1) * maxOffset,
-    y: y + (Math.random() * 2 - 1) * maxOffset,
+    x: Math.max(box.x, Math.min(box.x + box.width, jitteredX)),
+    y: Math.max(box.y, Math.min(box.y + box.height, jitteredY)),
   };
 }
 
