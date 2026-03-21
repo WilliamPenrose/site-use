@@ -13,9 +13,6 @@ chrome-profile/
 # Local site-use data directory
 .site-use/
 
-# CocoIndex code search cache
-.cocoindex_code/
-
 # Claude Code local settings (contains machine-specific paths)
 .claude/
 
@@ -24,3 +21,6 @@ docs/superpowers/
 
 # Git worktrees
 .worktrees/
+.gitnexus
+.mcp.json
+AGENTS.md
