@@ -1,7 +1,7 @@
 # 能力 2：Primitives 层 — 浏览器操作原语
 
 > 上游文档：[技术架构设计](../../site-use-design.md) — Primitives 层章节，[M1 里程碑](../overview.md) — 能力 2
-> 状态：待讨论
+> 状态：已完成（2026-03-21）
 
 ## 目标
 
