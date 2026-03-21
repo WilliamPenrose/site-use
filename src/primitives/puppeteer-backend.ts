@@ -1,6 +1,7 @@
 import type { Browser, Page } from 'puppeteer-core';
 import { ElementNotFound } from '../errors.js';
-import { getClickEnhancementConfig } from '../config.js';
+import { getClickEnhancementConfig, getScrollEnhancementConfig } from '../config.js';
+import { humanScroll, scrollElementIntoView } from './scroll-enhanced.js';
 import {
   applyJitter,
   checkOcclusion,
@@ -239,7 +240,13 @@ export class PuppeteerBackend implements Primitives {
     const direction = options.direction === 'up' ? -1 : 1;
     const totalDelta = amount * direction;
 
-    // Progressive scroll: divide into steps
+    const scrollConfig = getScrollEnhancementConfig();
+    if (scrollConfig.humanize) {
+      await humanScroll(page, 0, totalDelta);
+      return;
+    }
+
+    // Fallback: mechanical scroll (original behavior)
     const STEP_COUNT = 3;
     const stepDelta = totalDelta / STEP_COUNT;
     const STEP_PAUSE_MS = 80;
@@ -253,6 +260,24 @@ export class PuppeteerBackend implements Primitives {
 
     // Wait for lazy-loaded content after scroll completes
     await new Promise((r) => setTimeout(r, 500));
+  }
+
+  async scrollIntoView(uid: string, site?: string): Promise<void> {
+    if (this.uidToBackendNodeId.size === 0) {
+      throw new Error(
+        'No snapshot available. Call takeSnapshot() before scrollIntoView().',
+      );
+    }
+
+    const backendNodeId = this.uidToBackendNodeId.get(uid);
+    if (backendNodeId == null) {
+      throw new ElementNotFound(`Element with uid "${uid}" not found in snapshot`, {
+        step: 'scrollIntoView',
+      });
+    }
+
+    const page = await this.getPage(site);
+    await scrollElementIntoView(page, backendNodeId);
   }
 
   async evaluate<T = unknown>(expression: string, site?: string): Promise<T> {

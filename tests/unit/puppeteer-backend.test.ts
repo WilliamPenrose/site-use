@@ -9,6 +9,14 @@ vi.mock('../../src/config.js', () => ({
     occlusionCheck: false,
     stabilityWait: false,
   })),
+  getScrollEnhancementConfig: vi.fn(() => ({
+    humanize: false,
+  })),
+}));
+
+vi.mock('../../src/primitives/scroll-enhanced.js', () => ({
+  humanScroll: vi.fn().mockResolvedValue(undefined),
+  scrollElementIntoView: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('../../src/primitives/click-enhanced.js', () => ({
@@ -506,6 +514,86 @@ describe('PuppeteerBackend', () => {
       await expect(backend.type('5', 'hello', 'twitter')).rejects.toThrow(
         /not implemented/i,
       );
+    });
+  });
+
+  describe('scrollIntoView', () => {
+    function setupScrollIntoViewMocks() {
+      const session = {
+        send: vi.fn().mockImplementation((method: string) => {
+          if (method === 'Accessibility.getFullAXTree') {
+            return Promise.resolve({
+              nodes: [
+                {
+                  nodeId: 'ax-1',
+                  role: { value: 'button' },
+                  name: { value: 'Submit' },
+                  backendDOMNodeId: 101,
+                  ignored: false,
+                  properties: [],
+                },
+              ],
+            });
+          }
+          return Promise.resolve({});
+        }),
+        detach: vi.fn().mockResolvedValue(undefined),
+      };
+      mockCreateCDPSession.mockResolvedValue(session);
+      return session;
+    }
+
+    it('throws when takeSnapshot has not been called', async () => {
+      const backend = new PuppeteerBackend(mockBrowser as any);
+      await expect(backend.scrollIntoView('1', 'twitter')).rejects.toThrow(/snapshot/i);
+    });
+
+    it('throws ElementNotFound when uid is not in snapshot', async () => {
+      setupScrollIntoViewMocks();
+      const backend = new PuppeteerBackend(mockBrowser as any);
+      await backend.takeSnapshot('twitter');
+      await expect(backend.scrollIntoView('999', 'twitter')).rejects.toThrow(/not found/i);
+    });
+
+    it('delegates to scrollElementIntoView with correct backendNodeId', async () => {
+      setupScrollIntoViewMocks();
+      const page = createMockPage();
+      mockNewPage.mockResolvedValue(page);
+
+      const backend = new PuppeteerBackend(mockBrowser as any);
+      await backend.takeSnapshot('twitter');
+      await backend.scrollIntoView('1', 'twitter');
+
+      const { scrollElementIntoView } = await import('../../src/primitives/scroll-enhanced.js');
+      expect(scrollElementIntoView).toHaveBeenCalledWith(page, 101);
+    });
+  });
+
+  describe('scroll with humanize config', () => {
+    it('uses mechanical scroll when humanize=false', async () => {
+      const page = createMockPage();
+      mockNewPage.mockResolvedValue(page);
+
+      // Default mock returns humanize: false
+      const backend = new PuppeteerBackend(mockBrowser as any);
+      await backend.scroll({ direction: 'down', amount: 600 }, 'twitter');
+
+      // Mechanical scroll: exactly 3 wheel calls
+      expect(page.mouse.wheel).toHaveBeenCalledTimes(3);
+    });
+
+    it('delegates to humanScroll when humanize=true', async () => {
+      const { getScrollEnhancementConfig } = await import('../../src/config.js');
+      (getScrollEnhancementConfig as ReturnType<typeof vi.fn>).mockReturnValue({ humanize: true });
+
+      const page = createMockPage();
+      mockNewPage.mockResolvedValue(page);
+
+      const backend = new PuppeteerBackend(mockBrowser as any);
+      await backend.scroll({ direction: 'down', amount: 600 }, 'twitter');
+
+      const { humanScroll } = await import('../../src/primitives/scroll-enhanced.js');
+      expect(humanScroll).toHaveBeenCalled();
     });
   });
 });
