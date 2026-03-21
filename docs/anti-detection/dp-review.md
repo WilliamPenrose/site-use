@@ -204,26 +204,24 @@ DrissionPage 的默认启动参数与 site-use 的逐项对比：
 
 | | |
 |---|---|
-| **决定** | 部分差距，M3 跟进 |
-| **里程碑影响** | M3 |
+| **决定** | ✅ 已实现 |
+| **里程碑影响** | 已完成（原 M3 规划，提前实现） |
 
-DrissionPage 的交互模拟比 site-use 当前设计更精细：
+DrissionPage 的交互模拟对比（更新于 2026-03-21）：
 
-| 能力 | site-use | DrissionPage | 差距 |
+| 能力 | site-use | DrissionPage | 状态 |
 |------|----------|-------------|------|
-| 操作间随机延迟 | ✅ M1（1-3s） | ✅ `wait(min, max)` | 无 |
-| 点击坐标抖动 | ✅ M3（±3px） | ✅ 遮挡检测+回退 | DP 更精细 |
-| 渐进式滚动 | ✅ M3 | ❌ | site-use 更好 |
-| 逐字输入 | ✅ Puppeteer 内置 | ✅ `interval` 参数 | 无 |
-| **鼠标轨迹模拟** | ❌ | ✅ 线性插值 50ms 步长 | **site-use 缺失** |
-| **元素停止移动检测** | ❌ | ✅ `stop_moving()` | **site-use 缺失** |
-| **点击遮挡检测** | ❌ | ✅ `DOM.getNodeForLocation` | **site-use 缺失** |
+| 操作间随机延迟 | ✅ throttle.ts | ✅ `wait(min, max)` | ✅ 已覆盖 |
+| 点击坐标抖动 | ✅ `applyJitter()` ±3px | ✅ 遮挡检测+回退 | ✅ 已实现 |
+| 渐进式滚动 | ✅ 3步渐进 | ❌ | ✅ site-use 更好 |
+| 逐字输入 | ✅ Puppeteer 内置 | ✅ `interval` 参数 | ✅ 已覆盖 |
+| 鼠标轨迹模拟 | ✅ `clickWithTrajectory()` 贝塞尔曲线 | ✅ 线性插值 50ms 步长 | ✅ site-use 更好（曲线 vs 直线） |
+| 元素停止移动检测 | ✅ `waitForElementStable()` | ✅ `stop_moving()` | ✅ 已实现 |
+| 点击遮挡检测 | ✅ `checkOcclusion()` | ✅ `DOM.getNodeForLocation` | ✅ 已实现（同方案） |
 
-**鼠标轨迹模拟**：DP 在 click 前生成线性插值鼠标移动轨迹（每 20ms 一个点，默认 0.5s 共 25 个点）。site-use 的 `click(uid)` 通过 Puppeteer Locator 直接点击，没有移动轨迹。不过 DP 的轨迹也是简单线性插值，高级行为分析仍可检测。
+**鼠标轨迹模拟**：site-use 使用自研贝塞尔曲线算法（随机控制点），比 DP 的线性插值更接近真人手部运动。demo 验证 20-60+ mousemove 事件，坐标修复后 screenX/screenY 全部一致。
 
-**元素停止移动检测**和**点击遮挡检测**：对于 site-use 的 snapshot uid 点击模式影响较小——uid 定位的是辅助功能树节点，Puppeteer 内部通过 backend node ID 定位元素再操作。但如果元素有 CSS 动画过渡，点击时机可能有问题。
-
-**M3 跟进建议**：在 throttle 层增强 `click` 原语，click 前通过 CDP `Input.dispatchMouseEvent` 生成简单的鼠标移动轨迹。优先级低于 M3 的其他反爬增强项。
+**所有增强默认启用**，可通过环境变量单独关闭（`SITE_USE_CLICK_TRAJECTORY` 等）。
 
 ---
 
