@@ -52,4 +52,20 @@ describe('diagnose runner', () => {
     const wd = cachedResults.find((r) => r.meta.id === 'webdriver');
     expect(wd?.result.pass).toBe(true);
   });
+
+  it('includes scroll trajectory analysis results', () => {
+    const scrollChecks = cachedResults.filter((r) => r.meta.id.startsWith('scroll-'));
+    // At minimum: timing CV, speed profile, delta uniformity, device mode match
+    expect(scrollChecks.length).toBeGreaterThanOrEqual(4);
+    for (const sc of scrollChecks) {
+      expect(sc.result).toHaveProperty('pass');
+      expect(sc.result).toHaveProperty('actual');
+    }
+  });
+
+  it('includes scroll event collection info', () => {
+    const collector = cachedResults.find((r) => r.meta.id === 'scroll-deltas');
+    expect(collector).toBeDefined();
+    expect(collector!.result.actual).toMatch(/\d+ events collected/);
+  });
 });
