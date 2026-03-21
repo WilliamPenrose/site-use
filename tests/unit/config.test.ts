@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getConfig } from '../../src/config.js';
+import { getConfig, getScrollEnhancementConfig } from '../../src/config.js';
 
 describe('getConfig', () => {
   beforeEach(() => {
@@ -103,5 +103,22 @@ describe('getConfig', () => {
       password: 'pass',
     });
     expect(config.proxySource).toBe('HTTPS_PROXY');
+  });
+});
+
+describe('getScrollEnhancementConfig', () => {
+  it('returns humanize enabled by default', () => {
+    const config = getScrollEnhancementConfig();
+    expect(config.humanize).toBe(true);
+  });
+
+  it('respects SITE_USE_SCROLL_HUMANIZE=false', () => {
+    process.env.SITE_USE_SCROLL_HUMANIZE = 'false';
+    try {
+      const config = getScrollEnhancementConfig();
+      expect(config.humanize).toBe(false);
+    } finally {
+      delete process.env.SITE_USE_SCROLL_HUMANIZE;
+    }
   });
 });
