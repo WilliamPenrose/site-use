@@ -16,6 +16,7 @@ import type {
   ScrollOptions,
   InterceptHandler,
 } from './types.js';
+import { RateLimitDetector } from './rate-limit-detect.js';
 
 const DEFAULT_SITE = '_default';
 
@@ -24,13 +25,56 @@ export class PuppeteerBackend implements Primitives {
   private pages: Map<string, Page> = new Map();
   private currentSite: string = DEFAULT_SITE;
   private siteDomains: Record<string, string[]>;
+  private rateLimitDetector: RateLimitDetector | null;
+  private listenedPages: WeakSet<Page> = new WeakSet();
 
   // Internal: uid -> backendDOMNodeId mapping from last takeSnapshot
   private uidToBackendNodeId: Map<string, number> = new Map();
 
-  constructor(browser: Browser, siteDomains: Record<string, string[]> = {}) {
+  constructor(
+    browser: Browser,
+    siteDomains: Record<string, string[]> = {},
+    rateLimitDetector?: RateLimitDetector,
+  ) {
     this.browser = browser;
     this.siteDomains = siteDomains;
+    this.rateLimitDetector = rateLimitDetector ?? null;
+  }
+
+  private installResponseListener(page: Page, site: string): void {
+    if (!this.rateLimitDetector || this.listenedPages.has(page)) return;
+    this.listenedPages.add(page);
+
+    page.on('response', async (response) => {
+      try {
+        // Puppeteer already returns lowercase header keys
+        const headers = response.headers() as Record<string, string>;
+
+        let body = '';
+        try {
+          // Timeout guard: response.text() can hang on streaming responses
+          body = await Promise.race([
+            response.text(),
+            new Promise<string>((_, reject) =>
+              setTimeout(() => reject(new Error('body read timeout')), 1000),
+            ),
+          ]);
+        } catch {
+          // Body unavailable or timed out — ok for default 429 check (uses status + headers)
+        }
+
+        this.rateLimitDetector!.onResponse(
+          { url: response.url(), status: response.status(), headers, body },
+          site,
+        );
+      } catch {
+        // Don't let listener errors break page operations
+      }
+    });
+  }
+
+  private checkRateLimit(step: string, site?: string): void {
+    this.rateLimitDetector?.checkAndThrow(step, site ?? this.currentSite);
   }
 
   private async getPage(site?: string): Promise<Page> {
@@ -40,6 +84,7 @@ export class PuppeteerBackend implements Primitives {
     const cached = this.pages.get(key);
     if (cached) {
       this.currentSite = key;
+      this.installResponseListener(cached, key);
       return cached;
     }
 
@@ -57,6 +102,7 @@ export class PuppeteerBackend implements Primitives {
               await injectCoordFix(p);
               this.pages.set(key, p);
               this.currentSite = key;
+              this.installResponseListener(p, key);
               return p;
             }
           } catch {
@@ -74,10 +120,12 @@ export class PuppeteerBackend implements Primitives {
     await injectCoordFix(page);
     this.pages.set(key, page);
     this.currentSite = key;
+    this.installResponseListener(page, key);
     return page;
   }
 
   async navigate(url: string, site?: string): Promise<void> {
+    this.checkRateLimit('navigate', site);
     const page = await this.getPage(site);
     try {
       await page.goto(url, { waitUntil: 'load', timeout: 30_000 });
@@ -90,6 +138,7 @@ export class PuppeteerBackend implements Primitives {
   }
 
   async takeSnapshot(site?: string): Promise<Snapshot> {
+    this.checkRateLimit('takeSnapshot', site);
     const page = await this.getPage(site);
     const client = await page.createCDPSession();
 
@@ -194,6 +243,7 @@ export class PuppeteerBackend implements Primitives {
   }
 
   async click(uid: string, site?: string): Promise<void> {
+    this.checkRateLimit('click', site);
     if (this.uidToBackendNodeId.size === 0) {
       throw new Error(
         'No snapshot available. Call takeSnapshot() before click().',
@@ -246,6 +296,7 @@ export class PuppeteerBackend implements Primitives {
   }
 
   async scroll(options: ScrollOptions, site?: string): Promise<void> {
+    this.checkRateLimit('scroll', site);
     const page = await this.getPage(site);
     const amount = options.amount ?? 600;
     const direction = options.direction === 'up' ? -1 : 1;
@@ -255,6 +306,7 @@ export class PuppeteerBackend implements Primitives {
   }
 
   async scrollIntoView(uid: string, site?: string): Promise<void> {
+    this.checkRateLimit('scrollIntoView', site);
     if (this.uidToBackendNodeId.size === 0) {
       throw new Error(
         'No snapshot available. Call takeSnapshot() before scrollIntoView().',
@@ -273,6 +325,7 @@ export class PuppeteerBackend implements Primitives {
   }
 
   async evaluate<T = unknown>(expression: string, site?: string): Promise<T> {
+    this.checkRateLimit('evaluate', site);
     const page = await this.getPage(site);
     return await page.evaluate(expression) as T;
   }
