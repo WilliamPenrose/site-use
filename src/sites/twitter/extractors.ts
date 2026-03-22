@@ -105,11 +105,13 @@ function extractFromTweetResult(
       : tweetResult;
 
   const legacy = (core as any)?.legacy;
-  const userLegacy = (core as any)?.core?.user_results?.result?.legacy;
-  if (!legacy || !userLegacy) return null;
+  const userResult = (core as any)?.core?.user_results?.result;
+  // User info may be under .core (current) or .legacy (older schema)
+  const userInfo = userResult?.core ?? userResult?.legacy;
+  if (!legacy || !userInfo) return null;
 
-  const handle: string = userLegacy.screen_name ?? '';
-  const name: string = userLegacy.name ?? '';
+  const handle: string = userInfo.screen_name ?? '';
+  const name: string = userInfo.name ?? '';
   const fullText: string = legacy.full_text ?? '';
   const createdAt: string = legacy.created_at ?? '';
   const idStr: string = legacy.id_str ?? (core as any).rest_id ?? '';
@@ -148,6 +150,11 @@ function extractFromTweetResult(
  * captures no data (e.g. endpoint changes), returns empty array.
  * DOM fallback can be added later without changing this signature.
  */
+/** Short delay to allow async GraphQL responses to arrive. */
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function extractTweetsFromPage(
   primitives: Primitives,
   count: number,
@@ -167,7 +174,12 @@ export async function extractTweetsFromPage(
   );
 
   try {
-    // Scroll to collect enough tweets
+    // Re-navigate to trigger a fresh GraphQL request now that interception is active.
+    // checkLogin already navigated to /home, but that response was before our interceptor.
+    await primitives.navigate('https://x.com/home', TWITTER_SITE);
+    await wait(2000);
+
+    // Scroll to collect more if needed
     let prevTotal = 0;
     let staleRounds = 0;
 
@@ -182,6 +194,7 @@ export async function extractTweetsFromPage(
 
       prevTotal = interceptedRaw.length;
       await primitives.scroll({ direction: 'down' }, TWITTER_SITE);
+      await wait(1500);
     }
 
     return interceptedRaw;
