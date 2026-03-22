@@ -13,10 +13,9 @@ export function createServer(primitives: Primitives): McpServer {
     version: '0.1.0',
   });
 
-  server.tool(
+  server.registerTool(
     'twitter_check_login',
-    'Check if the user is logged in to Twitter/X',
-    {},
+    { description: 'Check if the user is logged in to Twitter/X' },
     async () => {
       const result = await checkLogin(primitives);
       return {
@@ -25,10 +24,12 @@ export function createServer(primitives: Primitives): McpServer {
     },
   );
 
-  server.tool(
+  server.registerTool(
     'twitter_timeline',
-    'Collect tweets from the Twitter/X home timeline',
-    { count: z.number().min(1).max(100).default(20).describe('Number of tweets to collect') },
+    {
+      description: 'Collect tweets from the Twitter/X home timeline',
+      inputSchema: { count: z.number().min(1).max(100).default(20).describe('Number of tweets to collect') },
+    },
     async ({ count }) => {
       const result = await getTimeline(primitives, count);
       return {
