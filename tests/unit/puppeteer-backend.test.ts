@@ -505,6 +505,81 @@ describe('PuppeteerBackend', () => {
     });
   });
 
+  describe('tab reuse', () => {
+    it('reuses existing browser tab matching site domain instead of creating new', async () => {
+      const existingPage = createMockPage();
+      existingPage.url = vi.fn().mockReturnValue('https://x.com/home');
+      const mockBrowserWithPages = {
+        ...mockBrowser,
+        pages: vi.fn().mockResolvedValue([existingPage]),
+      };
+
+      const backend = new PuppeteerBackend(mockBrowserWithPages as any);
+      const page = await backend.getRawPage('twitter');
+
+      expect(mockBrowserWithPages.pages).toHaveBeenCalled();
+      expect(mockNewPage).not.toHaveBeenCalled();
+    });
+
+    it('creates new page when no existing tab matches domain', async () => {
+      const existingPage = createMockPage();
+      existingPage.url = vi.fn().mockReturnValue('https://google.com');
+      const mockBrowserWithPages = {
+        ...mockBrowser,
+        pages: vi.fn().mockResolvedValue([existingPage]),
+      };
+
+      const backend = new PuppeteerBackend(mockBrowserWithPages as any);
+      await backend.getRawPage('twitter');
+
+      expect(mockNewPage).toHaveBeenCalled();
+    });
+
+    it('skips about:blank tabs during domain matching', async () => {
+      const blankPage = createMockPage();
+      blankPage.url = vi.fn().mockReturnValue('about:blank');
+      const mockBrowserWithPages = {
+        ...mockBrowser,
+        pages: vi.fn().mockResolvedValue([blankPage]),
+      };
+
+      const backend = new PuppeteerBackend(mockBrowserWithPages as any);
+      await backend.getRawPage('twitter');
+
+      expect(mockNewPage).toHaveBeenCalled();
+    });
+
+    it('skips tabs where page.url() throws (crashed tab)', async () => {
+      const crashedPage = createMockPage();
+      crashedPage.url = vi.fn().mockImplementation(() => { throw new Error('Target closed'); });
+      const mockBrowserWithPages = {
+        ...mockBrowser,
+        pages: vi.fn().mockResolvedValue([crashedPage]),
+      };
+
+      const backend = new PuppeteerBackend(mockBrowserWithPages as any);
+      await backend.getRawPage('twitter');
+
+      expect(mockNewPage).toHaveBeenCalled();
+    });
+
+    it('still uses Map cache on second call (no re-scan)', async () => {
+      const existingPage = createMockPage();
+      existingPage.url = vi.fn().mockReturnValue('https://x.com/home');
+      const mockBrowserWithPages = {
+        ...mockBrowser,
+        pages: vi.fn().mockResolvedValue([existingPage]),
+      };
+
+      const backend = new PuppeteerBackend(mockBrowserWithPages as any);
+      await backend.getRawPage('twitter');
+      await backend.getRawPage('twitter');
+
+      // pages() scanned once, then Map cache hit
+      expect(mockBrowserWithPages.pages).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('scrollIntoView', () => {
     function setupScrollIntoViewMocks() {
       const session = {

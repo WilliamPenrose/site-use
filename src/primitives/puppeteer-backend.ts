@@ -19,6 +19,10 @@ import type {
 
 const DEFAULT_SITE = '_default';
 
+const SITE_DOMAINS: Record<string, string[]> = {
+  twitter: ['x.com', 'twitter.com'],
+};
+
 export class PuppeteerBackend implements Primitives {
   private browser: Browser;
   private pages: Map<string, Page> = new Map();
@@ -33,16 +37,51 @@ export class PuppeteerBackend implements Primitives {
 
   private async getPage(site?: string): Promise<Page> {
     const key = site ?? this.currentSite;
-    let page = this.pages.get(key);
-    if (!page) {
-      page = await this.browser.newPage();
-      // Inject coord fix before any navigation so evaluateOnNewDocument fires on first goto
-      const config = getClickEnhancementConfig();
-      if (config.coordFix) {
-        await injectCoordFix(page);
-      }
-      this.pages.set(key, page);
+
+    // 1. Map cache hit
+    const cached = this.pages.get(key);
+    if (cached) {
+      this.currentSite = key;
+      return cached;
     }
+
+    // 2. Scan existing browser tabs for domain match
+    const domains = SITE_DOMAINS[key];
+    if (domains) {
+      try {
+        const existingPages = await this.browser.pages();
+        for (const p of existingPages) {
+          try {
+            const pageUrl = p.url();
+            if (pageUrl === 'about:blank' || pageUrl.startsWith('data:')) continue;
+            const hostname = new URL(pageUrl).hostname;
+            if (domains.some(d => hostname === d || hostname.endsWith('.' + d))) {
+              const config = getClickEnhancementConfig();
+              if (config.coordFix) {
+                await injectCoordFix(p);
+              }
+              this.pages.set(key, p);
+              this.currentSite = key;
+              return p;
+            }
+          } catch {
+            // page.url() threw — crashed tab, skip
+            continue;
+          }
+        }
+      } catch {
+        // browser.pages() failed — fall through to newPage
+      }
+    }
+
+    // 3. No existing tab — create new
+    const page = await this.browser.newPage();
+    // Inject coord fix before any navigation so evaluateOnNewDocument fires on first goto
+    const config = getClickEnhancementConfig();
+    if (config.coordFix) {
+      await injectCoordFix(page);
+    }
+    this.pages.set(key, page);
     this.currentSite = key;
     return page;
   }
