@@ -107,6 +107,13 @@ describe('PuppeteerBackend', () => {
         timeout: 30_000,
       });
     });
+
+    it('wraps navigation errors as NavigationFailed', async () => {
+      mockGoto.mockRejectedValueOnce(new Error('net::ERR_TIMED_OUT'));
+      const backend = new PuppeteerBackend(mockBrowser as any);
+      await expect(backend.navigate('https://x.com', 'twitter'))
+        .rejects.toThrow(/Failed to navigate/);
+    });
   });
 
   describe('evaluate', () => {

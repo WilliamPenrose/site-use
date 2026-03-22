@@ -1,5 +1,5 @@
 import type { Browser, Page } from 'puppeteer-core';
-import { ElementNotFound } from '../errors.js';
+import { ElementNotFound, NavigationFailed } from '../errors.js';
 import { getClickEnhancementConfig } from '../config.js';
 import { humanScroll, scrollElementIntoView } from './scroll-enhanced.js';
 import {
@@ -88,7 +88,14 @@ export class PuppeteerBackend implements Primitives {
 
   async navigate(url: string, site?: string): Promise<void> {
     const page = await this.getPage(site);
-    await page.goto(url, { waitUntil: 'load', timeout: 30_000 });
+    try {
+      await page.goto(url, { waitUntil: 'load', timeout: 30_000 });
+    } catch (err) {
+      throw new NavigationFailed(
+        `Failed to navigate to ${url}: ${err instanceof Error ? err.message : String(err)}`,
+        { url, step: 'navigate', retryable: true },
+      );
+    }
   }
 
   async takeSnapshot(site?: string): Promise<Snapshot> {

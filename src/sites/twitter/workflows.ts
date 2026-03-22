@@ -49,6 +49,7 @@ export async function requireLogin(primitives: Primitives): Promise<void> {
   if (!loggedIn) {
     throw new SessionExpired('Twitter login required', {
       url: TWITTER_HOME,
+      step: 'requireLogin',
     });
   }
 }
