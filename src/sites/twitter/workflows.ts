@@ -1,6 +1,7 @@
 import type { Primitives } from '../../primitives/types.js';
 import { SessionExpired } from '../../errors.js';
 import { matchByRule, rules } from './matchers.js';
+import { makeEnsureState } from '../../ops/ensure-state.js';
 import {
   collectTweetsFromTimeline,
   parseGraphQLTimeline,
@@ -81,7 +82,12 @@ export async function getTimeline(
 
   try {
     // Navigate to timeline — auth guard auto-checks login
-    await primitives.navigate(TWITTER_HOME, TWITTER_SITE);
+    const ensure = makeEnsureState(primitives, TWITTER_SITE);
+    const { action } = await ensure({ url: TWITTER_HOME });
+    if (action === 'already_there') {
+      // Already on home — intercept needs a fresh page load to capture GraphQL
+      await primitives.navigate(TWITTER_HOME, TWITTER_SITE);
+    }
 
     // Scroll to collect more tweets if needed
     const rawTweets = await collectTweetsFromTimeline(primitives, interceptedRaw, count);
