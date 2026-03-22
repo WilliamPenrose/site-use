@@ -52,7 +52,7 @@ M1 定义的核心类型，对应 PRD 中的简报输出需求。
 {
   id: string              // 推文 ID（从链接提取）
   author: TweetAuthor
-  text: string            // 完整推文文本
+  text: string            // 推文文本（已处理：媒体 t.co 链接剥离，外部 t.co 链接展开为真实 URL）
   timestamp: string       // ISO 8601（如可获取），否则相对时间字符串
   url: string             // 推文永久链接 https://x.com/handle/status/ID
   metrics: {
@@ -60,10 +60,50 @@ M1 定义的核心类型，对应 PRD 中的简报输出需求。
     retweets?: number
     replies?: number
   }
+  media: TweetMedia[]     // 附带的媒体，无媒体时为空数组
   isRetweet: boolean
   isAd: boolean           // 广告标记，用于过滤
 }
 ```
+
+### TweetMedia
+
+```typescript
+{
+  type: 'photo' | 'video' | 'gif'
+  url: string             // photo: 原图 URL（media_url_https + ?name=orig）
+                          // video/gif: 最高 bitrate 的 mp4 变体 URL
+  width: number           // 原始宽度
+  height: number          // 原始高度
+  altText?: string        // 图片替代文本（发推人手写的图片描述，AI agent 理解图片内容的关键信息）
+  duration?: number       // 仅 video/gif，单位毫秒
+  thumbnailUrl?: string   // 仅 video/gif，封面帧 URL
+}
+```
+
+**设计决策**：
+
+- **只返回一个 URL，不返回多尺寸变体**：AI agent 不需要选尺寸，它需要知道"有什么媒体"。小红书 MCP 返回多个变体（url/urlDefault/urlPre）是因为客户端可能渲染 UI 需要不同尺寸，site-use 不需要。
+- **photo 取原图**：`media_url_https` + `?name=orig`。AI agent 不在意文件大小。已验证（2026-03-22）：对 `pbs.twimg.com` 图片 URL 分别请求 `?name=orig`（133.5KB）、`?name=large`（133.5KB）、`?name=small`（69.6KB）、`?name=thumb`（7.5KB），orig 返回 200 且为最大尺寸。对于 1080px 以内的图 orig/large/medium 相同，更大原图会有差异。
+- **video 取最高 bitrate mp4**：跳过 m3u8（HLS 需要播放器，agent 用不了）。
+- **gif 独立于 video**：语义更清晰，虽然 Twitter GraphQL 中 `animated_gif` 的结构与 video 相同。
+- **altText 对 AI agent 极其重要**：AI agent 不能"看"图片，但 alt text 直接描述图片内容，是理解推文完整含义的关键。来源：GraphQL 媒体对象的 `ext_alt_text` 字段。
+- **thumbnailUrl 补充视频理解**：AI agent 看不了视频，但封面帧提供了视觉线索。来源：video 类型媒体对象的 `media_url_https`。
+- **返回 URL 而非 base64**：不下载、不内联。参考 xiaohongshu-mcp 的做法——feed 数据中媒体以 URL 返回，只有登录二维码（需要立即展示给用户）才用 base64 ImageContent。
+
+### 推文文本处理
+
+推文原文（`legacy.full_text`）中包含两类 t.co 短链：
+
+1. **媒体链接**（`entities.media[].url`）— 指向推文附带的图片/视频，已在 `media` 数组中结构化返回，属于文本噪音
+2. **外部链接**（`entities.urls[].url`）— 指向外部网页或引用推文，有对应的 `expanded_url`（真实 URL）
+
+**处理策略**：
+- 媒体 t.co 链接 → **从 text 中剥离**（通过 `entities.media[].indices` 精确定位）
+- 外部 t.co 链接 → **替换为 `expanded_url`**（真实 URL，通过 `entities.urls[].indices` 精确定位）
+- HTML 实体 → **解码**（`&amp;` → `&` 等，GraphQL 返回的 full_text 带 HTML 转义）
+
+这样 AI agent 拿到的 text 是干净的：真实链接 + 无媒体占位噪音 + 无 HTML 转义。
 
 ### TweetAuthor
 
@@ -210,18 +250,42 @@ buildTimelineMeta(tweets)            → TimelineMeta       // 纯函数
 {
   authorHandle: string
   authorName: string
-  text: string
+  text: string           // 已处理：媒体链接剥离，外部链接展开，HTML 实体解码
   timestamp: string
   url: string
   likes: number
   retweets: number
   replies: number
+  media: RawTweetMedia[] // 从 extended_entities.media 提取
   isRetweet: boolean
   isAd: boolean
 }
 ```
 
-这是浏览器端 `evaluate()` 返回值的类型。它隔离了浏览器端提取逻辑和 Node 端解析逻辑。
+```typescript
+// RawTweetMedia — GraphQL 媒体对象的精简映射
+{
+  type: 'photo' | 'video' | 'animated_gif'   // GraphQL 原始类型
+  mediaUrl: string                            // media_url_https
+  width: number                               // original_info.width
+  height: number                              // original_info.height
+  altText?: string                            // ext_alt_text
+  durationMs?: number                         // video_info.duration_millis
+  videoUrl?: string                           // video_info.variants 中最高 bitrate 的 mp4 URL
+}
+```
+
+这是 GraphQL 拦截返回值的类型。它隔离了浏览器端提取逻辑和 Node 端解析逻辑。`parseTweet()` 负责将 `RawTweetMedia` 转为 `TweetMedia`（`animated_gif` → `gif`，photo URL 加 `?name=orig` 等）。
+
+### 媒体提取来源
+
+Twitter GraphQL 响应中，媒体数据在两个位置：
+- `legacy.entities.media[]` — 只有第一个媒体项
+- `legacy.extended_entities.media[]` — **所有**媒体项（多图场景必须用这个）
+
+提取时使用 `extended_entities.media`，回退到 `entities.media`。
+
+文本处理（链接展开/剥离）依赖 `legacy.entities.urls[]` 和 `legacy.entities.media[]` 中的 `indices` 字段（`[start, end]`），标记了 text 中各链接的精确位置。
 
 ### 测试策略
 
@@ -354,3 +418,5 @@ workflows.ts
 | TimelineMeta 完整返回 | 产品差异化关键——"覆盖了谁"，M1 就提供 |
 | checkLogin 的显式调用 | M3 改为中间件，逻辑不变 |
 | workflow 不做 AI 分析 | 分析属于 Skill 层，site-use 只提供数据 |
+| TweetMedia 返回 URL 不内联 | 跨站点通用策略（参考 xiaohongshu-mcp），新站点直接复用模式 |
+| 文本处理（链接展开 + 媒体剥离） | 保证 text 字段对 AI agent 始终干净可读，新站点也应遵循 |

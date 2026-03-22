@@ -322,6 +322,8 @@ throttle 在 Primitives 层实现，意味着无论底层是 Puppeteer 还是 de
 - 检测到未登录 → 抛出 `SessionExpired` 错误，由 caller 处理
 - Primitives 层不做登录恢复 — 恢复策略属于 caller（Skill 有 AI 能力和用户上下文）
 
+**QR 码登录参考**：部分站点（如小红书）登录流程需要用户扫二维码。xiaohongshu-mcp 的做法是：浏览器自动化打开登录页 → 截取 QR 码截图 → 通过 MCP ImageContent（`type: "image"`, base64 PNG）返回给 AI 客户端 → 客户端内联展示 → 用户手机扫码完成登录。site-use 当前使用持久化 Chrome profile（用户手动登录一次，session 自动保持），但未来新增小红书等站点时需要实现 QR 码登录流程。参考实现：`d:\src\openclaw生态\xiaohongshu-mcp\mcp_handlers.go`（login handler）。
+
 ### 模块边界原则
 
 1. Primitives 层**不知道**任何站点的具体细节（没有 Twitter 的 URL 或语义匹配规则）

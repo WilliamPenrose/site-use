@@ -30,6 +30,7 @@ describe('TweetSchema', () => {
     timestamp: '2026-03-18T23:49:31.000Z',
     url: 'https://x.com/karpathy/status/2034416944074613174',
     metrics: { likes: 100, retweets: 10, replies: 5 },
+    media: [],
     isRetweet: false,
     isAd: false,
   };
@@ -65,6 +66,7 @@ describe('RawTweetDataSchema', () => {
       likes: 1200,
       retweets: 83,
       replies: 163,
+      media: [],
       isRetweet: false,
       isAd: false,
     });

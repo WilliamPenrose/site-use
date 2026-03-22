@@ -1,5 +1,5 @@
 import type { Primitives } from '../../primitives/types.js';
-import type { Tweet, RawTweetData, TimelineMeta } from './types.js';
+import type { Tweet, TweetMedia, RawTweetData, RawTweetMedia, TimelineMeta } from './types.js';
 
 const GRAPHQL_TIMELINE_PATTERN = /\/i\/api\/graphql\/.*\/Home.*Timeline/;
 const MAX_STALE_ROUNDS = 3;
@@ -21,12 +21,117 @@ function decodeHTMLEntities(text: string): string {
 }
 
 /**
+ * Process tweet full_text: expand external t.co URLs, strip media t.co URLs, decode HTML entities.
+ * Replacements are applied from end to start so indices stay valid.
+ */
+export function processFullText(
+  fullText: string,
+  entities: { urls?: any[]; media?: any[] },
+): string {
+  // Collect all replacements: { start, end, replacement }
+  const replacements: Array<{ start: number; end: number; replacement: string }> = [];
+
+  // External URLs: replace t.co with expanded_url
+  for (const u of entities.urls ?? []) {
+    if (u.indices && u.expanded_url) {
+      replacements.push({
+        start: u.indices[0],
+        end: u.indices[1],
+        replacement: u.expanded_url,
+      });
+    }
+  }
+
+  // Media URLs: strip from text (already in media array)
+  for (const m of entities.media ?? []) {
+    if (m.indices) {
+      replacements.push({
+        start: m.indices[0],
+        end: m.indices[1],
+        replacement: '',
+      });
+    }
+  }
+
+  // Sort by start position descending so we can splice from the end
+  replacements.sort((a, b) => b.start - a.start);
+
+  let result = fullText;
+  for (const r of replacements) {
+    result = result.slice(0, r.start) + r.replacement + result.slice(r.end);
+  }
+
+  return decodeHTMLEntities(result.trim());
+}
+
+/** Extract media items from GraphQL extended_entities or entities. */
+function extractMedia(legacy: any): RawTweetMedia[] {
+  const mediaItems =
+    legacy.extended_entities?.media ?? legacy.entities?.media ?? [];
+  const results: RawTweetMedia[] = [];
+
+  for (const m of mediaItems) {
+    const type = m.type as string;
+    if (type !== 'photo' && type !== 'video' && type !== 'animated_gif') continue;
+
+    const raw: RawTweetMedia = {
+      type: type as RawTweetMedia['type'],
+      mediaUrl: m.media_url_https ?? '',
+      width: m.original_info?.width ?? 0,
+      height: m.original_info?.height ?? 0,
+    };
+
+    if (m.ext_alt_text) {
+      raw.altText = m.ext_alt_text;
+    }
+
+    if (type === 'video' || type === 'animated_gif') {
+      const videoInfo = m.video_info;
+      if (videoInfo?.duration_millis != null) {
+        raw.durationMs = videoInfo.duration_millis;
+      }
+      // Pick highest bitrate mp4 variant
+      const mp4Variants = (videoInfo?.variants ?? [])
+        .filter((v: any) => v.content_type === 'video/mp4' && v.bitrate != null)
+        .sort((a: any, b: any) => b.bitrate - a.bitrate);
+      if (mp4Variants.length > 0) {
+        raw.videoUrl = mp4Variants[0].url;
+      }
+    }
+
+    results.push(raw);
+  }
+
+  return results;
+}
+
+/**
  * Extract tweet ID from a tweet URL.
  * Pattern: https://x.com/{handle}/status/{id}
  */
 function extractTweetId(url: string): string {
   const match = url.match(/\/status\/(\d+)/);
   return match ? match[1] : url;
+}
+
+/** Map RawTweetMedia (GraphQL types) to TweetMedia (API types). Pure function. */
+function mapMedia(raw: RawTweetMedia): TweetMedia {
+  const isVideo = raw.type === 'video' || raw.type === 'animated_gif';
+
+  const media: TweetMedia = {
+    type: raw.type === 'animated_gif' ? 'gif' : raw.type,
+    url: isVideo
+      ? (raw.videoUrl ?? raw.mediaUrl)
+      : `${raw.mediaUrl}?name=orig`,
+    width: raw.width,
+    height: raw.height,
+  };
+
+  if (raw.altText) media.altText = raw.altText;
+  if (raw.durationMs != null) media.duration = raw.durationMs;
+  if (isVideo) media.thumbnailUrl = raw.mediaUrl;
+
+  return media;
 }
 
 /** Convert browser-extracted raw data into a structured Tweet. Pure function. */
@@ -45,6 +150,7 @@ export function parseTweet(raw: RawTweetData): Tweet {
       retweets: raw.retweets,
       replies: raw.replies,
     },
+    media: raw.media.map(mapMedia),
     isRetweet: raw.isRetweet,
     isAd: raw.isAd,
   };
@@ -142,15 +248,22 @@ function extractFromTweetResult(
 
   const isRetweet = legacy.retweeted_status_result != null;
 
+  // Process text: expand external URLs, strip media URLs, decode HTML entities
+  const text = processFullText(fullText, legacy.entities ?? {});
+
+  // Extract media from extended_entities (preferred) or entities
+  const media = extractMedia(legacy);
+
   return {
     authorHandle: handle,
     authorName: name,
-    text: decodeHTMLEntities(fullText),
+    text,
     timestamp,
     url,
     likes: legacy.favorite_count ?? 0,
     retweets: legacy.retweet_count ?? 0,
     replies: legacy.reply_count ?? 0,
+    media,
     isRetweet,
     isAd: false,
   };

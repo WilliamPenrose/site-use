@@ -9,6 +9,20 @@ export const TweetAuthorSchema = z.object({
 
 export type TweetAuthor = z.infer<typeof TweetAuthorSchema>;
 
+// --- TweetMedia ---
+
+export const TweetMediaSchema = z.object({
+  type: z.enum(['photo', 'video', 'gif']),
+  url: z.string(),
+  width: z.number(),
+  height: z.number(),
+  altText: z.string().optional(),
+  duration: z.number().optional(),
+  thumbnailUrl: z.string().optional(),
+});
+
+export type TweetMedia = z.infer<typeof TweetMediaSchema>;
+
 // --- Tweet ---
 
 export const TweetMetricsSchema = z.object({
@@ -24,6 +38,7 @@ export const TweetSchema = z.object({
   timestamp: z.string(),
   url: z.string(),
   metrics: TweetMetricsSchema,
+  media: z.array(TweetMediaSchema),
   isRetweet: z.boolean(),
   isAd: z.boolean(),
 });
@@ -31,6 +46,18 @@ export const TweetSchema = z.object({
 export type Tweet = z.infer<typeof TweetSchema>;
 
 // --- RawTweetData (browser-side extraction output) ---
+
+export const RawTweetMediaSchema = z.object({
+  type: z.enum(['photo', 'video', 'animated_gif']),
+  mediaUrl: z.string(),
+  width: z.number(),
+  height: z.number(),
+  altText: z.string().optional(),
+  durationMs: z.number().optional(),
+  videoUrl: z.string().optional(),
+});
+
+export type RawTweetMedia = z.infer<typeof RawTweetMediaSchema>;
 
 export const RawTweetDataSchema = z.object({
   authorHandle: z.string(),
@@ -41,6 +68,7 @@ export const RawTweetDataSchema = z.object({
   likes: z.number(),
   retweets: z.number(),
   replies: z.number(),
+  media: z.array(RawTweetMediaSchema),
   isRetweet: z.boolean(),
   isAd: z.boolean(),
 });
