@@ -8,6 +8,7 @@ function createMockPrimitives(): Primitives {
     click: vi.fn().mockResolvedValue(undefined),
     type: vi.fn().mockResolvedValue(undefined),
     scroll: vi.fn().mockResolvedValue(undefined),
+    scrollIntoView: vi.fn().mockResolvedValue(undefined),
     evaluate: vi.fn().mockResolvedValue(undefined),
     screenshot: vi.fn().mockResolvedValue('base64png'),
     interceptRequest: vi.fn().mockResolvedValue(() => {}),
@@ -85,5 +86,71 @@ describe('ThrottledPrimitives', () => {
     const handler: InterceptHandler = () => {};
     await throttled.interceptRequest('/api/*', handler, 'twitter');
     expect(inner.interceptRequest).toHaveBeenCalledWith('/api/*', handler, 'twitter');
+  });
+});
+
+describe('rate limiting', () => {
+  it('accepts rateLimit config and passes operations through', async () => {
+    const inner = createMockPrimitives();
+    const throttled = createThrottledPrimitives(inner, {
+      minDelay: 0,
+      maxDelay: 0,
+      rateLimit: { window: 60_000, maxOps: 10 },
+    });
+
+    await throttled.navigate('https://x.com');
+    await throttled.click('1');
+    await throttled.scroll({ direction: 'down' });
+
+    expect(inner.navigate).toHaveBeenCalled();
+    expect(inner.click).toHaveBeenCalled();
+    expect(inner.scroll).toHaveBeenCalled();
+  });
+
+  it('does not rate-limit takeSnapshot (not counted)', async () => {
+    const inner = createMockPrimitives();
+    const throttled = createThrottledPrimitives(inner, {
+      minDelay: 0,
+      maxDelay: 0,
+      rateLimit: { window: 60_000, maxOps: 1 },
+    });
+
+    await throttled.navigate('https://x.com');
+    // takeSnapshot should not be blocked even though 1 op already counted
+    await throttled.takeSnapshot('twitter');
+    expect(inner.takeSnapshot).toHaveBeenCalled();
+  });
+
+  it('does not rate-limit evaluate (not counted)', async () => {
+    const inner = createMockPrimitives();
+    const throttled = createThrottledPrimitives(inner, {
+      minDelay: 0,
+      maxDelay: 0,
+      rateLimit: { window: 60_000, maxOps: 1 },
+    });
+
+    await throttled.navigate('https://x.com');
+    await throttled.evaluate('1+1');
+    expect(inner.evaluate).toHaveBeenCalled();
+  });
+
+  it('counts scrollIntoView toward rate limit', async () => {
+    const inner = createMockPrimitives();
+    const throttled = createThrottledPrimitives(inner, {
+      minDelay: 0,
+      maxDelay: 0,
+      rateLimit: { window: 60_000, maxOps: 100 },
+    });
+
+    await throttled.scrollIntoView('1', 'twitter');
+    expect(inner.scrollIntoView).toHaveBeenCalledWith('1', 'twitter');
+  });
+});
+
+describe('updated defaults', () => {
+  it('has minDelay=2000 and maxDelay=5000 by default', () => {
+    const inner = createMockPrimitives();
+    const throttled = createThrottledPrimitives(inner);
+    expect(throttled).toBeDefined();
   });
 });

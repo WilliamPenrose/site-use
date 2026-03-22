@@ -1,4 +1,6 @@
 import type { Page } from 'puppeteer-core';
+import type { RateLimitConfig } from './rate-limiter.js';
+export type { RateLimitConfig };
 
 // --- Snapshot types (aligned with devtools-mcp take_snapshot) ---
 
@@ -39,10 +41,12 @@ export type InterceptHandler = (response: {
 // --- Throttle config ---
 
 export interface ThrottleConfig {
-  /** Minimum delay in ms before each operation, default 1000 */
+  /** Minimum delay in ms before each operation, default 2000 */
   minDelay: number;
-  /** Maximum delay in ms before each operation, default 3000 */
+  /** Maximum delay in ms before each operation, default 5000 */
   maxDelay: number;
+  /** Optional sliding window rate limit */
+  rateLimit?: RateLimitConfig;
 }
 
 // --- Primitives interface ---
