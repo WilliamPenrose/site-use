@@ -1,11 +1,27 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+import type { Primitives } from '../../src/primitives/types.js';
 import { createServer } from '../../src/server.js';
+
+function createMockPrimitives(): Primitives {
+  return {
+    navigate: vi.fn().mockResolvedValue(undefined),
+    takeSnapshot: vi.fn().mockResolvedValue({ idToNode: new Map() }),
+    click: vi.fn().mockResolvedValue(undefined),
+    type: vi.fn().mockResolvedValue(undefined),
+    scroll: vi.fn().mockResolvedValue(undefined),
+    scrollIntoView: vi.fn().mockResolvedValue(undefined),
+    evaluate: vi.fn().mockResolvedValue(undefined),
+    screenshot: vi.fn().mockResolvedValue('base64png'),
+    interceptRequest: vi.fn().mockResolvedValue(() => {}),
+    getRawPage: vi.fn().mockResolvedValue({}),
+  };
+}
 
 describe('MCP Server contract', () => {
   it('responds to initialize with server info', async () => {
-    const server = createServer();
+    const server = createServer(createMockPrimitives());
     const [clientTransport, serverTransport] =
       InMemoryTransport.createLinkedPair();
 
@@ -22,8 +38,8 @@ describe('MCP Server contract', () => {
     await server.close();
   });
 
-  it('does not advertise tools capability when no tools registered', async () => {
-    const server = createServer();
+  it('lists twitter_check_login and twitter_timeline tools', async () => {
+    const server = createServer(createMockPrimitives());
     const [clientTransport, serverTransport] =
       InMemoryTransport.createLinkedPair();
 
@@ -32,10 +48,10 @@ describe('MCP Server contract', () => {
     const client = new Client({ name: 'test-client', version: '1.0.0' });
     await client.connect(clientTransport);
 
-    // No tools registered — listTools should throw "Method not found"
-    // because the server does not advertise the tools capability.
-    // This test will change once tools are registered in later capabilities.
-    await expect(client.listTools()).rejects.toThrow('Method not found');
+    const { tools } = await client.listTools();
+    const toolNames = tools.map((t) => t.name);
+    expect(toolNames).toContain('twitter_check_login');
+    expect(toolNames).toContain('twitter_timeline');
 
     await client.close();
     await server.close();
