@@ -56,10 +56,7 @@ export class PuppeteerBackend implements Primitives {
             if (pageUrl === 'about:blank' || pageUrl.startsWith('data:')) continue;
             const hostname = new URL(pageUrl).hostname;
             if (domains.some(d => hostname === d || hostname.endsWith('.' + d))) {
-              const config = getClickEnhancementConfig();
-              if (config.coordFix) {
-                await injectCoordFix(p);
-              }
+              await injectCoordFix(p);
               this.pages.set(key, p);
               this.currentSite = key;
               return p;
@@ -76,11 +73,7 @@ export class PuppeteerBackend implements Primitives {
 
     // 3. No existing tab — create new
     const page = await this.browser.newPage();
-    // Inject coord fix before any navigation so evaluateOnNewDocument fires on first goto
-    const config = getClickEnhancementConfig();
-    if (config.coordFix) {
-      await injectCoordFix(page);
-    }
+    await injectCoordFix(page);
     this.pages.set(key, page);
     this.currentSite = key;
     return page;

@@ -4,7 +4,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../../src/config.js', () => ({
   getClickEnhancementConfig: vi.fn(() => ({
     trajectory: false,
-    coordFix: false,
     jitter: false,
     occlusionCheck: false,
   })),
@@ -20,6 +19,7 @@ vi.mock('../../src/primitives/click-enhanced.js', () => ({
   checkOcclusion: vi.fn().mockResolvedValue({ occluded: false }),
   waitForElementStable: vi.fn().mockResolvedValue({ center: { x: 150, y: 220 }, box: { x: 100, y: 200, width: 100, height: 40 } }),
   clickWithTrajectory: vi.fn().mockResolvedValue(undefined),
+  injectCoordFix: vi.fn().mockResolvedValue(undefined),
 }));
 
 // --- Mocks ---

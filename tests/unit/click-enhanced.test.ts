@@ -153,7 +153,6 @@ describe('getClickEnhancementConfig', () => {
   it('returns all enhancements enabled by default', () => {
     const config = getClickEnhancementConfig();
     expect(config.trajectory).toBe(true);
-    expect(config.coordFix).toBe(true);
     expect(config.jitter).toBe(true);
     expect(config.occlusionCheck).toBe(true);
   });
@@ -165,7 +164,6 @@ describe('getClickEnhancementConfig', () => {
       const config = getClickEnhancementConfig();
       expect(config.trajectory).toBe(false);
       expect(config.jitter).toBe(false);
-      expect(config.coordFix).toBe(true);
       expect(config.occlusionCheck).toBe(true);
     } finally {
       delete process.env.SITE_USE_CLICK_TRAJECTORY;

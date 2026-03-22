@@ -55,8 +55,6 @@ export function getConfig(): Config {
 export interface ClickEnhancementConfig {
   /** Bezier curve mouse trajectory before clicking. Default: true */
   trajectory: boolean;
-  /** Fix MouseEvent screenX/screenY to match real events. Default: true */
-  coordFix: boolean;
   /** Random ±3px offset on click coordinates. Default: true */
   jitter: boolean;
   /** Check for element occlusion before clicking. Default: true */
@@ -72,7 +70,6 @@ function envBool(key: string, defaultValue: boolean): boolean {
 export function getClickEnhancementConfig(): ClickEnhancementConfig {
   return {
     trajectory: envBool('SITE_USE_CLICK_TRAJECTORY', true),
-    coordFix: envBool('SITE_USE_CLICK_COORD_FIX', true),
     jitter: envBool('SITE_USE_CLICK_JITTER', true),
     occlusionCheck: envBool('SITE_USE_CLICK_OCCLUSION', true),
   };

@@ -3,7 +3,6 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { getConfig } from '../config.js';
 import { injectCoordFix } from '../primitives/click-enhanced.js';
-import { getClickEnhancementConfig } from '../config.js';
 import { BrowserDisconnected } from '../errors.js';
 import { buildWelcomeHTML } from './welcome.js';
 
@@ -26,9 +25,6 @@ async function emulateFocus(pages: Page[]): Promise<void> {
 }
 
 async function applyCoordFix(pages: Page[]): Promise<void> {
-  const config = getClickEnhancementConfig();
-  if (!config.coordFix) return;
-
   for (const page of pages) {
     try {
       await injectCoordFix(page);
