@@ -90,6 +90,8 @@
 | 6 | Puppeteer 辅助功能树一致性验证 | M1 能力 2（takeSnapshot 是最核心技术点） | 待验证 |
 | 7 | 扩展同步（从主 profile 同步扩展到专用 profile） | 未分配里程碑 | MVP 手动安装，未来再考虑 |
 | 8 | 无限滚动加载模式（停滞检测 + 数量阈值） | 未分配里程碑 | 现有 Primitives 已够用，是 workflow 层编排模式 |
+| 9 | PuppeteerBackend 重连时不复用已有 tab — `getPage()` 总是 `newPage()`，重连场景（脚本重跑、MCP server 重启）会产生重复 tab | 未分配里程碑 | 需要 `getPage()` 在创建新 page 前检查 `browser.pages()` 中是否已有目标域名的 tab |
+| 10 | 滚动采集等待策略过于粗糙 — 当前用硬编码 `wait(1500)` + 固定 3 轮停滞检测，应改为事件驱动：等到有新数据到达或超时，而非固定等待 | 未分配里程碑 | `collectTweetsFromTimeline` 中用 Promise.race(新数据事件, 超时) 替代 wait(1500) |
 
 ---
 
