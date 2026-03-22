@@ -5,7 +5,7 @@ vi.mock('../../src/browser/browser.js', () => ({
   isBrowserConnected: vi.fn().mockReturnValue(true),
 }));
 
-import { formatToolError, _setPrimitivesForTest } from '../../src/server.js';
+import { formatToolError, resetErrorStreak, _setPrimitivesForTest } from '../../src/server.js';
 import {
   BrowserDisconnected,
   SessionExpired,
@@ -14,6 +14,7 @@ import {
 
 beforeEach(() => {
   _setPrimitivesForTest(null);
+  resetErrorStreak();
 });
 
 describe('formatToolError', () => {

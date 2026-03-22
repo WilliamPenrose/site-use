@@ -11,7 +11,7 @@ import { createAuthGuardedPrimitives } from './primitives/auth-guard.js';
 import { matchByRule, rules } from './sites/twitter/matchers.js';
 import { getConfig } from './config.js';
 import { Mutex } from './mutex.js';
-import { SiteUseError, BrowserDisconnected } from './errors.js';
+import { SiteUseError, BrowserDisconnected, RateLimited } from './errors.js';
 
 // ---------------------------------------------------------------------------
 // Primitives singleton + lazy Chrome + disconnect recovery
@@ -65,6 +65,21 @@ async function getPrimitives(): Promise<Primitives> {
 }
 
 // ---------------------------------------------------------------------------
+// Circuit breaker — trip after N consecutive non-trivial errors
+// ---------------------------------------------------------------------------
+
+const CIRCUIT_BREAKER_THRESHOLD = 5;
+let errorStreak = 0;
+
+export function resetErrorStreak(): void {
+  errorStreak = 0;
+}
+
+export function _getErrorStreak(): number {
+  return errorStreak;
+}
+
+// ---------------------------------------------------------------------------
 // Error formatting — structured JSON + isError for MCP
 // ---------------------------------------------------------------------------
 
@@ -78,6 +93,30 @@ export async function formatToolError(err: unknown, primitives?: Primitives): Pr
   if (err instanceof BrowserDisconnected) {
     // Force reconnect on next tool call
     primitivesInstance = null;
+    // Don't count browser crashes toward the circuit breaker
+  } else if (err instanceof RateLimited) {
+    // Already rate limited — don't count to avoid re-triggering
+  } else {
+    errorStreak++;
+    if (errorStreak >= CIRCUIT_BREAKER_THRESHOLD) {
+      errorStreak = 0;
+      const lastErrorType = err instanceof SiteUseError ? err.type : 'unknown';
+      const lastErrorMsg = err instanceof Error ? err.message : String(err);
+      const cbErr = new RateLimited(
+        `${CIRCUIT_BREAKER_THRESHOLD} consecutive operation failures — circuit breaker triggered (last: ${lastErrorType})`,
+        {
+          step: 'circuitBreaker',
+          hint: `circuit breaker: ${CIRCUIT_BREAKER_THRESHOLD} operations failed in a row (last error: ${lastErrorMsg}). The site may be rate-limiting or experiencing issues. Wait a few minutes before retrying.`,
+        },
+      );
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({ type: cbErr.type, message: cbErr.message, context: cbErr.context }),
+        }],
+        isError: true,
+      };
+    }
   }
 
   if (err instanceof SiteUseError) {
@@ -140,6 +179,7 @@ export function createServer(): McpServer {
         try {
           await getPrimitives(); // ensures both instances are initialized
           const result = await checkLogin(throttledInstance!);
+          resetErrorStreak();
           return {
             content: [{ type: 'text' as const, text: JSON.stringify(result) }],
           };
@@ -167,6 +207,7 @@ export function createServer(): McpServer {
         try {
           primitives = await getPrimitives();
           const result = await getTimeline(primitives, count);
+          resetErrorStreak();
           return {
             content: [{ type: 'text' as const, text: JSON.stringify(result) }],
           };
@@ -194,6 +235,7 @@ export function createServer(): McpServer {
         try {
           primitives = await getPrimitives();
           const data = await primitives.screenshot(site);
+          resetErrorStreak();
           return {
             content: [{ type: 'image' as const, data, mimeType: 'image/png' }],
           };
