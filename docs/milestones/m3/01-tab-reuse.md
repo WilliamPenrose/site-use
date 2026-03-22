@@ -1,7 +1,7 @@
 # Capability 01: Tab Reuse
 
 > Upstream: [M3 Overview](00-overview.md) — Group A
-> Status: Design complete
+> Status: Complete (2026-03-22, commit ee4ed43 + cbb3136)
 
 ## Problem
 

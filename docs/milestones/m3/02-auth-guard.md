@@ -1,7 +1,7 @@
 # Capability 02: Auth Guard Middleware
 
 > Upstream: [M3 Overview](00-overview.md) — Group A
-> Status: Design complete
+> Status: Complete (2026-03-22, commits 119807b + aeb848f)
 
 ## Problem
 

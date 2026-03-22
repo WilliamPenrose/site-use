@@ -1,7 +1,7 @@
 # Capability 03: Site-Level Rate Limiting
 
 > Upstream: [M3 Overview](00-overview.md) — Group A
-> Status: Design complete
+> Status: Complete (2026-03-22, commits 452e832 + ba89c80)
 
 ## Context
 

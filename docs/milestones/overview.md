@@ -1,7 +1,7 @@
 # site-use 里程碑拆解
 
-> 日期：2026-03-19
-> 状态：M1 已完成 — 全部能力（0-4）均已实施并验证
+> 日期：2026-03-22
+> 状态：M1 已完成，M3 Group A 已完成（01-04）— Group B（反爬增强）待调研
 > 上游文档：[技术架构设计](../site-use-design.md)
 
 ## 策略
@@ -481,3 +481,11 @@ Twitter 改版导致 ARIA 匹配失败时，系统自动用历史指纹找到候
   - M1 提取策略：主力 GraphQL 拦截（策略栈第 1 层），降级 DOM 解析（策略栈第 3 层）
   - M2 Primitives 补全范围缩小：仅 `type(uid, text)`
   - 提取策略栈表格更新：第 1 层归属 M1，第 2 层标记为 Twitter 不可用
+- 2026-03-22：M3 Group A 实施完成
+  - 跳过 M2，先做 M3（M3 不依赖 M2，先稳后广）
+  - 01 Tab 复用：PuppeteerBackend 扫描已有 tab，避免重启积累重复 tab
+  - 02 Auth Guard：Primitives 包装层自动检查登录态，getTimeline 不再显式调用 requireLogin
+  - 03 站点级频率控制：滑动窗口限流器 + 默认延迟从 1-3s 上调至 2-5s（基于调研数据）
+  - 04 错误处理增强：新增 RateLimited/NavigationFailed + retryable/hint 字段 + 自动截图
+  - 修正：点击抖动、Bezier 轨迹、渐进滚动归属 M1 backend 层（非 M3 throttle 层）
+  - 重构：coordFix 配置移除（无条件执行）；站点域名从 puppeteer-backend 提取到 sites 层

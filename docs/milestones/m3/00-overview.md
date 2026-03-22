@@ -1,7 +1,7 @@
 # M3: "Reliably Run Long-Term"
 
 > Upstream: [Milestone Overview](../overview.md) — M3
-> Status: Design complete
+> Status: Group A complete (01-04 implemented) — Group B pending research spikes
 > Prerequisite: M1 complete (all capabilities verified)
 
 ## Goal
@@ -65,3 +65,7 @@ Scenario 4: Any error → context includes url + step + retryable + hint + scree
   - Key finding: M1 already implemented click jitter, Bezier trajectory, and progressive scrolling in backend layer; M3 throttle enhancement scoped down to site-level rate limiting only
   - Added tab reuse (overview issue #9) to M3 scope
   - Anti-detection capabilities (B group) separated as research-dependent items
+- 2026-03-22: Group A implementation complete
+  - All 4 capabilities (01-04) implemented, tested (195 unit tests), committed
+  - Post-implementation cleanup: removed coordFix config (unconditional now); extracted site domains from puppeteer-backend to sites/twitter/site.ts
+  - Group B (05 anti-detection) remains pending research spikes
