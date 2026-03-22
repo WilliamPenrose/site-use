@@ -20,6 +20,7 @@ import { meta as visibilityStateMeta, run as visibilityStateRun } from './visibi
 import { meta as webdriverDescriptorMeta, run as webdriverDescriptorRun } from './webdriver-descriptor.js';
 import { meta as webdriverTypeMeta, run as webdriverTypeRun } from './webdriver-type.js';
 import { meta as webdriverMeta, run as webdriverRun } from './webdriver.js';
+import { meta as webrtcLeakMeta, run as webrtcLeakRun } from './webrtc-leak.js';
 import { meta as windowSizeMeta, run as windowSizeRun } from './window-size.js';
 
 export interface BrowserCheckEntry {
@@ -47,5 +48,6 @@ export const checks: BrowserCheckEntry[] = [
   { meta: webdriverDescriptorMeta, run: webdriverDescriptorRun },
   { meta: webdriverTypeMeta, run: webdriverTypeRun },
   { meta: webdriverMeta, run: webdriverRun },
+  { meta: webrtcLeakMeta, run: webrtcLeakRun },
   { meta: windowSizeMeta, run: windowSizeRun },
 ];

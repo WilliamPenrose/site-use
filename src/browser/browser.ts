@@ -1,7 +1,7 @@
 import puppeteer, { type Browser, type Page } from 'puppeteer-core';
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { getConfig } from '../config.js';
+import { getConfig, type WebRTCPolicy } from '../config.js';
 import { injectCoordFix } from '../primitives/click-enhanced.js';
 import { BrowserDisconnected } from '../errors.js';
 import { buildWelcomeHTML } from './welcome.js';
@@ -38,7 +38,7 @@ async function applyCoordFix(pages: Page[]): Promise<void> {
   }
 }
 
-function fixPreferences(profileDir: string): void {
+function fixPreferences(profileDir: string, webrtcPolicy: WebRTCPolicy): void {
   const prefsPath = path.join(profileDir, 'Default', 'Preferences');
   try {
     const raw = readFileSync(prefsPath, 'utf-8');
@@ -57,6 +57,18 @@ function fixPreferences(profileDir: string): void {
     if (!prefs.intl) prefs.intl = {};
     if (prefs.intl.accept_languages !== 'en-US,en') {
       prefs.intl.accept_languages = 'en-US,en';
+      dirty = true;
+    }
+
+    // WebRTC IP handling policy — prevents real IP leak via STUN
+    if (webrtcPolicy !== 'off') {
+      if (!prefs.webrtc) prefs.webrtc = {};
+      if (prefs.webrtc.ip_handling_policy !== webrtcPolicy) {
+        prefs.webrtc.ip_handling_policy = webrtcPolicy;
+        dirty = true;
+      }
+    } else if (prefs.webrtc?.ip_handling_policy) {
+      delete prefs.webrtc.ip_handling_policy;
       dirty = true;
     }
 
@@ -105,7 +117,7 @@ export async function ensureBrowser(extraArgs?: string[]): Promise<Browser> {
     : 'none';
   console.error(`[site-use] Proxy: ${proxyLog}`);
 
-  fixPreferences(config.chromeProfileDir);
+  fixPreferences(config.chromeProfileDir, config.webrtcPolicy);
 
   try {
     browserInstance = await puppeteer.launch({

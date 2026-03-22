@@ -8,11 +8,17 @@ export interface ProxyConfig {
   password?: string;
 }
 
+export type WebRTCPolicy =
+  | 'disable_non_proxied_udp'
+  | 'default_public_interface_only'
+  | 'off';
+
 export interface Config {
   dataDir: string;
   chromeProfileDir: string;
   proxy?: ProxyConfig;
   proxySource?: string;
+  webrtcPolicy: WebRTCPolicy;
 }
 
 export function getConfig(): Config {
@@ -49,7 +55,13 @@ export function getConfig(): Config {
     }
   }
 
-  return { dataDir, chromeProfileDir, proxy, proxySource };
+  const rawPolicy = process.env.SITE_USE_WEBRTC_POLICY ?? 'disable_non_proxied_udp';
+  const webrtcPolicy: WebRTCPolicy =
+    rawPolicy === 'default_public_interface_only' || rawPolicy === 'off'
+      ? rawPolicy
+      : 'disable_non_proxied_udp';
+
+  return { dataDir, chromeProfileDir, proxy, proxySource, webrtcPolicy };
 }
 
 export interface ClickEnhancementConfig {
