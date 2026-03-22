@@ -52,13 +52,23 @@ interface ToolResult {
   isError?: boolean;
 }
 
-export function formatToolError(err: unknown): ToolResult {
+export async function formatToolError(err: unknown, primitives?: Primitives): Promise<ToolResult> {
   if (err instanceof BrowserDisconnected) {
     // Force reconnect on next tool call
     primitivesInstance = null;
   }
 
   if (err instanceof SiteUseError) {
+    // Auto-screenshot (skip for BrowserDisconnected — browser is gone)
+    if (primitives && !(err instanceof BrowserDisconnected)) {
+      try {
+        const screenshot = await primitives.screenshot();
+        err.context.screenshotBase64 = screenshot;
+      } catch {
+        // Screenshot failed — don't mask the original error
+      }
+    }
+
     return {
       content: [{
         type: 'text',
@@ -105,14 +115,15 @@ export function createServer(): McpServer {
     { description: 'Check if the user is logged in to Twitter/X' },
     async () => {
       return mutex.run(async () => {
+        let primitives: Primitives | undefined;
         try {
-          const primitives = await getPrimitives();
+          primitives = await getPrimitives();
           const result = await checkLogin(primitives);
           return {
             content: [{ type: 'text' as const, text: JSON.stringify(result) }],
           };
         } catch (err) {
-          return formatToolError(err);
+          return await formatToolError(err, primitives);
         }
       });
     },
@@ -131,14 +142,15 @@ export function createServer(): McpServer {
     },
     async ({ count }) => {
       return mutex.run(async () => {
+        let primitives: Primitives | undefined;
         try {
-          const primitives = await getPrimitives();
+          primitives = await getPrimitives();
           const result = await getTimeline(primitives, count);
           return {
             content: [{ type: 'text' as const, text: JSON.stringify(result) }],
           };
         } catch (err) {
-          return formatToolError(err);
+          return await formatToolError(err, primitives);
         }
       });
     },
@@ -157,14 +169,15 @@ export function createServer(): McpServer {
     },
     async ({ site }) => {
       return mutex.run(async () => {
+        let primitives: Primitives | undefined;
         try {
-          const primitives = await getPrimitives();
+          primitives = await getPrimitives();
           const data = await primitives.screenshot(site);
           return {
             content: [{ type: 'image' as const, data, mimeType: 'image/png' }],
           };
         } catch (err) {
-          return formatToolError(err);
+          return await formatToolError(err, primitives);
         }
       });
     },
