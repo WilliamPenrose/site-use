@@ -72,7 +72,7 @@
 | 层 | 关注点 | 里程碑 | 具体措施 |
 |----|--------|--------|----------|
 | 第 1 层：浏览器指纹 | 让 Chrome 像正常用户 | M1 基础 + M3 增强 | M1：去掉 automation 标志、本地 Chrome、独立 profile、随机 CDP 端口、代理支持。M3：Canvas 噪声（防跨站关联）、WebRTC 泄露防护（代理模式防 IP 泄露） |
-| 第 2 层：操作行为 | 操作节奏像真人 | M1 基础 + M3 增强 | M1：操作间随机延迟（1-3s）。M3：点击抖动（±3px）、渐进式滚动、站点级频率控制 |
+| 第 2 层：操作行为 | 操作节奏像真人 | M1 已完成大部分 + M3 增强 | M1：操作间随机延迟（1-3s）+ 点击坐标抖动（±3px，truncated normal 分布）+ Bezier 曲线鼠标轨迹 + 渐进式滚动（bell-shaped 加减速）。M3：站点级频率控制（滑动窗口限流）+ 延迟区间上调至 2-5s |
 | 第 3 层：会话特征 | 站点级反爬应对 | M3 | 限流信号检测（429 / 验证码页面）→ 抛 `RateLimited`，不做自动恢复 |
 
 核心思路：site-use 用**真实 Chrome 环境**，所以不需要伪造层（WebGL、TLS、Client Hints 等），只需要控制行为节奏和基本指纹隐蔽。
@@ -142,7 +142,7 @@ M1 中设计的三个扩展点，供未来替换：
 | 扩展点 | M1 的实现 | 未来的替换选项 |
 |--------|----------|--------------|
 | **Matcher** | `ARIAMatcher`（辅助功能树 role + name 匹配） | `CompositeMatcher`（ARIA → 指纹 fallback，M4）、`CSSMatcher`（用于 ARIA 不完善的站点）、AI 视觉匹配 |
-| **Throttle 策略** | 基础随机延迟（1-3s），接受站点级配置覆盖 | 增强策略（点击抖动 ±3px、渐进滚动、站点级频率上限，M3） |
+| **Throttle 策略** | 基础随机延迟（1-3s），接受站点级配置覆盖。点击抖动（±3px，truncated normal）、Bezier 轨迹、渐进式滚动已在 M1 的 backend 层实现（`click-enhanced.ts`、`scroll-enhanced.ts`） | 增强策略（站点级频率上限 + 延迟区间上调至 2-5s，M3） |
 | **Primitives 后端** | `puppeteer-backend.ts`（进程内 Puppeteer） | `devtools-mcp-backend.ts`（MCP client 适配器，转发到已有 devtools-mcp 服务） |
 
 ---
@@ -230,7 +230,7 @@ Special notes: Infinite scroll triggers new GraphQL requests (same endpoint)
 
 **对未来的支持**：
 - `primitives.ts` 定义**全部 8 个原语**的 TypeScript 类型。`puppeteer-backend.ts` M1 实现 7 个；仅 `type` 抛 `NotImplemented`
-- Throttle 包装方式 M1 就定好：原语经过 throttle 包装后再暴露给 Sites 层。M1 的 throttle = 基础随机延迟（1-3s）。M3 增强内部策略（点击抖动、渐进滚动），包装方式不变
+- Throttle 包装方式 M1 就定好：原语经过 throttle 包装后再暴露给 Sites 层。M1 的 throttle = 基础随机延迟（1-3s）。点击抖动和渐进滚动已在 M1 的 backend 层实现（与 throttle 层正交）。M3 增强 throttle 层策略（站点级频率上限 + 延迟区间上调至 2-5s），包装方式不变
 - 多页面 `Map<site, Page>` M1 就实现，只有 twitter 一个 entry。未来站点只加 entry，结构不变
 - `takeSnapshot()` 的实现（CDP `Accessibility.getFullAXTree` → uid 映射 → backend node ID）是整个系统最核心的技术点，M1 必须验证它和 devtools-mcp 的行为一致
 
@@ -384,7 +384,7 @@ AI：  分析推文内容，生成摘要报告
 
 | 能力 | 依赖什么 | 新增内容 |
 |------|---------|---------|
-| Throttle 增强 | M1 throttle 架构 | 点击坐标抖动（±3px）、渐进式滚动、站点级频率控制 |
+| Throttle 增强 | M1 throttle 架构 | 站点级频率控制（滑动窗口限流）+ 延迟区间上调至 2-5s（点击抖动、渐进滚动已在 M1 backend 层完成） |
 | Auth Guard 中间件化 | M1 的 `checkAuth()` 函数 | 将 M1 的显式调用改为自动中间件（避免每个 workflow 手动调用的重复代码和遗漏风险，小型结构重构，检测逻辑不变） |
 | 错误处理增强 | M1 基础错误类型（3 个） | 新增 `RateLimited`、`NavigationFailed` + 所有错误增强为完整上下文（操作步骤、页面状态）+ 自动截图（复用 M1 已有的 `screenshot()` 原语）。每类错误明确标注**重试策略**：哪些在 Primitives 层内部重试、哪些直接抛给 caller（详见[技术架构设计 — 错误分类](../site-use-design.md)） |
 | 反爬第 1 层增强 | M1 browser.ts | Canvas 指纹噪声（防跨站关联追踪）+ WebRTC 泄露防护（代理模式下防真实 IP 泄露） |
