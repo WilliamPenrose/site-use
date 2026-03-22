@@ -1,0 +1,71 @@
+import { z } from 'zod';
+
+// --- TweetAuthor ---
+
+export const TweetAuthorSchema = z.object({
+  handle: z.string(),
+  name: z.string(),
+});
+
+export type TweetAuthor = z.infer<typeof TweetAuthorSchema>;
+
+// --- Tweet ---
+
+export const TweetMetricsSchema = z.object({
+  likes: z.number().optional(),
+  retweets: z.number().optional(),
+  replies: z.number().optional(),
+});
+
+export const TweetSchema = z.object({
+  id: z.string(),
+  author: TweetAuthorSchema,
+  text: z.string(),
+  timestamp: z.string(),
+  url: z.string(),
+  metrics: TweetMetricsSchema,
+  isRetweet: z.boolean(),
+  isAd: z.boolean(),
+});
+
+export type Tweet = z.infer<typeof TweetSchema>;
+
+// --- RawTweetData (browser-side extraction output) ---
+
+export const RawTweetDataSchema = z.object({
+  authorHandle: z.string(),
+  authorName: z.string(),
+  text: z.string(),
+  timestamp: z.string(),
+  url: z.string(),
+  likes: z.number(),
+  retweets: z.number(),
+  replies: z.number(),
+  isRetweet: z.boolean(),
+  isAd: z.boolean(),
+});
+
+export type RawTweetData = z.infer<typeof RawTweetDataSchema>;
+
+// --- TimelineMeta ---
+
+export const TimelineMetaSchema = z.object({
+  tweetCount: z.number(),
+  coveredUsers: z.array(z.string()),
+  coveredUserCount: z.number(),
+  timeRange: z.object({
+    from: z.string(),
+    to: z.string(),
+  }),
+});
+
+export type TimelineMeta = z.infer<typeof TimelineMetaSchema>;
+
+// --- TimelineResult ---
+
+export const TimelineResultSchema = z.object({
+  tweets: z.array(TweetSchema),
+  meta: TimelineMetaSchema,
+});
+
+export type TimelineResult = z.infer<typeof TimelineResultSchema>;
