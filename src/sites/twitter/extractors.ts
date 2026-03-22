@@ -5,6 +5,21 @@ const GRAPHQL_TIMELINE_PATTERN = /\/i\/api\/graphql\/.*\/Home.*Timeline/;
 const MAX_STALE_ROUNDS = 3;
 const TWITTER_SITE = 'twitter';
 
+/** Decode common HTML entities found in Twitter GraphQL full_text. */
+const HTML_ENTITIES: Record<string, string> = {
+  '&amp;': '&',
+  '&lt;': '<',
+  '&gt;': '>',
+  '&quot;': '"',
+  '&#39;': "'",
+  '&apos;': "'",
+};
+const ENTITY_RE = /&(?:amp|lt|gt|quot|#39|apos);/g;
+
+function decodeHTMLEntities(text: string): string {
+  return text.replace(ENTITY_RE, (match) => HTML_ENTITIES[match] ?? match);
+}
+
 /**
  * Extract tweet ID from a tweet URL.
  * Pattern: https://x.com/{handle}/status/{id}
@@ -130,7 +145,7 @@ function extractFromTweetResult(
   return {
     authorHandle: handle,
     authorName: name,
-    text: fullText,
+    text: decodeHTMLEntities(fullText),
     timestamp,
     url,
     likes: legacy.favorite_count ?? 0,

@@ -211,6 +211,44 @@ describe('parseGraphQLTimeline', () => {
     expect(results[0].authorHandle).toBe('vis');
   });
 
+  it('decodes HTML entities in tweet text', () => {
+    const body = JSON.stringify({
+      data: {
+        home: {
+          home_timeline_urt: {
+            instructions: [{
+              entries: [{
+                content: {
+                  entryType: 'TimelineTimelineItem',
+                  itemContent: {
+                    tweet_results: {
+                      result: {
+                        __typename: 'Tweet',
+                        rest_id: '888',
+                        legacy: {
+                          id_str: '888',
+                          full_text: 'R&amp;D is &lt;important&gt; &amp; so is &#39;testing&#39;',
+                          created_at: '',
+                          favorite_count: 0,
+                          retweet_count: 0,
+                          reply_count: 0,
+                        },
+                        core: { user_results: { result: { legacy: { screen_name: 'dev', name: 'Dev' } } } },
+                      },
+                    },
+                  },
+                },
+              }],
+            }],
+          },
+        },
+      },
+    });
+
+    const results = parseGraphQLTimeline(body);
+    expect(results[0].text).toBe("R&D is <important> & so is 'testing'");
+  });
+
   it('returns empty array for empty response', () => {
     const body = JSON.stringify({ data: { home: { home_timeline_urt: { instructions: [] } } } });
     expect(parseGraphQLTimeline(body)).toEqual([]);
