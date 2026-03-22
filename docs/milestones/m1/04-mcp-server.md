@@ -1,7 +1,7 @@
 # 能力 3：MCP Server 骨架
 
 > 上游文档：[技术架构设计](../../site-use-design.md) — MCP Server 章节，[M1 里程碑](../overview.md) — 能力 3
-> 状态：待讨论
+> 状态：已完成（2026-03-22）
 
 ## 目标
 

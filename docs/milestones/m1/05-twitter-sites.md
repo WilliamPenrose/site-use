@@ -2,7 +2,7 @@
 
 > 上游文档：[技术架构设计](../../site-use-design.md) — 站点适配层章节，[M1 里程碑](../overview.md) — 能力 4
 > 依赖：[Research Spike](00-research-spike.md) 的结论决定 extractors 策略
-> 状态：待讨论
+> 状态：已完成（2026-03-22）
 
 ## 目标
 
