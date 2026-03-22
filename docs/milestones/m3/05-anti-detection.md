@@ -164,7 +164,56 @@ Group B — 每项能力在实现前需先完成调研（research spike）。本
 **副作用：** 默认策略下 Twitter Spaces 音视频不可用。Twitter 浏览、发推、互动、DM 等核心功能完全不受影响。需要 Spaces 时可通过环境变量切换策略。
 
 ### B3: 广告/追踪器域名屏蔽
-- 状态：未开始
+- 状态：**跳过** — Twitter 场景下广告不影响操作；未来扩站时再评估
+- 调研日期：2026-03-22
+
+**广告拦截的目的：** 屏蔽广告/追踪器网络请求，减少噪声 DOM、加速页面加载、避免广告遮挡点击目标。
+
+**Twitter 场景评估：** 广告量少且不遮挡正文、导航、交互元素。自动化通过 CSS selector 定位目标，广告不影响 DOM 元素的可交互性。加速页面加载不是当前目标。
+
+**结论：跳过。** 对 Twitter 场景价值极低。
+
+**调研记录（供未来扩站参考）：**
+
+如果未来需要支持广告密集站点（下载站假按钮、全屏遮罩广告、cookie consent 弹窗等），推荐方案：
+
+1. **首选：`@ghostery/adblocker-puppeteer`** — 纯 TypeScript，3 行代码集成，支持 EasyList / uBlock Origin 99% 规则，自动更新过滤列表，不禁用浏览器缓存。实测 CNN.com 加载快 25 秒、流量少 35%。
+2. **轻量备选：CDP `Network.setBlockedURLs`** — 原生 CDP，按域名屏蔽，无需第三方库，但规则粗糙。
+3. **不推荐：`setRequestInterception`** — 会禁用浏览器缓存，Apify 明确反对。
+4. **不推荐：浏览器扩展（uBlock Origin 等）** — headless 模式不支持，MV3 迁移带来兼容问题。
+
+**反检测注意事项：**
+- 广告拦截本身通常不触发机器人检测（30%+ 真实用户使用广告拦截器）
+- 但拦截器的具体配置可作为指纹信号（Fingerprint.com 有研究）
+- 网站可检测广告元素缺失并弹出反广告拦截弹窗，形成新的遮挡问题
 
 ### B4: 限流信号检测
-- 状态：未开始
+- 状态：**已实现**
+- 调研日期：2026-03-22
+
+**限流检测的本质：** 自动化浏览器在高频操作时可能触发网站的限流机制。不同网站限流表现不同——Twitter 返回 HTTP 429 + error code 88，其他网站可能弹验证码或返回空数据。需要一个通用框架来检测并响应这些信号。
+
+**调研结论（2026-03-22）：**
+
+- Twitter 限流表现：HTTP 429 + `x-rate-limit-reset` 头 + JSON body 中 error code 88
+- 429 + `x-rate-limit-remaining > 0` 表示账号封禁（不是普通限流）
+- 无渐进降级——直接从正常切到 429
+- CAPTCHA (Arkose FunCaptcha) 仅在注册/登录时触发，浏览限流不会弹验证码
+
+**实现方式：** 两个独立机制，嵌入现有层，不新增 Primitives 包装层：
+
+1. **响应级检测（`RateLimitDetector`）：** 在 `PuppeteerBackend` 创建页面时安装 `page.on('response')` 监听器。每个站点可提供自定义 `DetectFn`，未配置的站点自动使用默认 HTTP 429 检测。信号按站点隔离——Twitter 429 不会阻塞其他站点的操作。
+
+2. **熔断器（Circuit Breaker）：** 在 MCP Server 的 `formatToolError` 中维护连续错误计数器。连续 5 次操作失败时触发，抛出 `RateLimited` 并保留最后一个错误的类型和消息。`BrowserDisconnected` 和 `RateLimited` 不计入失败次数。这是终极兜底——即使站点改变限流表现形式（绕过已知信号检测），连续失败也会触发熔断。
+
+**Twitter 专用检测（`twitterDetect`）：**
+
+| 信号 | 含义 |
+|------|------|
+| HTTP 429 + remaining=0 | 普通限流，等 reset 时间 |
+| HTTP 429 + remaining>0 | 账号被封禁 |
+| HTTP 200 + body error code 88 | 限流（非标准状态码） |
+
+**扩展方式：** 新站点只需提供 `DetectFn`，注册到 `RateLimitDetector` 即可。未注册的站点自动走默认 429 检测。
+
+**副作用：** 无。检测器是纯粹的响应观察者，不修改请求或页面行为。
