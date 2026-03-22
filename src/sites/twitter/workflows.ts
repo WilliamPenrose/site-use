@@ -80,8 +80,8 @@ export async function getTimeline(
   );
 
   try {
-    // requireLogin navigates to x.com/home — interception is already active
-    await requireLogin(primitives);
+    // Navigate to timeline — auth guard auto-checks login
+    await primitives.navigate(TWITTER_HOME, TWITTER_SITE);
 
     // Scroll to collect more tweets if needed
     const rawTweets = await collectTweetsFromTimeline(primitives, interceptedRaw, count);

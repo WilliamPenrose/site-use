@@ -6,6 +6,8 @@ import type { Primitives } from './primitives/types.js';
 import { ensureBrowser, isBrowserConnected } from './browser/browser.js';
 import { PuppeteerBackend } from './primitives/puppeteer-backend.js';
 import { createThrottledPrimitives } from './primitives/throttle.js';
+import { createAuthGuardedPrimitives } from './primitives/auth-guard.js';
+import { matchByRule, rules } from './sites/twitter/matchers.js';
 import { getConfig } from './config.js';
 import { Mutex } from './mutex.js';
 import { SiteUseError, BrowserDisconnected } from './errors.js';
@@ -15,6 +17,7 @@ import { SiteUseError, BrowserDisconnected } from './errors.js';
 // ---------------------------------------------------------------------------
 
 let primitivesInstance: Primitives | null = null;
+let throttledInstance: Primitives | null = null;
 
 async function getPrimitives(): Promise<Primitives> {
   if (primitivesInstance && isBrowserConnected()) {
@@ -23,10 +26,11 @@ async function getPrimitives(): Promise<Primitives> {
 
   // Disconnected or first call — (re)create everything
   primitivesInstance = null;
+  throttledInstance = null;
 
   const browser = await ensureBrowser();
   const raw = new PuppeteerBackend(browser);
-  const primitives = createThrottledPrimitives(raw);
+  const throttled = createThrottledPrimitives(raw);
 
   // Proxy auth (page-level) — must happen after backend creation
   const config = getConfig();
@@ -38,8 +42,23 @@ async function getPrimitives(): Promise<Primitives> {
     });
   }
 
-  primitivesInstance = primitives;
-  return primitives;
+  const guarded = createAuthGuardedPrimitives(throttled, [{
+    site: 'twitter',
+    domains: ['x.com', 'twitter.com'],
+    check: async (inner) => {
+      // Replicate both checks from checkLogin: URL redirect + ARIA snapshot
+      const currentUrl = await inner.evaluate<string>('window.location.href', 'twitter');
+      if (currentUrl.includes('/login') || currentUrl.includes('/i/flow/login')) {
+        return false;
+      }
+      const snapshot = await inner.takeSnapshot('twitter');
+      return !!matchByRule(snapshot, rules.homeNavLink);
+    },
+  }]);
+
+  throttledInstance = throttled;
+  primitivesInstance = guarded;
+  return guarded;
 }
 
 // ---------------------------------------------------------------------------
@@ -115,15 +134,14 @@ export function createServer(): McpServer {
     { description: 'Check if the user is logged in to Twitter/X' },
     async () => {
       return mutex.run(async () => {
-        let primitives: Primitives | undefined;
         try {
-          primitives = await getPrimitives();
-          const result = await checkLogin(primitives);
+          await getPrimitives(); // ensures both instances are initialized
+          const result = await checkLogin(throttledInstance!);
           return {
             content: [{ type: 'text' as const, text: JSON.stringify(result) }],
           };
         } catch (err) {
-          return await formatToolError(err, primitives);
+          return await formatToolError(err, primitivesInstance ?? undefined);
         }
       });
     },
@@ -192,6 +210,7 @@ export function createServer(): McpServer {
 
 export function _setPrimitivesForTest(p: Primitives | null): void {
   primitivesInstance = p;
+  throttledInstance = p;
 }
 
 // ---------------------------------------------------------------------------

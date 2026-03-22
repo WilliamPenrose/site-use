@@ -98,11 +98,37 @@ describe('requireLogin', () => {
 });
 
 describe('getTimeline', () => {
-  it('throws SessionExpired when not logged in', async () => {
-    const primitives = createMockPrimitives({
-      evaluate: vi.fn().mockResolvedValue('https://x.com/i/flow/login'),
+  it('navigates to x.com/home directly (auth guard handles login check)', async () => {
+    const GRAPHQL_BODY = JSON.stringify({
+      data: {
+        home: {
+          home_timeline_urt: {
+            instructions: [{ entries: [] }],
+          },
+        },
+      },
     });
-    await expect(getTimeline(primitives, 5)).rejects.toThrow(SessionExpired);
+
+    const primitives = createMockPrimitives({
+      evaluate: vi.fn().mockResolvedValue('https://x.com/home'),
+      takeSnapshot: vi.fn().mockResolvedValue(
+        buildSnapshot([{ uid: '1', role: 'link', name: 'Home' }]),
+      ),
+      interceptRequest: vi.fn().mockImplementation(
+        async (_pattern: any, handler: any) => {
+          handler({
+            url: '/i/api/graphql/abc/HomeLatestTimeline',
+            status: 200,
+            body: GRAPHQL_BODY,
+          });
+          return () => {};
+        },
+      ),
+    });
+
+    const result = await getTimeline(primitives, 0);
+    expect(primitives.navigate).toHaveBeenCalledWith('https://x.com/home', 'twitter');
+    expect(result.tweets).toBeDefined();
   });
 
   it('returns tweets from intercepted GraphQL data', async () => {
