@@ -141,64 +141,42 @@ function extractFromTweetResult(
   };
 }
 
-/**
- * Extract tweets from current timeline page via GraphQL interception.
- * R1: Unified signature — workflow does not know which strategy is used.
- * Encapsulates: GraphQL interception setup -> scroll loop -> teardown.
- *
- * NOTE: DOM fallback is not implemented yet. If GraphQL interception
- * captures no data (e.g. endpoint changes), returns empty array.
- * DOM fallback can be added later without changing this signature.
- */
+export { GRAPHQL_TIMELINE_PATTERN };
+
 /** Short delay to allow async GraphQL responses to arrive. */
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export async function extractTweetsFromPage(
+/**
+ * Scroll timeline and collect intercepted tweets until count is reached.
+ * Caller is responsible for setting up interception before navigation —
+ * this function only scrolls and waits for data to accumulate.
+ */
+export async function collectTweetsFromTimeline(
   primitives: Primitives,
+  interceptedRaw: RawTweetData[],
   count: number,
 ): Promise<RawTweetData[]> {
-  const interceptedRaw: RawTweetData[] = [];
-  const cleanup = await primitives.interceptRequest(
-    GRAPHQL_TIMELINE_PATTERN,
-    (response) => {
-      try {
-        const parsed = parseGraphQLTimeline(response.body);
-        interceptedRaw.push(...parsed);
-      } catch {
-        // GraphQL parse failed — ignore this response
-      }
-    },
-    TWITTER_SITE,
-  );
+  // Wait for initial page load GraphQL response
+  await wait(2000);
 
-  try {
-    // Re-navigate to trigger a fresh GraphQL request now that interception is active.
-    // checkLogin already navigated to /home, but that response was before our interceptor.
-    await primitives.navigate('https://x.com/home', TWITTER_SITE);
-    await wait(2000);
+  let prevTotal = 0;
+  let staleRounds = 0;
 
-    // Scroll to collect more if needed
-    let prevTotal = 0;
-    let staleRounds = 0;
+  while (staleRounds < MAX_STALE_ROUNDS) {
+    if (interceptedRaw.length >= count) break;
 
-    while (staleRounds < MAX_STALE_ROUNDS) {
-      if (interceptedRaw.length >= count) break;
-
-      if (interceptedRaw.length <= prevTotal) {
-        staleRounds++;
-      } else {
-        staleRounds = 0;
-      }
-
-      prevTotal = interceptedRaw.length;
-      await primitives.scroll({ direction: 'down' }, TWITTER_SITE);
-      await wait(1500);
+    if (interceptedRaw.length <= prevTotal) {
+      staleRounds++;
+    } else {
+      staleRounds = 0;
     }
 
-    return interceptedRaw;
-  } finally {
-    cleanup();
+    prevTotal = interceptedRaw.length;
+    await primitives.scroll({ direction: 'down' }, TWITTER_SITE);
+    await wait(1500);
   }
+
+  return interceptedRaw;
 }

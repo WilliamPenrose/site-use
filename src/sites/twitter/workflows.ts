@@ -2,11 +2,13 @@ import type { Primitives } from '../../primitives/types.js';
 import { SessionExpired } from '../../errors.js';
 import { matchByRule, rules } from './matchers.js';
 import {
-  extractTweetsFromPage,
+  collectTweetsFromTimeline,
+  parseGraphQLTimeline,
   parseTweet,
   buildTimelineMeta,
+  GRAPHQL_TIMELINE_PATTERN,
 } from './extractors.js';
-import type { TimelineResult } from './types.js';
+import type { RawTweetData, TimelineResult } from './types.js';
 
 const TWITTER_HOME = 'https://x.com/home';
 const TWITTER_SITE = 'twitter';
@@ -53,25 +55,46 @@ export async function requireLogin(primitives: Primitives): Promise<void> {
 
 /**
  * Collect timeline tweets.
- * Delegates extraction strategy to extractTweetsFromPage (R1).
- * Workflow only orchestrates: auth -> extract -> parse -> filter -> meta.
+ * Sets up GraphQL interception before navigation so the initial
+ * page load response is captured. Scroll + collection is delegated
+ * to collectTweetsFromTimeline.
  */
 export async function getTimeline(
   primitives: Primitives,
   count: number = 20,
 ): Promise<TimelineResult> {
-  await requireLogin(primitives);
+  // Set up interception BEFORE navigation so initial GraphQL response is captured
+  const interceptedRaw: RawTweetData[] = [];
+  const cleanup = await primitives.interceptRequest(
+    GRAPHQL_TIMELINE_PATTERN,
+    (response) => {
+      try {
+        const parsed = parseGraphQLTimeline(response.body);
+        interceptedRaw.push(...parsed);
+      } catch {
+        // GraphQL parse failed — ignore this response
+      }
+    },
+    TWITTER_SITE,
+  );
 
-  // extractTweetsFromPage encapsulates interception + scroll (R1)
-  const rawTweets = await extractTweetsFromPage(primitives, count);
+  try {
+    // requireLogin navigates to x.com/home — interception is already active
+    await requireLogin(primitives);
 
-  // Parse and filter
-  const tweets = rawTweets
-    .map(parseTweet)
-    .filter((t) => !t.isAd)
-    .slice(0, count);
+    // Scroll to collect more tweets if needed
+    const rawTweets = await collectTweetsFromTimeline(primitives, interceptedRaw, count);
 
-  const meta = buildTimelineMeta(tweets);
+    // Parse and filter
+    const tweets = rawTweets
+      .map(parseTweet)
+      .filter((t) => !t.isAd)
+      .slice(0, count);
 
-  return { tweets, meta };
+    const meta = buildTimelineMeta(tweets);
+
+    return { tweets, meta };
+  } finally {
+    cleanup();
+  }
 }
