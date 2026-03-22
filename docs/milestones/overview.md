@@ -1,7 +1,7 @@
 # site-use 里程碑拆解
 
 > 日期：2026-03-22
-> 状态：M1 已完成，M3 Group A 已完成（01-04）— Group B（反爬增强）待调研
+> 状态：M1 已完成，M3 已完成（Group A 01-04 + Group B 05 反检测增强）
 > 上游文档：[技术架构设计](../site-use-design.md)
 
 ## 策略
@@ -116,6 +116,12 @@ M3："可靠地长期运行"（在 M1/M2 基础上增强）
 M4："Twitter 改版也不怕"（独立新增层）
 ├── Fingerprint 层（fingerprint.ts + storage.ts）
 └── CompositeMatcher（ARIA 优先 → 指纹 fallback）
+
+M5："自己学新站点"（探索 → 固化 → 复用）
+├── 探索模式（agent 用 primitives 探索未知站点）
+├── Workflow 生成（将探索结果固化为确定性代码）
+└── 自动注册（沉淀的 workflow 成为新的 MCP tool）
+    详见 m5/00-thinking.md
 ```
 
 ---
@@ -367,6 +373,23 @@ AI：  分析推文内容，生成摘要报告
 
 对应 PRD 全部 4 个场景。用户可以说"帮我关注 Vitalik"、"看看 @elonmusk 最近发了什么"。完整的 Twitter 自动化工具。
 
+### 工具数量对比：site-use vs xiaohongshu-mcp
+
+xiaohongshu-mcp（`d:/src/openclaw生态/xiaohongshu-mcp`）是一个功能完整的小红书 MCP server，可作为工具数量的参照：
+
+| 分类 | site-use Twitter（M1+M2） | xiaohongshu-mcp |
+|------|--------------------------|-----------------|
+| 认证 | twitter_check_login | check_login_status, get_login_qrcode, delete_cookies |
+| 内容获取 | twitter_timeline, twitter_user_tweets | list_feeds, search_feeds, get_feed_detail, user_profile |
+| 搜索 | twitter_search_user | search_feeds（同上，含搜索参数） |
+| 社交操作 | twitter_follow_user, twitter_following_list | like_feed, favorite_feed |
+| 发布 | — | publish_content, publish_with_video |
+| 评论 | — | post_comment_to_feed, reply_comment_in_feed |
+| 调试 | screenshot | — |
+| **合计** | **7** | **13** |
+
+site-use M1+M2 共 7 个工具，远在 agent 性能甜点内（Speakeasy 实测：大模型 ~30 是临界点，详见 [m5/00-thinking.md — 发现 3](m5/00-thinking.md#发现-3工具数量是性能杀手)）。xiaohongshu-mcp 的 13 个也在安全范围，但已经是单站点的实际上限参考。
+
 ### 对 M1 的零改动承诺
 
 - Primitives 接口不改（只加实现）
@@ -431,6 +454,16 @@ Twitter 改版导致 ARIA 匹配失败时，系统自动用历史指纹找到候
 
 ---
 
+## M5："自己学新站点"
+
+> 早期构思阶段，详见 [m5/00-thinking.md](m5/00-thinking.md)
+
+核心循环：未知需求 → agent 用 primitives 探索 → 生成 workflow 代码 → 沉淀为 MCP tool → 未来直接复用。
+
+M1-M4 的 workflow 都是人类预先编码的，M5 要让 agent 自动完成"探索 → 固化"这个过程。本质上是把 M1-M3 中人类手写 workflow 的工作，变成 agent 可以自主完成的能力。
+
+---
+
 ## 修订记录
 
 - 2026-03-18：通过 brainstorming 会话创建里程碑拆解
@@ -465,6 +498,11 @@ Twitter 改版导致 ARIA 匹配失败时，系统自动用历史指纹找到候
   - M1 能力 4 新增"LLM 兜底路径的架构预留"：显式引用并解释 R1（extractor 接口不暴露策略）、R2（清洗层独立性）、R3（Zod 单一 schema 来源）
   - M3 错误处理增强引用 F7：每类错误明确标注重试策略（可重试 vs 不可重试）
   - M3 新增 F8：广告/追踪域名屏蔽作为站点级可选配置
+- 2026-03-22：新增 M5 构思
+  - M5："自己学新站点"——探索 → 固化 → 复用闭环
+  - 融合调研：Anthropic Building effective agents（code gen + execution）、Selenium LoadableComponent（幂等状态导航）、State Objects（ACM）、GOI 声明式接口（+67% 成功率）、agent API 设计研究（工具数量、上下文效率等）
+  - 明确 M4（元素定位韧性）是 M5（workflow 生成）的基础设施
+  - 详细思路见 m5/00-thinking.md
 - 2026-03-19：去重重构——将与设计文档重复的内容替换为引用
   - "架构选择及理由"表格：移除"理由"列，仅保留决策→里程碑映射
   - "与 devtools-mcp 有意差异"、"排除决策"、"模块边界原则"：替换为指向设计文档的引用
@@ -489,3 +527,8 @@ Twitter 改版导致 ARIA 匹配失败时，系统自动用历史指纹找到候
   - 04 错误处理增强：新增 RateLimited/NavigationFailed + retryable/hint 字段 + 自动截图
   - 修正：点击抖动、Bezier 轨迹、渐进滚动归属 M1 backend 层（非 M3 throttle 层）
   - 重构：coordFix 配置移除（无条件执行）；站点域名从 puppeteer-backend 提取到 sites 层
+- 2026-03-22：M3 Group B（05 反检测增强）完成，M3 里程碑关闭
+  - B1 Canvas 指纹噪声：跳过（朴素噪声注入在 2025+ 检测体系中适得其反）
+  - B2 WebRTC 泄漏防护：已实现（Chrome Preferences webrtc.ip_handling_policy）
+  - B3 广告/追踪器域名屏蔽：跳过（Twitter 场景无影响；记录 Ghostery 方案供未来扩站）
+  - B4 限流信号检测：已实现（RateLimitDetector 按站点隔离 + 默认 429 + 自定义 DetectFn + 熔断器兜底）

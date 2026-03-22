@@ -1,7 +1,7 @@
 # M3: "Reliably Run Long-Term"
 
 > Upstream: [Milestone Overview](../overview.md) — M3
-> Status: Group A complete (01-04 implemented) — Group B pending research spikes
+> Status: **Complete** — Group A (01-04) + Group B (05 anti-detection: B1 skip, B2 done, B3 skip, B4 done)
 > Prerequisite: M1 complete (all capabilities verified)
 
 ## Goal
@@ -68,4 +68,9 @@ Scenario 4: Any error → context includes url + step + retryable + hint + scree
 - 2026-03-22: Group A implementation complete
   - All 4 capabilities (01-04) implemented, tested (195 unit tests), committed
   - Post-implementation cleanup: removed coordFix config (unconditional now); extracted site domains from puppeteer-backend to sites/twitter/site.ts
-  - Group B (05 anti-detection) remains pending research spikes
+- 2026-03-22: Group B (05 anti-detection) complete
+  - B1 Canvas fingerprint noise: **skipped** — naive noise injection is counterproductive in 2025+ detection systems
+  - B2 WebRTC leak protection: **implemented** — Chrome Preferences `webrtc.ip_handling_policy`
+  - B3 Ad/tracker blocking: **skipped** — no impact on Twitter automation; documented Ghostery approach for future sites
+  - B4 Rate-limit signal detection: **implemented** — RateLimitDetector (per-site 429 + custom detect) + circuit breaker (5 consecutive failures)
+  - M3 milestone complete
