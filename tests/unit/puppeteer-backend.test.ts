@@ -513,6 +513,8 @@ describe('PuppeteerBackend', () => {
   });
 
   describe('tab reuse', () => {
+    const testDomains = { twitter: ['x.com', 'twitter.com'] };
+
     it('reuses existing browser tab matching site domain instead of creating new', async () => {
       const existingPage = createMockPage();
       existingPage.url = vi.fn().mockReturnValue('https://x.com/home');
@@ -521,7 +523,7 @@ describe('PuppeteerBackend', () => {
         pages: vi.fn().mockResolvedValue([existingPage]),
       };
 
-      const backend = new PuppeteerBackend(mockBrowserWithPages as any);
+      const backend = new PuppeteerBackend(mockBrowserWithPages as any, testDomains);
       const page = await backend.getRawPage('twitter');
 
       expect(mockBrowserWithPages.pages).toHaveBeenCalled();
@@ -536,7 +538,7 @@ describe('PuppeteerBackend', () => {
         pages: vi.fn().mockResolvedValue([existingPage]),
       };
 
-      const backend = new PuppeteerBackend(mockBrowserWithPages as any);
+      const backend = new PuppeteerBackend(mockBrowserWithPages as any, testDomains);
       await backend.getRawPage('twitter');
 
       expect(mockNewPage).toHaveBeenCalled();
@@ -550,7 +552,7 @@ describe('PuppeteerBackend', () => {
         pages: vi.fn().mockResolvedValue([blankPage]),
       };
 
-      const backend = new PuppeteerBackend(mockBrowserWithPages as any);
+      const backend = new PuppeteerBackend(mockBrowserWithPages as any, testDomains);
       await backend.getRawPage('twitter');
 
       expect(mockNewPage).toHaveBeenCalled();
@@ -564,7 +566,7 @@ describe('PuppeteerBackend', () => {
         pages: vi.fn().mockResolvedValue([crashedPage]),
       };
 
-      const backend = new PuppeteerBackend(mockBrowserWithPages as any);
+      const backend = new PuppeteerBackend(mockBrowserWithPages as any, testDomains);
       await backend.getRawPage('twitter');
 
       expect(mockNewPage).toHaveBeenCalled();
@@ -578,7 +580,7 @@ describe('PuppeteerBackend', () => {
         pages: vi.fn().mockResolvedValue([existingPage]),
       };
 
-      const backend = new PuppeteerBackend(mockBrowserWithPages as any);
+      const backend = new PuppeteerBackend(mockBrowserWithPages as any, testDomains);
       await backend.getRawPage('twitter');
       await backend.getRawPage('twitter');
 

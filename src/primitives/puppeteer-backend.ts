@@ -19,20 +19,18 @@ import type {
 
 const DEFAULT_SITE = '_default';
 
-const SITE_DOMAINS: Record<string, string[]> = {
-  twitter: ['x.com', 'twitter.com'],
-};
-
 export class PuppeteerBackend implements Primitives {
   private browser: Browser;
   private pages: Map<string, Page> = new Map();
   private currentSite: string = DEFAULT_SITE;
+  private siteDomains: Record<string, string[]>;
 
   // Internal: uid -> backendDOMNodeId mapping from last takeSnapshot
   private uidToBackendNodeId: Map<string, number> = new Map();
 
-  constructor(browser: Browser) {
+  constructor(browser: Browser, siteDomains: Record<string, string[]> = {}) {
     this.browser = browser;
+    this.siteDomains = siteDomains;
   }
 
   private async getPage(site?: string): Promise<Page> {
@@ -46,7 +44,7 @@ export class PuppeteerBackend implements Primitives {
     }
 
     // 2. Scan existing browser tabs for domain match
-    const domains = SITE_DOMAINS[key];
+    const domains = this.siteDomains[key];
     if (domains) {
       try {
         const existingPages = await this.browser.pages();
