@@ -1,6 +1,12 @@
 import type { Primitives } from '../../primitives/types.js';
 import { SessionExpired } from '../../errors.js';
 import { matchByRule, rules } from './matchers.js';
+import {
+  extractTweetsFromPage,
+  parseTweet,
+  buildTimelineMeta,
+} from './extractors.js';
+import type { TimelineResult } from './types.js';
 
 const TWITTER_HOME = 'https://x.com/home';
 const TWITTER_SITE = 'twitter';
@@ -43,4 +49,29 @@ export async function requireLogin(primitives: Primitives): Promise<void> {
       url: TWITTER_HOME,
     });
   }
+}
+
+/**
+ * Collect timeline tweets.
+ * Delegates extraction strategy to extractTweetsFromPage (R1).
+ * Workflow only orchestrates: auth -> extract -> parse -> filter -> meta.
+ */
+export async function getTimeline(
+  primitives: Primitives,
+  count: number = 20,
+): Promise<TimelineResult> {
+  await requireLogin(primitives);
+
+  // extractTweetsFromPage encapsulates interception + scroll (R1)
+  const rawTweets = await extractTweetsFromPage(primitives, count);
+
+  // Parse and filter
+  const tweets = rawTweets
+    .map(parseTweet)
+    .filter((t) => !t.isAd)
+    .slice(0, count);
+
+  const meta = buildTimelineMeta(tweets);
+
+  return { tweets, meta };
 }

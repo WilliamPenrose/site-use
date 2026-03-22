@@ -26,11 +26,13 @@ function buildSnapshot(nodes: SnapshotNode[]): Snapshot {
 
 let checkLogin: typeof import('../../src/sites/twitter/workflows.js').checkLogin;
 let requireLogin: typeof import('../../src/sites/twitter/workflows.js').requireLogin;
+let getTimeline: typeof import('../../src/sites/twitter/workflows.js').getTimeline;
 
 beforeEach(async () => {
   const mod = await import('../../src/sites/twitter/workflows.js');
   checkLogin = mod.checkLogin;
   requireLogin = mod.requireLogin;
+  getTimeline = mod.getTimeline;
 });
 
 describe('checkLogin', () => {
@@ -92,5 +94,84 @@ describe('requireLogin', () => {
       evaluate: vi.fn().mockResolvedValue('https://x.com/i/flow/login'),
     });
     await expect(requireLogin(primitives)).rejects.toThrow(SessionExpired);
+  });
+});
+
+describe('getTimeline', () => {
+  it('throws SessionExpired when not logged in', async () => {
+    const primitives = createMockPrimitives({
+      evaluate: vi.fn().mockResolvedValue('https://x.com/i/flow/login'),
+    });
+    await expect(getTimeline(primitives, 5)).rejects.toThrow(SessionExpired);
+  });
+
+  it('returns tweets from intercepted GraphQL data', async () => {
+    const GRAPHQL_BODY = JSON.stringify({
+      data: {
+        home: {
+          home_timeline_urt: {
+            instructions: [{
+              entries: [{
+                content: {
+                  entryType: 'TimelineTimelineItem',
+                  itemContent: {
+                    tweet_results: {
+                      result: {
+                        __typename: 'Tweet',
+                        rest_id: '100',
+                        legacy: {
+                          id_str: '100',
+                          full_text: 'Test tweet',
+                          created_at: 'Mon Mar 18 23:49:31 +0000 2026',
+                          favorite_count: 5,
+                          retweet_count: 1,
+                          reply_count: 0,
+                        },
+                        core: {
+                          user_results: {
+                            result: {
+                              legacy: {
+                                screen_name: 'testuser',
+                                name: 'Test User',
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              }],
+            }],
+          },
+        },
+      },
+    });
+
+    const primitives = createMockPrimitives({
+      // checkLogin calls evaluate once for URL check
+      evaluate: vi.fn()
+        .mockResolvedValue('https://x.com/home'),
+      takeSnapshot: vi.fn().mockResolvedValue(
+        buildSnapshot([{ uid: '1', role: 'link', name: 'Home' }]),
+      ),
+      interceptRequest: vi.fn().mockImplementation(
+        async (_pattern: any, handler: any) => {
+          // Simulate GraphQL response arriving during interception setup
+          handler({
+            url: '/i/api/graphql/abc/HomeLatestTimeline',
+            status: 200,
+            body: GRAPHQL_BODY,
+          });
+          return () => {};
+        },
+      ),
+    });
+
+    const result = await getTimeline(primitives, 1);
+    expect(result.tweets).toHaveLength(1);
+    expect(result.tweets[0].text).toBe('Test tweet');
+    expect(result.tweets[0].author.handle).toBe('testuser');
+    expect(result.meta.tweetCount).toBe(1);
   });
 });
