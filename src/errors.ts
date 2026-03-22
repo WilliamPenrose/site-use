@@ -73,3 +73,14 @@ export class NavigationFailed extends SiteUseError {
     this.name = 'NavigationFailed';
   }
 }
+
+export class StateTransitionFailed extends SiteUseError {
+  constructor(message: string, context: ErrorContext = {}) {
+    super('StateTransitionFailed', message, {
+      retryable: true,
+      hint: 'Element was found and clicked but did not reach the target state. The page may be unresponsive.',
+      ...context,
+    });
+    this.name = 'StateTransitionFailed';
+  }
+}

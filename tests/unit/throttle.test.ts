@@ -49,6 +49,18 @@ describe('ThrottledPrimitives', () => {
     expect(elapsed).toBeGreaterThanOrEqual(40); // allow small timing variance
   });
 
+  it('does NOT throttle takeSnapshot (exempt)', async () => {
+    const inner = createMockPrimitives();
+    const throttled = createThrottledPrimitives(inner, { minDelay: 200, maxDelay: 200 });
+
+    const start = Date.now();
+    await throttled.takeSnapshot('twitter');
+    const elapsed = Date.now() - start;
+
+    expect(elapsed).toBeLessThan(100);
+    expect(inner.takeSnapshot).toHaveBeenCalledWith('twitter');
+  });
+
   it('does NOT throttle screenshot (exempt)', async () => {
     const inner = createMockPrimitives();
     const throttled = createThrottledPrimitives(inner, { minDelay: 200, maxDelay: 200 });

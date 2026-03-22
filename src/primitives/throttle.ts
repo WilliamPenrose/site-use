@@ -49,7 +49,7 @@ export function createThrottledPrimitives(
     scrollIntoView: (uid, site?) => throttledAndCounted(() => inner.scrollIntoView(uid, site)),
 
     // Throttled but NOT counted
-    takeSnapshot: (site?) => throttled(() => inner.takeSnapshot(site)),
+    takeSnapshot: (site?) => inner.takeSnapshot(site),
     evaluate: <T = unknown>(expression: string, site?: string) =>
       throttled(() => inner.evaluate<T>(expression, site)),
     interceptRequest: (pattern, handler, site?) =>
