@@ -1,0 +1,591 @@
+{
+  "__typename": "Tweet",
+  "core": {
+    "user_results": {
+      "result": {
+        "__typename": "User",
+        "affiliates_highlighted_label": {},
+        "avatar": {
+          "image_url": "https://pbs.twimg.com/profile_images/1695024885070737408/-M-HSH5P_normal.jpg"
+        },
+        "core": {
+          "created_at": "Tue Jan 19 13:46:08 +0000 2016",
+          "name": "Google DeepMind",
+          "screen_name": "GoogleDeepMind"
+        },
+        "dm_permissions": {
+          "can_dm": false
+        },
+        "follow_request_sent": false,
+        "has_graduated_access": true,
+        "id": "VXNlcjo0NzgzNjkwMDAy",
+        "is_blue_verified": false,
+        "legacy": {
+          "default_profile": true,
+          "default_profile_image": false,
+          "description": "We’re a team of scientists, engineers, ethicists and more, committed to solving intelligence, to advance science and benefit humanity.",
+          "entities": {
+            "description": {
+              "urls": []
+            },
+            "url": {
+              "urls": [
+                {
+                  "display_url": "deepmind.google",
+                  "expanded_url": "http://deepmind.google",
+                  "indices": [
+                    0,
+                    23
+                  ],
+                  "url": "https://t.co/uR24kkW95X"
+                }
+              ]
+            }
+          },
+          "fast_followers_count": 0,
+          "favourites_count": 2776,
+          "follow_request_sent": false,
+          "followers_count": 1375089,
+          "friends_count": 280,
+          "has_custom_timelines": true,
+          "is_translator": false,
+          "listed_count": 15485,
+          "media_count": 1791,
+          "normal_followers_count": 1375089,
+          "notifications": false,
+          "pinned_tweet_ids_str": [
+            "2034014385941975298"
+          ],
+          "possibly_sensitive": false,
+          "profile_banner_url": "https://pbs.twimg.com/profile_banners/4783690002/1763482530",
+          "profile_interstitial_type": "",
+          "statuses_count": 4301,
+          "translator_type": "none",
+          "url": "https://t.co/uR24kkW95X",
+          "want_retweets": true,
+          "withheld_in_countries": []
+        },
+        "location": {
+          "location": "London, UK"
+        },
+        "media_permissions": {
+          "can_media_tag": false
+        },
+        "parody_commentary_fan_label": "None",
+        "privacy": {
+          "protected": false
+        },
+        "professional": {
+          "professional_type": "Business",
+          "rest_id": "1608581743665156103"
+        },
+        "profile_bio": {
+          "description": "We’re a team of scientists, engineers, ethicists and more, committed to solving intelligence, to advance science and benefit humanity."
+        },
+        "profile_description_language": "en",
+        "profile_image_shape": "Square",
+        "relationship_perspectives": {
+          "blocked_by": false,
+          "blocking": false,
+          "followed_by": false,
+          "following": true,
+          "muting": false
+        },
+        "rest_id": "4783690002",
+        "super_follow_eligible": false,
+        "super_followed_by": false,
+        "super_following": false,
+        "verification": {
+          "verified": false,
+          "verified_type": "Business"
+        }
+      }
+    }
+  },
+  "edit_control": {
+    "edit_tweet_ids": [
+      "2034997254025539937"
+    ],
+    "editable_until_msecs": "1774019728437",
+    "edits_remaining": "5",
+    "is_edit_eligible": false
+  },
+  "grok_analysis_button": true,
+  "grok_annotations": {},
+  "is_translatable": false,
+  "legacy": {
+    "bookmark_count": 0,
+    "bookmarked": false,
+    "conversation_id_str": "2034997254025539937",
+    "created_at": "Fri Mar 20 14:15:28 +0000 2026",
+    "display_text_range": [
+      0,
+      143
+    ],
+    "entities": {
+      "hashtags": [],
+      "symbols": [],
+      "timestamps": [],
+      "urls": [],
+      "user_mentions": [
+        {
+          "id_str": "40661455",
+          "indices": [
+            3,
+            12
+          ],
+          "name": "Pushmeet Kohli",
+          "screen_name": "pushmeet"
+        },
+        {
+          "id_str": "15862891",
+          "indices": [
+            62,
+            69
+          ],
+          "name": "nature",
+          "screen_name": "Nature"
+        },
+        {
+          "id_str": "4783690002",
+          "indices": [
+            81,
+            96
+          ],
+          "name": "Google DeepMind",
+          "screen_name": "GoogleDeepMind"
+        }
+      ]
+    },
+    "favorite_count": 0,
+    "favorited": false,
+    "full_text": "RT @pushmeet: Our AlphaProof paper is in this week’s issue of @Nature!\n\nIn 2024, @GoogleDeepMind's proof agents AlphaProof &amp; AlphaGeometry…",
+    "id_str": "2034997254025539937",
+    "is_quote_status": false,
+    "lang": "en",
+    "quote_count": 0,
+    "reply_count": 0,
+    "retweet_count": 89,
+    "retweeted": false,
+    "retweeted_status_result": {
+      "result": {
+        "__typename": "Tweet",
+        "core": {
+          "user_results": {
+            "result": {
+              "__typename": "User",
+              "affiliates_highlighted_label": {
+                "label": {
+                  "badge": {
+                    "url": "https://pbs.twimg.com/profile_images/1695024885070737408/-M-HSH5P_bigger.jpg"
+                  },
+                  "description": "Google DeepMind",
+                  "url": {
+                    "url": "https://twitter.com/GoogleDeepMind",
+                    "urlType": "DeepLink"
+                  },
+                  "userLabelDisplayType": "Badge",
+                  "userLabelType": "BusinessLabel"
+                }
+              },
+              "avatar": {
+                "image_url": "https://pbs.twimg.com/profile_images/650718639784509440/yaRuXASm_normal.jpg"
+              },
+              "core": {
+                "created_at": "Sun May 17 13:50:31 +0000 2009",
+                "name": "Pushmeet Kohli",
+                "screen_name": "pushmeet"
+              },
+              "dm_permissions": {
+                "can_dm": true
+              },
+              "follow_request_sent": false,
+              "has_graduated_access": true,
+              "id": "VXNlcjo0MDY2MTQ1NQ==",
+              "is_blue_verified": true,
+              "legacy": {
+                "default_profile": false,
+                "default_profile_image": false,
+                "description": "Computer Scientist. \nVP Science, Google DeepMind",
+                "entities": {
+                  "description": {
+                    "urls": []
+                  },
+                  "url": {
+                    "urls": [
+                      {
+                        "display_url": "scholar.google.co.uk/citations?user…",
+                        "expanded_url": "https://scholar.google.co.uk/citations?user=3pyzQQ8AAAAJ",
+                        "indices": [
+                          0,
+                          23
+                        ],
+                        "url": "https://t.co/yHHwBdsiMq"
+                      }
+                    ]
+                  }
+                },
+                "fast_followers_count": 0,
+                "favourites_count": 568,
+                "follow_request_sent": false,
+                "followers_count": 22623,
+                "friends_count": 81,
+                "has_custom_timelines": false,
+                "is_translator": false,
+                "listed_count": 371,
+                "media_count": 18,
+                "normal_followers_count": 22623,
+                "notifications": false,
+                "pinned_tweet_ids_str": [],
+                "possibly_sensitive": false,
+                "profile_interstitial_type": "",
+                "statuses_count": 372,
+                "translator_type": "none",
+                "url": "https://t.co/yHHwBdsiMq",
+                "want_retweets": false,
+                "withheld_in_countries": []
+              },
+              "location": {
+                "location": "London, England"
+              },
+              "media_permissions": {
+                "can_media_tag": false
+              },
+              "parody_commentary_fan_label": "None",
+              "privacy": {
+                "protected": false
+              },
+              "profile_bio": {
+                "description": "Computer Scientist. \nVP Science, Google DeepMind"
+              },
+              "profile_image_shape": "Circle",
+              "relationship_perspectives": {
+                "blocked_by": false,
+                "blocking": false,
+                "followed_by": false,
+                "following": false,
+                "muting": false
+              },
+              "rest_id": "40661455",
+              "super_follow_eligible": false,
+              "super_followed_by": false,
+              "super_following": false,
+              "verification": {
+                "verified": false
+              }
+            }
+          }
+        },
+        "edit_control": {
+          "edit_tweet_ids": [
+            "2034995752963809700"
+          ],
+          "editable_until_msecs": "1774019370000",
+          "edits_remaining": "5",
+          "is_edit_eligible": false
+        },
+        "grok_analysis_button": true,
+        "is_translatable": false,
+        "legacy": {
+          "bookmark_count": 196,
+          "bookmarked": false,
+          "conversation_id_str": "2034995752963809700",
+          "created_at": "Fri Mar 20 14:09:30 +0000 2026",
+          "display_text_range": [
+            0,
+            273
+          ],
+          "entities": {
+            "hashtags": [],
+            "media": [
+              {
+                "allow_download_status": {
+                  "allow_download": true
+                },
+                "display_url": "pic.x.com/lUKtTFTtKE",
+                "expanded_url": "https://x.com/pushmeet/status/2034995752963809700/photo/1",
+                "ext_media_availability": {
+                  "status": "Available"
+                },
+                "features": {
+                  "large": {
+                    "faces": []
+                  },
+                  "medium": {
+                    "faces": []
+                  },
+                  "orig": {
+                    "faces": []
+                  },
+                  "small": {
+                    "faces": []
+                  }
+                },
+                "id_str": "2034995632578895872",
+                "indices": [
+                  274,
+                  297
+                ],
+                "media_key": "3_2034995632578895872",
+                "media_results": {
+                  "result": {
+                    "media_key": "3_2034995632578895872"
+                  }
+                },
+                "media_url_https": "https://pbs.twimg.com/media/HD3BvvdWIAANGDm.jpg",
+                "original_info": {
+                  "focus_rects": [
+                    {
+                      "h": 605,
+                      "w": 1080,
+                      "x": 0,
+                      "y": 475
+                    },
+                    {
+                      "h": 1080,
+                      "w": 1080,
+                      "x": 0,
+                      "y": 0
+                    },
+                    {
+                      "h": 1080,
+                      "w": 947,
+                      "x": 133,
+                      "y": 0
+                    },
+                    {
+                      "h": 1080,
+                      "w": 540,
+                      "x": 513,
+                      "y": 0
+                    },
+                    {
+                      "h": 1080,
+                      "w": 1080,
+                      "x": 0,
+                      "y": 0
+                    }
+                  ],
+                  "height": 1080,
+                  "width": 1080
+                },
+                "sizes": {
+                  "large": {
+                    "h": 1080,
+                    "resize": "fit",
+                    "w": 1080
+                  },
+                  "medium": {
+                    "h": 1080,
+                    "resize": "fit",
+                    "w": 1080
+                  },
+                  "small": {
+                    "h": 680,
+                    "resize": "fit",
+                    "w": 680
+                  },
+                  "thumb": {
+                    "h": 150,
+                    "resize": "crop",
+                    "w": 150
+                  }
+                },
+                "type": "photo",
+                "url": "https://t.co/lUKtTFTtKE"
+              }
+            ],
+            "symbols": [],
+            "timestamps": [],
+            "urls": [],
+            "user_mentions": [
+              {
+                "id_str": "15862891",
+                "indices": [
+                  48,
+                  55
+                ],
+                "name": "nature",
+                "screen_name": "Nature"
+              },
+              {
+                "id_str": "4783690002",
+                "indices": [
+                  67,
+                  82
+                ],
+                "name": "Google DeepMind",
+                "screen_name": "GoogleDeepMind"
+              }
+            ]
+          },
+          "extended_entities": {
+            "media": [
+              {
+                "allow_download_status": {
+                  "allow_download": true
+                },
+                "display_url": "pic.x.com/lUKtTFTtKE",
+                "expanded_url": "https://x.com/pushmeet/status/2034995752963809700/photo/1",
+                "ext_media_availability": {
+                  "status": "Available"
+                },
+                "features": {
+                  "large": {
+                    "faces": []
+                  },
+                  "medium": {
+                    "faces": []
+                  },
+                  "orig": {
+                    "faces": []
+                  },
+                  "small": {
+                    "faces": []
+                  }
+                },
+                "id_str": "2034995632578895872",
+                "indices": [
+                  274,
+                  297
+                ],
+                "media_key": "3_2034995632578895872",
+                "media_results": {
+                  "result": {
+                    "media_key": "3_2034995632578895872"
+                  }
+                },
+                "media_url_https": "https://pbs.twimg.com/media/HD3BvvdWIAANGDm.jpg",
+                "original_info": {
+                  "focus_rects": [
+                    {
+                      "h": 605,
+                      "w": 1080,
+                      "x": 0,
+                      "y": 475
+                    },
+                    {
+                      "h": 1080,
+                      "w": 1080,
+                      "x": 0,
+                      "y": 0
+                    },
+                    {
+                      "h": 1080,
+                      "w": 947,
+                      "x": 133,
+                      "y": 0
+                    },
+                    {
+                      "h": 1080,
+                      "w": 540,
+                      "x": 513,
+                      "y": 0
+                    },
+                    {
+                      "h": 1080,
+                      "w": 1080,
+                      "x": 0,
+                      "y": 0
+                    }
+                  ],
+                  "height": 1080,
+                  "width": 1080
+                },
+                "sizes": {
+                  "large": {
+                    "h": 1080,
+                    "resize": "fit",
+                    "w": 1080
+                  },
+                  "medium": {
+                    "h": 1080,
+                    "resize": "fit",
+                    "w": 1080
+                  },
+                  "small": {
+                    "h": 680,
+                    "resize": "fit",
+                    "w": 680
+                  },
+                  "thumb": {
+                    "h": 150,
+                    "resize": "crop",
+                    "w": 150
+                  }
+                },
+                "type": "photo",
+                "url": "https://t.co/lUKtTFTtKE"
+              }
+            ]
+          },
+          "favorite_count": 663,
+          "favorited": false,
+          "full_text": "Our AlphaProof paper is in this week’s issue of @Nature!\n\nIn 2024, @GoogleDeepMind's proof agents AlphaProof &amp; AlphaGeometry together made a substantial leap in AI by achieving the silver-medal standard in solving IMO problems.\n\nThe Nature paper describes the technical https://t.co/lUKtTFTtKE",
+          "id_str": "2034995752963809700",
+          "is_quote_status": false,
+          "lang": "en",
+          "possibly_sensitive": false,
+          "possibly_sensitive_editable": true,
+          "quote_count": 5,
+          "reply_count": 17,
+          "retweet_count": 89,
+          "retweeted": false,
+          "user_id_str": "40661455"
+        },
+        "note_tweet": {
+          "is_expandable": true,
+          "note_tweet_results": {
+            "result": {
+              "entity_set": {
+                "hashtags": [],
+                "symbols": [],
+                "urls": [],
+                "user_mentions": [
+                  {
+                    "id_str": "15862891",
+                    "indices": [
+                      48,
+                      55
+                    ],
+                    "name": "nature",
+                    "screen_name": "Nature"
+                  },
+                  {
+                    "id_str": "4783690002",
+                    "indices": [
+                      67,
+                      82
+                    ],
+                    "name": "Google DeepMind",
+                    "screen_name": "GoogleDeepMind"
+                  }
+                ]
+              },
+              "id": "Tm90ZVR3ZWV0OjIwMzQ5OTU3NTI4NjMyMzIwMDE=",
+              "richtext": {
+                "richtext_tags": []
+              },
+              "text": "Our AlphaProof paper is in this week’s issue of @Nature!\n\nIn 2024, @GoogleDeepMind's proof agents AlphaProof & AlphaGeometry together made a substantial leap in AI by achieving the silver-medal standard in solving IMO problems.\n\nThe Nature paper describes the technical innovations required—in particular, the RL loop bridging natural language & symbolic rigor—that made AlphaProof possible."
+            }
+          }
+        },
+        "rest_id": "2034995752963809700",
+        "source": "<a href=\"https://mobile.twitter.com\" rel=\"nofollow\">Twitter Web App</a>",
+        "unmention_data": {},
+        "views": {
+          "count": "66004",
+          "state": "EnabledWithCount"
+        }
+      }
+    },
+    "user_id_str": "4783690002"
+  },
+  "rest_id": "2034997254025539937",
+  "source": "<a href=\"https://mobile.twitter.com\" rel=\"nofollow\">Twitter Web App</a>",
+  "unmention_data": {},
+  "views": {
+    "count": "3",
+    "state": "EnabledWithCount"
+  }
+}
