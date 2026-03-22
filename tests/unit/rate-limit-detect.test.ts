@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { defaultDetect, RateLimitDetector } from '../../src/primitives/rate-limit-detect.js';
 import { RateLimited } from '../../src/errors.js';
+import { twitterDetect } from '../../src/sites/twitter/site.js';
 
 // Helper to build a minimal response object
 function makeResponse(overrides: {
@@ -144,5 +145,59 @@ describe('RateLimitDetector', () => {
     }
     const err = thrown as RateLimited;
     expect(err.context.url).toBe('https://api.twitter.com/first');
+  });
+});
+
+describe('twitterDetect', () => {
+  it('detects HTTP 429 with x-rate-limit-reset header', () => {
+    const epoch = 1700000000;
+    const signal = twitterDetect(
+      makeResponse({
+        status: 429,
+        headers: { 'x-rate-limit-reset': String(epoch) },
+      }),
+    );
+    expect(signal).not.toBeNull();
+    expect(signal?.reason).toMatch(/429/);
+    expect(signal?.resetAt).toBeInstanceOf(Date);
+    expect(signal?.resetAt?.getTime()).toBe(epoch * 1000);
+  });
+
+  it('detects error code 88 in body even with HTTP 200', () => {
+    const signal = twitterDetect(
+      makeResponse({
+        status: 200,
+        body: '{"errors":[{"code":88,"message":"Rate limit exceeded"}]}',
+      }),
+    );
+    expect(signal).not.toBeNull();
+    expect(signal?.reason).toMatch(/error code 88/i);
+  });
+
+  it('returns null for a normal 200 response', () => {
+    const signal = twitterDetect(makeResponse({ status: 200, body: '{"data":{}}' }));
+    expect(signal).toBeNull();
+  });
+
+  it('detects 429 with remaining > 0 as account suspension', () => {
+    const signal = twitterDetect(
+      makeResponse({
+        status: 429,
+        headers: { 'x-rate-limit-remaining': '10' },
+      }),
+    );
+    expect(signal).not.toBeNull();
+    expect(signal?.reason).toMatch(/suspend/i);
+  });
+
+  it('detects plain 429 (non-GraphQL) via basic 429 check', () => {
+    const signal = twitterDetect(
+      makeResponse({
+        status: 429,
+        headers: { 'x-rate-limit-remaining': '0' },
+      }),
+    );
+    expect(signal).not.toBeNull();
+    expect(signal?.reason).toMatch(/429/);
   });
 });
