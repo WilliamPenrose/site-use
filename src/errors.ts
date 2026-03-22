@@ -56,7 +56,7 @@ export class RateLimited extends SiteUseError {
   constructor(message: string, context: ErrorContext = {}) {
     super('RateLimited', message, {
       retryable: false,
-      hint: 'Twitter is rate-limiting requests. Wait at least 15 minutes before retrying.',
+      hint: 'Rate limit detected. Wait before retrying.',
       ...context,
     });
     this.name = 'RateLimited';
