@@ -2,10 +2,11 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { checkLogin, getTimeline } from './sites/twitter/workflows.js';
-import { twitterSite } from './sites/twitter/site.js';
+import { twitterSite, twitterDetect } from './sites/twitter/site.js';
 import type { Primitives } from './primitives/types.js';
 import { ensureBrowser, isBrowserConnected } from './browser/browser.js';
 import { PuppeteerBackend } from './primitives/puppeteer-backend.js';
+import { RateLimitDetector } from './primitives/rate-limit-detect.js';
 import { createThrottledPrimitives } from './primitives/throttle.js';
 import { createAuthGuardedPrimitives } from './primitives/auth-guard.js';
 import { matchByRule, rules } from './sites/twitter/matchers.js';
@@ -30,9 +31,10 @@ async function getPrimitives(): Promise<Primitives> {
   throttledInstance = null;
 
   const browser = await ensureBrowser();
+  const detector = new RateLimitDetector({ twitter: twitterDetect });
   const raw = new PuppeteerBackend(browser, {
     [twitterSite.name]: [...twitterSite.domains],
-  });
+  }, detector);
   const throttled = createThrottledPrimitives(raw);
 
   // Proxy auth (page-level) — must happen after backend creation
