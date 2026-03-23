@@ -68,26 +68,39 @@ export function search(db: DatabaseSync, params: SearchParams): SearchResult {
   const countSql = `SELECT COUNT(*) as cnt FROM items i ${joinClause} ${whereClause}`;
   const total = (db.prepare(countSql).get(...values) as { cnt: number }).cnt;
 
-  // Fetch items
+  // Fetch items — LEFT JOIN twitter_meta to populate siteMeta
+  const metaJoin = tmJoined ? '' : 'LEFT JOIN twitter_meta tm ON tm.site = i.site AND tm.item_id = i.id';
   const selectSql = `
-    SELECT i.id, i.site, i.text, i.author, i.timestamp, i.url
-    FROM items i ${joinClause} ${whereClause}
+    SELECT i.id, i.site, i.text, i.author, i.timestamp, i.url,
+           tm.likes, tm.retweets, tm.replies, tm.views, tm.bookmarks, tm.quotes
+    FROM items i ${joinClause} ${metaJoin} ${whereClause}
     ORDER BY i.timestamp DESC
     LIMIT ?
   `;
 
-  const rows = db.prepare(selectSql).all(...values, limit) as Array<{
-    id: string; site: string; text: string; author: string; timestamp: string; url: string;
-  }>;
+  const rows = db.prepare(selectSql).all(...values, limit) as Array<Record<string, unknown>>;
 
-  const items: SearchResultItem[] = rows.map((row) => ({
-    id: row.id,
-    site: row.site,
-    text: row.text,
-    author: row.author,
-    timestamp: row.timestamp,
-    url: row.url,
-  }));
+  const items: SearchResultItem[] = rows.map((row) => {
+    const item: SearchResultItem = {
+      id: row.id as string,
+      site: row.site as string,
+      text: row.text as string,
+      author: row.author as string,
+      timestamp: row.timestamp as string,
+      url: row.url as string,
+    };
+    if (row.likes != null || row.retweets != null) {
+      item.siteMeta = {
+        likes: row.likes as number | null,
+        retweets: row.retweets as number | null,
+        replies: row.replies as number | null,
+        views: row.views as number | null,
+        bookmarks: row.bookmarks as number | null,
+        quotes: row.quotes as number | null,
+      };
+    }
+    return item;
+  });
 
   return { items, total };
 }

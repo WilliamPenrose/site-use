@@ -32,11 +32,12 @@ export function ingest(db: DatabaseSync, items: IngestItem[]): IngestResult {
   const beginTx = db.prepare('BEGIN');
   const commitTx = db.prepare('COMMIT');
 
+  const batchTimestamp = new Date().toISOString();
+
   beginTx.run();
   try {
     for (const item of items) {
-      const now = new Date().toISOString();
-      const result = insertItem.run(item.id, item.site, item.text, item.author, item.timestamp, item.url, item.rawJson, now);
+      const result = insertItem.run(item.id, item.site, item.text, item.author, item.timestamp, item.url, item.rawJson, batchTimestamp);
 
       if (result.changes > 0) {
         inserted++;
