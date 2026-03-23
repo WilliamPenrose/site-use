@@ -12,7 +12,10 @@ import { createAuthGuardedPrimitives } from './primitives/auth-guard.js';
 import { matchByRule, rules } from './sites/twitter/matchers.js';
 import { getConfig } from './config.js';
 import { Mutex } from './mutex.js';
+import path from 'node:path';
+import fs from 'node:fs';
 import { SiteUseError, BrowserDisconnected, RateLimited } from './errors.js';
+import { createStore, type KnowledgeStore } from './storage/index.js';
 
 // ---------------------------------------------------------------------------
 // Primitives singleton + lazy Chrome + disconnect recovery
@@ -64,6 +67,22 @@ async function getPrimitives(): Promise<Primitives> {
   throttledInstance = throttled;
   primitivesInstance = guarded;
   return guarded;
+}
+
+// ---------------------------------------------------------------------------
+// Knowledge store singleton
+// ---------------------------------------------------------------------------
+
+let storeInstance: KnowledgeStore | null = null;
+
+function getOrCreateStore(): KnowledgeStore {
+  if (!storeInstance) {
+    const config = getConfig();
+    const dbPath = path.join(config.dataDir, 'data', 'knowledge.db');
+    fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+    storeInstance = createStore(dbPath);
+  }
+  return storeInstance;
 }
 
 // ---------------------------------------------------------------------------
@@ -212,7 +231,8 @@ export function createServer(): McpServer {
         let primitives: Primitives | undefined;
         try {
           primitives = await getPrimitives();
-          const result = await getTimeline(primitives, count, feed, debug);
+          const store = getOrCreateStore();
+          const result = await getTimeline(primitives, count, feed, debug, store);
           resetErrorStreak();
           return {
             content: [{ type: 'text' as const, text: JSON.stringify(result) }],

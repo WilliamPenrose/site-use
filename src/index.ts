@@ -3,6 +3,7 @@ import { main as startServer } from './server.js';
 import { ensureBrowser, closeBrowser } from './browser/browser.js';
 import { runDiagnose } from './diagnose/runner.js';
 import { getConfig } from './config.js';
+import { runKnowledgeCli } from './cli/knowledge.js';
 
 const HELP = `\
 site-use — Site-level browser automation via MCP
@@ -14,6 +15,9 @@ Commands:
   browser launch     Launch Chrome and keep it running
   browser status     Show connection status, PID, and profile path
   browser close      Detach from Chrome (process stays alive)
+  search             Search stored tweets (FTS + structured filters)
+  stats              Show storage statistics
+  rebuild            Rebuild search index (Phase 2)
   help               Show this help message
 
 Environment:
@@ -137,6 +141,12 @@ async function run(): Promise<void> {
       }
       break;
     }
+
+    case 'search':
+    case 'stats':
+    case 'rebuild':
+      await runKnowledgeCli(command, args.slice(1));
+      break;
 
     case 'help':
     case '--help':
