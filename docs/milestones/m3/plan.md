@@ -8,7 +8,7 @@
 
 **Tech Stack:** TypeScript, Vitest, Puppeteer-core CDP, MCP SDK
 
-**Spec documents:** `docs/milestones/m3/00-overview.md` through `05-anti-detection.md`
+**Spec documents:** `docs/milestones/m3/00-reliable-long-running.md` through `05-anti-detection.md`
 
 ---
 

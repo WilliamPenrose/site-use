@@ -1,6 +1,6 @@
 # Capability 04: Error Handling Enhancement
 
-> Upstream: [M3 Overview](00-overview.md) — Group A
+> Upstream: [M3 Overview](00-reliable-long-running.md) — Group A
 > Status: Complete (2026-03-22, commits 9996c63 + fecf2d6 + 831293b)
 
 ## Context

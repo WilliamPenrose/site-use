@@ -1,6 +1,6 @@
 # 能力 05：反检测增强
 
-> 上游：[M3 概览](00-overview.md) — Group B
+> 上游：[M3 概览](00-reliable-long-running.md) — Group B
 > 状态：实现前需完成调研
 
 ## 定位

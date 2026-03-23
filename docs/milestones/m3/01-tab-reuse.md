@@ -1,6 +1,6 @@
 # Capability 01: Tab Reuse
 
-> Upstream: [M3 Overview](00-overview.md) — Group A
+> Upstream: [M3 Overview](00-reliable-long-running.md) — Group A
 > Status: Complete (2026-03-22, commit ee4ed43 + cbb3136)
 
 ## Problem
