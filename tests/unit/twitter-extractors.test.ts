@@ -121,19 +121,15 @@ describe('buildTimelineMeta', () => {
     ];
 
     const meta = buildTimelineMeta(tweets);
-    expect(meta.tweetCount).toBe(2);
     expect(meta.coveredUsers).toContain('karpathy');
     expect(meta.coveredUsers).toContain('steipete');
-    expect(meta.coveredUserCount).toBe(2);
     expect(meta.timeRange.from).toBe('2026-03-18T20:00:00.000Z');
     expect(meta.timeRange.to).toBe('2026-03-18T23:49:31.000Z');
   });
 
   it('handles empty tweet array', () => {
     const meta = buildTimelineMeta([]);
-    expect(meta.tweetCount).toBe(0);
     expect(meta.coveredUsers).toEqual([]);
-    expect(meta.coveredUserCount).toBe(0);
     expect(meta.timeRange.from).toBe('');
     expect(meta.timeRange.to).toBe('');
   });
@@ -144,7 +140,6 @@ describe('buildTimelineMeta', () => {
       parseTweet({ ...RAW_TWEET, url: 'https://x.com/karpathy/status/222' }),
     ];
     const meta = buildTimelineMeta(tweets);
-    expect(meta.coveredUserCount).toBe(1);
     expect(meta.coveredUsers).toEqual(['karpathy']);
   });
 });

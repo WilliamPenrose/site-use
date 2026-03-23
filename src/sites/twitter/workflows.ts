@@ -9,10 +9,27 @@ import {
   buildTimelineMeta,
   GRAPHQL_TIMELINE_PATTERN,
 } from './extractors.js';
-import type { RawTweetData, TimelineResult } from './types.js';
+import type { RawTweetData, TimelineDebug, TimelineResult } from './types.js';
 
 const TWITTER_HOME = 'https://x.com/home';
 const TWITTER_SITE = 'twitter';
+
+/** Poll until interceptedRaw has at least one entry, or timeout. */
+function waitForData(interceptedRaw: RawTweetData[], timeoutMs: number): Promise<void> {
+  return new Promise((resolve) => {
+    const interval = 200;
+    let elapsed = 0;
+    const check = () => {
+      if (interceptedRaw.length > 0 || elapsed >= timeoutMs) {
+        resolve();
+        return;
+      }
+      elapsed += interval;
+      setTimeout(check, interval);
+    };
+    check();
+  });
+}
 
 export interface CheckLoginResult {
   loggedIn: boolean;
@@ -61,10 +78,18 @@ export async function requireLogin(primitives: Primitives): Promise<void> {
  * page load response is captured. Scroll + collection is delegated
  * to collectTweetsFromTimeline.
  */
+export type TimelineFeed = 'following' | 'for_you';
+
 export async function getTimeline(
   primitives: Primitives,
   count: number = 20,
+  feed: TimelineFeed = 'following',
+  debug: boolean = false,
 ): Promise<TimelineResult> {
+  const startTime = Date.now();
+  let graphqlResponseCount = 0;
+  let reloadFallback = false;
+
   // Set up interception BEFORE navigation so initial GraphQL response is captured
   const interceptedRaw: RawTweetData[] = [];
   const cleanup = await primitives.interceptRequest(
@@ -73,6 +98,7 @@ export async function getTimeline(
       try {
         const parsed = parseGraphQLTimeline(response.body);
         interceptedRaw.push(...parsed);
+        graphqlResponseCount++;
       } catch {
         // GraphQL parse failed — ignore this response
       }
@@ -89,10 +115,23 @@ export async function getTimeline(
       await primitives.navigate(TWITTER_HOME, TWITTER_SITE);
     }
 
-    // Switch to Following tab (default is "For you")
-    // Discard any For You data captured during initial page load
-    interceptedRaw.length = 0;
-    await ensure({ role: 'tab', name: 'Following', selected: true });
+    // Switch to the requested feed tab
+    const tabName = feed === 'following' ? 'Following' : 'For you';
+    const { action: tabAction } = await ensure({ role: 'tab', name: tabName, selected: true });
+    if (tabAction !== 'already_there') {
+      // Tab was switched — discard data from the previous tab and wait for
+      // the new tab's GraphQL response to arrive
+      interceptedRaw.length = 0;
+      await waitForData(interceptedRaw, 3000);
+
+      if (interceptedRaw.length === 0) {
+        // Twitter used cached data — no GraphQL request fired.
+        // Force a reload to get fresh data from the server.
+        reloadFallback = true;
+        await primitives.navigate(TWITTER_HOME, TWITTER_SITE);
+        await ensure({ role: 'tab', name: tabName, selected: true });
+      }
+    }
 
     // Scroll to collect more tweets if needed
     const rawTweets = await collectTweetsFromTimeline(primitives, interceptedRaw, count);
@@ -105,7 +144,19 @@ export async function getTimeline(
 
     const meta = buildTimelineMeta(tweets);
 
-    return { tweets, meta };
+    const result: TimelineResult = { tweets, meta };
+    if (debug) {
+      result.debug = {
+        feedRequested: feed,
+        navAction: action,
+        tabAction,
+        reloadFallback,
+        graphqlResponseCount,
+        rawBeforeFilter: rawTweets.length,
+        elapsedMs: Date.now() - startTime,
+      };
+    }
+    return result;
   } finally {
     cleanup();
   }

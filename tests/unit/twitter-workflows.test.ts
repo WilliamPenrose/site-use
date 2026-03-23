@@ -143,7 +143,7 @@ describe('getTimeline', () => {
     expect(result.tweets).toBeDefined();
   });
 
-  it('returns tweets from intercepted GraphQL data', async () => {
+  it('returns tweets from intercepted GraphQL data', { timeout: 15000 }, async () => {
     const GRAPHQL_BODY = JSON.stringify({
       data: {
         home: {
@@ -218,12 +218,20 @@ describe('getTimeline', () => {
           body: GRAPHQL_BODY,
         });
       }),
+      // Simulate: navigate (reload fallback) also triggers GraphQL response
+      navigate: vi.fn().mockImplementation(async () => {
+        interceptHandler({
+          url: '/i/api/graphql/abc/HomeLatestTimeline',
+          status: 200,
+          body: GRAPHQL_BODY,
+        });
+      }),
     });
 
     const result = await getTimeline(primitives, 1);
     expect(result.tweets).toHaveLength(1);
     expect(result.tweets[0].text).toBe('Test tweet');
     expect(result.tweets[0].author.handle).toBe('testuser');
-    expect(result.meta.tweetCount).toBe(1);
+    expect(result.meta.coveredUsers).toContain('testuser');
   });
 });

@@ -160,9 +160,7 @@ export function parseTweet(raw: RawTweetData): Tweet {
 export function buildTimelineMeta(tweets: Tweet[]): TimelineMeta {
   if (tweets.length === 0) {
     return {
-      tweetCount: 0,
       coveredUsers: [],
-      coveredUserCount: 0,
       timeRange: { from: '', to: '' },
     };
   }
@@ -175,9 +173,7 @@ export function buildTimelineMeta(tweets: Tweet[]): TimelineMeta {
     .sort();
 
   return {
-    tweetCount: tweets.length,
     coveredUsers: uniqueHandles,
-    coveredUserCount: uniqueHandles.length,
     timeRange: {
       from: timestamps[0] ?? '',
       to: timestamps[timestamps.length - 1] ?? '',

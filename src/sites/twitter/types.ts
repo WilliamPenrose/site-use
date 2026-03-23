@@ -78,9 +78,7 @@ export type RawTweetData = z.infer<typeof RawTweetDataSchema>;
 // --- TimelineMeta ---
 
 export const TimelineMetaSchema = z.object({
-  tweetCount: z.number(),
   coveredUsers: z.array(z.string()),
-  coveredUserCount: z.number(),
   timeRange: z.object({
     from: z.string(),
     to: z.string(),
@@ -89,6 +87,18 @@ export const TimelineMetaSchema = z.object({
 
 export type TimelineMeta = z.infer<typeof TimelineMetaSchema>;
 
+// --- TimelineDebug ---
+
+export interface TimelineDebug {
+  feedRequested: string;
+  navAction: string;
+  tabAction: string;
+  reloadFallback: boolean;
+  graphqlResponseCount: number;
+  rawBeforeFilter: number;
+  elapsedMs: number;
+}
+
 // --- TimelineResult ---
 
 export const TimelineResultSchema = z.object({
@@ -96,4 +106,6 @@ export const TimelineResultSchema = z.object({
   meta: TimelineMetaSchema,
 });
 
-export type TimelineResult = z.infer<typeof TimelineResultSchema>;
+export type TimelineResult = z.infer<typeof TimelineResultSchema> & {
+  debug?: TimelineDebug;
+};

@@ -10,7 +10,7 @@ site-use — Site-level browser automation via MCP
 Usage: site-use <command> [subcommand]
 
 Commands:
-  serve              Start MCP server (stdio transport)
+  serve, mcp         Start MCP server (stdio transport)
   browser launch     Launch Chrome and keep it running
   browser status     Show connection status, PID, and profile path
   browser close      Detach from Chrome (process stays alive)
@@ -106,6 +106,7 @@ async function run(): Promise<void> {
 
   switch (command) {
     case 'serve':
+    case 'mcp':
       await startServer();
       break;
 

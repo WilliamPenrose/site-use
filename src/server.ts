@@ -201,14 +201,18 @@ export function createServer(): McpServer {
       inputSchema: {
         count: z.number().min(1).max(100).default(20)
           .describe('Number of tweets to collect'),
+        feed: z.enum(['following', 'for_you']).default('following')
+          .describe('Which feed to read: "following" (chronological) or "for_you" (algorithmic)'),
+        debug: z.boolean().default(false)
+          .describe('Include diagnostic info (tab action, reload fallback, GraphQL counts, timing)'),
       },
     },
-    async ({ count }) => {
+    async ({ count, feed, debug }) => {
       return mutex.run(async () => {
         let primitives: Primitives | undefined;
         try {
           primitives = await getPrimitives();
-          const result = await getTimeline(primitives, count);
+          const result = await getTimeline(primitives, count, feed, debug);
           resetErrorStreak();
           return {
             content: [{ type: 'text' as const, text: JSON.stringify(result) }],

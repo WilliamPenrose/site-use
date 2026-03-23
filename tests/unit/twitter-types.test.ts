@@ -77,9 +77,7 @@ describe('RawTweetDataSchema', () => {
 describe('TimelineMetaSchema', () => {
   it('accepts valid meta', () => {
     const result = TimelineMetaSchema.safeParse({
-      tweetCount: 20,
       coveredUsers: ['karpathy', 'steipete'],
-      coveredUserCount: 2,
       timeRange: {
         from: '2026-03-18T20:00:00.000Z',
         to: '2026-03-18T23:49:31.000Z',
@@ -94,9 +92,7 @@ describe('TimelineResultSchema', () => {
     const result = TimelineResultSchema.safeParse({
       tweets: [],
       meta: {
-        tweetCount: 0,
         coveredUsers: [],
-        coveredUserCount: 0,
         timeRange: { from: '', to: '' },
       },
     });
