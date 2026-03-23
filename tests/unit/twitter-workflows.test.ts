@@ -48,7 +48,10 @@ describe('checkLogin', () => {
     const primitives = createMockPrimitives({
       evaluate: vi.fn().mockResolvedValue('https://x.com/home'),
       takeSnapshot: vi.fn().mockResolvedValue(
-        buildSnapshot([{ uid: '1', role: 'link', name: 'Home' }]),
+        buildSnapshot([
+          { uid: '1', role: 'link', name: 'Home' },
+          { uid: '10', role: 'tab', name: 'Following', selected: true },
+        ]),
       ),
     });
     const result = await checkLogin(primitives);
@@ -70,7 +73,10 @@ describe('checkLogin', () => {
     const primitives = createMockPrimitives({
       evaluate: vi.fn().mockResolvedValue('https://x.com/home'),
       takeSnapshot: vi.fn().mockResolvedValue(
-        buildSnapshot([{ uid: '1', role: 'link', name: 'Home' }]),
+        buildSnapshot([
+          { uid: '1', role: 'link', name: 'Home' },
+          { uid: '10', role: 'tab', name: 'Following', selected: true },
+        ]),
       ),
     });
     await checkLogin(primitives);
@@ -83,7 +89,10 @@ describe('requireLogin', () => {
     const primitives = createMockPrimitives({
       evaluate: vi.fn().mockResolvedValue('https://x.com/home'),
       takeSnapshot: vi.fn().mockResolvedValue(
-        buildSnapshot([{ uid: '1', role: 'link', name: 'Home' }]),
+        buildSnapshot([
+          { uid: '1', role: 'link', name: 'Home' },
+          { uid: '10', role: 'tab', name: 'Following', selected: true },
+        ]),
       ),
     });
     await expect(requireLogin(primitives)).resolves.toBeUndefined();
@@ -112,7 +121,10 @@ describe('getTimeline', () => {
     const primitives = createMockPrimitives({
       evaluate: vi.fn().mockResolvedValue('https://x.com/home'),
       takeSnapshot: vi.fn().mockResolvedValue(
-        buildSnapshot([{ uid: '1', role: 'link', name: 'Home' }]),
+        buildSnapshot([
+          { uid: '1', role: 'link', name: 'Home' },
+          { uid: '10', role: 'tab', name: 'Following', selected: true },
+        ]),
       ),
       interceptRequest: vi.fn().mockImplementation(
         async (_pattern: any, handler: any) => {
@@ -174,24 +186,38 @@ describe('getTimeline', () => {
       },
     });
 
+    // Capture the intercept handler so we can trigger it on click (tab switch)
+    let interceptHandler: any;
+    const beforeTabSwitch = buildSnapshot([
+      { uid: '1', role: 'link', name: 'Home' },
+      { uid: '10', role: 'tab', name: 'Following', selected: false },
+    ]);
+    const afterTabSwitch = buildSnapshot([
+      { uid: '1', role: 'link', name: 'Home' },
+      { uid: '10', role: 'tab', name: 'Following', selected: true },
+    ]);
     const primitives = createMockPrimitives({
-      // checkLogin calls evaluate once for URL check
       evaluate: vi.fn()
         .mockResolvedValue('https://x.com/home'),
-      takeSnapshot: vi.fn().mockResolvedValue(
-        buildSnapshot([{ uid: '1', role: 'link', name: 'Home' }]),
-      ),
+      takeSnapshot: vi.fn()
+        .mockResolvedValueOnce(beforeTabSwitch)   // URL ensure snapshot (returned to caller)
+        .mockResolvedValueOnce(beforeTabSwitch)   // tab ensure initial check (selected: false → click)
+        .mockResolvedValueOnce(afterTabSwitch)    // tab ensure poll verification (selected: true)
+        .mockResolvedValue(afterTabSwitch),       // any subsequent calls
       interceptRequest: vi.fn().mockImplementation(
         async (_pattern: any, handler: any) => {
-          // Simulate GraphQL response arriving during interception setup
-          handler({
-            url: '/i/api/graphql/abc/HomeLatestTimeline',
-            status: 200,
-            body: GRAPHQL_BODY,
-          });
+          interceptHandler = handler;
           return () => {};
         },
       ),
+      // Simulate: tab click triggers Following GraphQL response
+      click: vi.fn().mockImplementation(async () => {
+        interceptHandler({
+          url: '/i/api/graphql/abc/HomeLatestTimeline',
+          status: 200,
+          body: GRAPHQL_BODY,
+        });
+      }),
     });
 
     const result = await getTimeline(primitives, 1);

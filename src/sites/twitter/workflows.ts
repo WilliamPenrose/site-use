@@ -89,6 +89,11 @@ export async function getTimeline(
       await primitives.navigate(TWITTER_HOME, TWITTER_SITE);
     }
 
+    // Switch to Following tab (default is "For you")
+    // Discard any For You data captured during initial page load
+    interceptedRaw.length = 0;
+    await ensure({ role: 'tab', name: 'Following', selected: true });
+
     // Scroll to collect more tweets if needed
     const rawTweets = await collectTweetsFromTimeline(primitives, interceptedRaw, count);
 
