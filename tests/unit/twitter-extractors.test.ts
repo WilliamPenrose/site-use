@@ -30,7 +30,10 @@ describe('parseTweet', () => {
     expect(tweet.text).toBe('Training a new model today');
     expect(tweet.timestamp).toBe('2026-03-18T23:49:31.000Z');
     expect(tweet.url).toBe('https://x.com/karpathy/status/2034416944074613174');
-    expect(tweet.metrics).toEqual({ likes: 1500, retweets: 83, replies: 42 });
+    expect(tweet.metrics).toEqual({
+      likes: 1500, retweets: 83, replies: 42,
+      views: undefined, bookmarks: undefined, quotes: undefined,
+    });
     expect(tweet.media).toEqual([]);
     expect(tweet.isRetweet).toBe(false);
     expect(tweet.isAd).toBe(false);
@@ -60,7 +63,6 @@ describe('parseTweet', () => {
         mediaUrl: 'https://pbs.twimg.com/media/xxx.jpg',
         width: 1080,
         height: 720,
-        altText: 'A cat',
       }],
     });
     expect(tweet.media).toHaveLength(1);
@@ -68,7 +70,6 @@ describe('parseTweet', () => {
     expect(tweet.media[0].url).toBe('https://pbs.twimg.com/media/xxx.jpg?name=orig');
     expect(tweet.media[0].width).toBe(1080);
     expect(tweet.media[0].height).toBe(720);
-    expect(tweet.media[0].altText).toBe('A cat');
     expect(tweet.media[0].thumbnailUrl).toBeUndefined();
     expect(tweet.media[0].duration).toBeUndefined();
   });
@@ -204,7 +205,7 @@ describe('processFullText', () => {
 });
 
 describe('parseGraphQLTimeline', () => {
-  function makeTweetEntry(legacy: any, core?: any) {
+  function makeTweetEntry(legacy: any, core?: any, extras?: Record<string, unknown>) {
     return {
       content: {
         entryType: 'TimelineTimelineItem',
@@ -221,6 +222,7 @@ describe('parseGraphQLTimeline', () => {
                   },
                 },
               },
+              ...extras,
             },
           },
         },
@@ -258,6 +260,26 @@ describe('parseGraphQLTimeline', () => {
     expect(results[0].likes).toBe(10);
     expect(results[0].media).toEqual([]);
     expect(results[0].isAd).toBe(false);
+  });
+
+  it('extracts views, bookmarks, and quotes', () => {
+    const body = wrapTimeline([makeTweetEntry({
+      id_str: '999',
+      full_text: 'Popular tweet',
+      created_at: 'Mon Mar 18 23:49:31 +0000 2026',
+      favorite_count: 500,
+      retweet_count: 50,
+      reply_count: 30,
+      bookmark_count: 12,
+      quote_count: 8,
+      retweeted_status_result: null,
+    }, undefined, { views: { count: '98765', state: 'EnabledWithCount' } })]);
+
+    const results = parseGraphQLTimeline(body);
+    expect(results).toHaveLength(1);
+    expect(results[0].views).toBe(98765);
+    expect(results[0].bookmarks).toBe(12);
+    expect(results[0].quotes).toBe(8);
   });
 
   it('skips promoted tweets', () => {
@@ -373,7 +395,6 @@ describe('parseGraphQLTimeline', () => {
     expect(results[0].media[0].mediaUrl).toBe('https://pbs.twimg.com/media/test.jpg');
     expect(results[0].media[0].width).toBe(1080);
     expect(results[0].media[0].height).toBe(720);
-    expect(results[0].media[0].altText).toBe('A beautiful landscape');
   });
 
   it('extracts video media with highest bitrate mp4', () => {
@@ -441,5 +462,52 @@ describe('parseGraphQLTimeline', () => {
   it('returns empty array for empty response', () => {
     const body = JSON.stringify({ data: { home: { home_timeline_urt: { instructions: [] } } } });
     expect(parseGraphQLTimeline(body)).toEqual([]);
+  });
+
+  it('skips TweetTombstone and TweetUnavailable entries', () => {
+    const body = wrapTimeline([
+      // Normal tweet — should be included
+      makeTweetEntry({
+        id_str: '100',
+        full_text: 'Normal tweet',
+        created_at: 'Mon Mar 18 23:49:31 +0000 2026',
+        favorite_count: 1,
+        retweet_count: 0,
+        reply_count: 0,
+        retweeted_status_result: null,
+      }),
+      // TweetTombstone — should be skipped
+      {
+        content: {
+          entryType: 'TimelineTimelineItem',
+          itemContent: {
+            tweet_results: {
+              result: {
+                __typename: 'TweetTombstone',
+                tombstone: { text: { text: 'This Tweet is from a suspended account.' } },
+              },
+            },
+          },
+        },
+      },
+      // TweetUnavailable — should be skipped
+      {
+        content: {
+          entryType: 'TimelineTimelineItem',
+          itemContent: {
+            tweet_results: {
+              result: {
+                __typename: 'TweetUnavailable',
+                reason: 'NsfwLoggedOut',
+              },
+            },
+          },
+        },
+      },
+    ]);
+
+    const results = parseGraphQLTimeline(body);
+    expect(results).toHaveLength(1);
+    expect(results[0].text).toBe('Normal tweet');
   });
 });

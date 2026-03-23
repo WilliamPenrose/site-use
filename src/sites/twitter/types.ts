@@ -16,7 +16,6 @@ export const TweetMediaSchema = z.object({
   url: z.string(),
   width: z.number(),
   height: z.number(),
-  altText: z.string().optional(),
   duration: z.number().optional(),
   thumbnailUrl: z.string().optional(),
 });
@@ -29,6 +28,9 @@ export const TweetMetricsSchema = z.object({
   likes: z.number().optional(),
   retweets: z.number().optional(),
   replies: z.number().optional(),
+  views: z.number().optional(),
+  bookmarks: z.number().optional(),
+  quotes: z.number().optional(),
 });
 
 export const TweetSchema = z.object({
@@ -52,7 +54,6 @@ export const RawTweetMediaSchema = z.object({
   mediaUrl: z.string(),
   width: z.number(),
   height: z.number(),
-  altText: z.string().optional(),
   durationMs: z.number().optional(),
   videoUrl: z.string().optional(),
 });
@@ -68,6 +69,9 @@ export const RawTweetDataSchema = z.object({
   likes: z.number(),
   retweets: z.number(),
   replies: z.number(),
+  views: z.number().optional(),
+  bookmarks: z.number().optional(),
+  quotes: z.number().optional(),
   media: z.array(RawTweetMediaSchema),
   isRetweet: z.boolean(),
   isAd: z.boolean(),

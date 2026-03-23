@@ -81,10 +81,6 @@ function extractMedia(legacy: any): RawTweetMedia[] {
       height: m.original_info?.height ?? 0,
     };
 
-    if (m.ext_alt_text) {
-      raw.altText = m.ext_alt_text;
-    }
-
     if (type === 'video' || type === 'animated_gif') {
       const videoInfo = m.video_info;
       if (videoInfo?.duration_millis != null) {
@@ -127,7 +123,6 @@ function mapMedia(raw: RawTweetMedia): TweetMedia {
     height: raw.height,
   };
 
-  if (raw.altText) media.altText = raw.altText;
   if (raw.durationMs != null) media.duration = raw.durationMs;
   if (isVideo) media.thumbnailUrl = raw.mediaUrl;
 
@@ -149,6 +144,9 @@ export function parseTweet(raw: RawTweetData): Tweet {
       likes: raw.likes,
       retweets: raw.retweets,
       replies: raw.replies,
+      views: raw.views,
+      bookmarks: raw.bookmarks,
+      quotes: raw.quotes,
     },
     media: raw.media.map(mapMedia),
     isRetweet: raw.isRetweet,
@@ -215,9 +213,16 @@ export function parseGraphQLTimeline(body: string): RawTweetData[] {
 function extractFromTweetResult(
   tweetResult: Record<string, unknown>,
 ): RawTweetData | null {
+  const typename = (tweetResult as any).__typename;
+
+  // Explicitly skip known non-tweet types (deleted, protected, NSFW, etc.)
+  if (typename === 'TweetTombstone' || typename === 'TweetUnavailable') {
+    return null;
+  }
+
   // Handle "TweetWithVisibilityResults" wrapper
   const core =
-    (tweetResult as any).__typename === 'TweetWithVisibilityResults'
+    typename === 'TweetWithVisibilityResults'
       ? (tweetResult as any).tweet
       : tweetResult;
 
@@ -259,6 +264,9 @@ function extractFromTweetResult(
     likes: legacy.favorite_count ?? 0,
     retweets: legacy.retweet_count ?? 0,
     replies: legacy.reply_count ?? 0,
+    views: (core as any).views?.count != null ? Number((core as any).views.count) : undefined,
+    bookmarks: legacy.bookmark_count ?? undefined,
+    quotes: legacy.quote_count ?? undefined,
     media,
     isRetweet,
     isAd: false,
