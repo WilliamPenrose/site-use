@@ -10,6 +10,8 @@ import {
   GRAPHQL_TIMELINE_PATTERN,
 } from './extractors.js';
 import type { RawTweetData, TimelineDebug, TimelineResult } from './types.js';
+import { tweetsToIngestItems } from './store-adapter.js';
+import type { KnowledgeStore } from '../../storage/types.js';
 
 const TWITTER_HOME = 'https://x.com/home';
 const TWITTER_SITE = 'twitter';
@@ -85,6 +87,7 @@ export async function getTimeline(
   count: number = 20,
   feed: TimelineFeed = 'following',
   debug: boolean = false,
+  store?: KnowledgeStore,
 ): Promise<TimelineResult> {
   const startTime = Date.now();
   let graphqlResponseCount = 0;
@@ -156,6 +159,16 @@ export async function getTimeline(
         elapsedMs: Date.now() - startTime,
       };
     }
+    // Persist to knowledge store — best-effort, never breaks the main flow
+    if (store) {
+      try {
+        const ingestItems = tweetsToIngestItems(tweets);
+        await store.ingest(ingestItems);
+      } catch (err) {
+        console.warn('Knowledge store ingest failed:', err);
+      }
+    }
+
     return result;
   } finally {
     cleanup();
