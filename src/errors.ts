@@ -84,3 +84,13 @@ export class StateTransitionFailed extends SiteUseError {
     this.name = 'StateTransitionFailed';
   }
 }
+
+export class BrowserNotRunning extends SiteUseError {
+  constructor(message: string, context: ErrorContext = {}) {
+    super('BrowserNotRunning', message, {
+      retryable: false,
+      hint: "Run 'npx site-use browser launch' to start Chrome first.",
+      ...context,
+    });
+  }
+}

@@ -16,6 +16,7 @@ export type WebRTCPolicy =
 export interface Config {
   dataDir: string;
   chromeProfileDir: string;
+  chromeJsonPath: string;
   proxy?: ProxyConfig;
   proxySource?: string;
   webrtcPolicy: WebRTCPolicy;
@@ -25,6 +26,7 @@ export function getConfig(): Config {
   const dataDir =
     process.env.SITE_USE_DATA_DIR || path.join(os.homedir(), '.site-use');
   const chromeProfileDir = path.join(dataDir, 'chrome-profile');
+  const chromeJsonPath = path.join(dataDir, 'chrome.json');
 
   let proxy: ProxyConfig | undefined;
   let proxySource: string | undefined;
@@ -61,7 +63,7 @@ export function getConfig(): Config {
       ? rawPolicy
       : 'disable_non_proxied_udp';
 
-  return { dataDir, chromeProfileDir, proxy, proxySource, webrtcPolicy };
+  return { dataDir, chromeProfileDir, chromeJsonPath, proxy, proxySource, webrtcPolicy };
 }
 
 export interface ClickEnhancementConfig {
