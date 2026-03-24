@@ -1,5 +1,6 @@
 import puppeteer, { type Browser, type Page } from 'puppeteer-core';
-import { readFileSync, writeFileSync, unlinkSync } from 'node:fs';
+import { readFileSync, writeFileSync, unlinkSync, existsSync } from 'node:fs';
+import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { getConfig, type WebRTCPolicy } from '../config.js';
 import { injectCoordFix } from '../primitives/click-enhanced.js';
@@ -33,6 +34,100 @@ export function readChromeJson(chromeJsonPath: string): ChromeInfo | null {
 
 export function writeChromeJson(chromeJsonPath: string, info: ChromeInfo): void {
   writeFileSync(chromeJsonPath, JSON.stringify(info));
+}
+
+// ---------------------------------------------------------------------------
+// recoverOrphanChrome — rebuild chrome.json from DevToolsActivePort
+// ---------------------------------------------------------------------------
+// When Chrome is running but chrome.json is missing (orphaned state),
+// Chrome's DevToolsActivePort file contains the debug port and ws path.
+// We parse it, locate the Chrome PID via the debug endpoint, and rebuild
+// chrome.json so launch/close can work normally.
+
+export async function recoverOrphanChrome(
+  chromeProfileDir: string,
+  chromeJsonPath: string,
+): Promise<ChromeInfo | null> {
+  const dtapPath = path.join(chromeProfileDir, 'DevToolsActivePort');
+  if (!existsSync(dtapPath)) return null;
+
+  let port: number;
+  let wsPath: string;
+  try {
+    const lines = readFileSync(dtapPath, 'utf-8').trim().split('\n');
+    if (lines.length < 2) return null;
+    port = parseInt(lines[0], 10);
+    wsPath = lines[1];
+    if (!port || !wsPath) return null;
+  } catch {
+    return null;
+  }
+
+  // Fetch /json/version to get the full wsEndpoint and confirm Chrome is alive
+  try {
+    const resp = await fetch(`http://127.0.0.1:${port}/json/version`);
+    if (!resp.ok) return null;
+    const data = (await resp.json()) as { webSocketDebuggerUrl?: string };
+    const wsEndpoint = data.webSocketDebuggerUrl;
+    if (!wsEndpoint) return null;
+
+    // Connect briefly to get the PID
+    const browser = await puppeteer.connect({
+      browserWSEndpoint: wsEndpoint,
+      defaultViewport: null,
+    });
+    const pid = browser.process()?.pid;
+    // Puppeteer doesn't expose PID on connect — use /json/version port to find it
+    browser.disconnect();
+
+    // On connect, browser.process() returns null. Find PID from the lockfile
+    // or enumerate Chrome processes. Simplest: trust the port is alive and
+    // scan processes listening on it. But cross-platform process scanning is
+    // fragile. Instead, use the lockfile that Chrome writes.
+    const lockfilePath = path.join(chromeProfileDir, 'lockfile');
+    let chromePid: number | undefined;
+    if (pid) {
+      chromePid = pid;
+    } else if (existsSync(lockfilePath)) {
+      // On Windows, Chrome lockfile is empty but its existence proves Chrome owns the profile.
+      // Find Chrome PID by checking who listens on the debug port.
+      chromePid = await findPidOnPort(port);
+    }
+
+    if (!chromePid) return null;
+
+    const info: ChromeInfo = { pid: chromePid, wsEndpoint };
+    writeChromeJson(chromeJsonPath, info);
+    return info;
+  } catch {
+    return null;
+  }
+}
+
+async function findPidOnPort(port: number): Promise<number | undefined> {
+  if (process.platform === 'win32') {
+    const { execSync } = await import('node:child_process');
+    try {
+      // netstat output: "  TCP    127.0.0.1:PORT    0.0.0.0:0    LISTENING    PID"
+      const output = execSync(`netstat -ano -p TCP`, { encoding: 'utf-8', timeout: 5000 });
+      for (const line of output.split('\n')) {
+        if (line.includes(`:${port}`) && line.includes('LISTENING')) {
+          const parts = line.trim().split(/\s+/);
+          const pid = parseInt(parts[parts.length - 1], 10);
+          if (pid > 0) return pid;
+        }
+      }
+    } catch {}
+  } else {
+    // Unix: lsof
+    const { execSync } = await import('node:child_process');
+    try {
+      const output = execSync(`lsof -ti :${port}`, { encoding: 'utf-8', timeout: 5000 });
+      const pid = parseInt(output.trim().split('\n')[0], 10);
+      if (pid > 0) return pid;
+    } catch {}
+  }
+  return undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -181,8 +276,76 @@ async function applyProxyAuth(browser: Browser): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// launchAndDetach — launch Chrome, write chrome.json, disconnect (Chrome stays alive)
+// findChromeExecutable — resolve Chrome binary path
 // ---------------------------------------------------------------------------
+
+function findChromeExecutable(): string {
+  if (process.platform === 'win32') {
+    const envVars = ['PROGRAMFILES', 'PROGRAMFILES(X86)', 'LOCALAPPDATA'] as const;
+    for (const envVar of envVars) {
+      const base = process.env[envVar];
+      if (!base) continue;
+      const p = path.join(base, 'Google', 'Chrome', 'Application', 'chrome.exe');
+      if (existsSync(p)) return p;
+    }
+  } else if (process.platform === 'darwin') {
+    const p = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+    if (existsSync(p)) return p;
+  } else {
+    // Linux: check common paths
+    for (const name of ['google-chrome-stable', 'google-chrome', 'chrome', 'chromium-browser', 'chromium']) {
+      const p = `/usr/bin/${name}`;
+      if (existsSync(p)) return p;
+    }
+  }
+  throw new BrowserDisconnected(
+    'Chrome executable not found. Install Google Chrome or set a custom path.',
+  );
+}
+
+// ---------------------------------------------------------------------------
+// waitForDevToolsPort — poll DevToolsActivePort until Chrome is ready
+// ---------------------------------------------------------------------------
+
+async function waitForDevToolsPort(
+  chromeProfileDir: string,
+  pid: number,
+  timeoutMs = 30_000,
+): Promise<string> {
+  const dtapPath = path.join(chromeProfileDir, 'DevToolsActivePort');
+  // Chrome writes this file once the debug server is ready.
+  // Remove stale file before launch so we don't read old data.
+  try { unlinkSync(dtapPath); } catch {}
+
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (!isPidAlive(pid)) {
+      throw new BrowserDisconnected('Chrome exited before debug port was available');
+    }
+    try {
+      const content = readFileSync(dtapPath, 'utf-8').trim();
+      const lines = content.split('\n');
+      if (lines.length >= 2) {
+        const port = parseInt(lines[0], 10);
+        const wsPath = lines[1];
+        if (port > 0 && wsPath) {
+          return `ws://127.0.0.1:${port}${wsPath}`;
+        }
+      }
+    } catch {
+      // File not ready yet
+    }
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  throw new BrowserDisconnected('Timed out waiting for Chrome debug port');
+}
+
+// ---------------------------------------------------------------------------
+// launchAndDetach — launch Chrome as a detached process, write chrome.json
+// ---------------------------------------------------------------------------
+// On Windows, Node.js places child processes in a job object — when Node
+// exits, all job members are killed.  Using spawn() with detached:true
+// creates Chrome in its own process group, so it survives parent exit.
 
 export async function launchAndDetach(extraArgs?: string[]): Promise<ChromeInfo> {
   const config = getConfig();
@@ -195,48 +358,53 @@ export async function launchAndDetach(extraArgs?: string[]): Promise<ChromeInfo>
 
   fixPreferences(config.chromeProfileDir, config.webrtcPolicy);
 
-  let browser: Browser;
-  try {
-    browser = await puppeteer.launch({
-      channel: 'chrome',
-      headless: false,
-      defaultViewport: null,
-      args,
-      ignoreDefaultArgs: ['--enable-automation', '--disable-extensions'],
-      handleSIGINT: false,
-      handleSIGTERM: false,
-      handleSIGHUP: false,
-    });
-  } catch (err) {
-    throw new BrowserDisconnected(
-      `Failed to launch Chrome: ${err instanceof Error ? err.message : String(err)}`,
-    );
-  }
+  const chromePath = findChromeExecutable();
 
-  const pid = browser.process()?.pid;
+  // Spawn Chrome detached so it outlives this Node.js process
+  const chromeProc = spawn(chromePath, args, {
+    detached: true,
+    stdio: 'ignore',
+  });
+  chromeProc.unref();
+
+  const pid = chromeProc.pid;
   if (!pid) {
     throw new BrowserDisconnected('Chrome launched but PID not available');
   }
 
-  const wsEndpoint = browser.wsEndpoint();
+  // Wait for Chrome to write its debug port
+  const wsEndpoint = await waitForDevToolsPort(config.chromeProfileDir, pid);
+
   const info: ChromeInfo = { pid, wsEndpoint };
   writeChromeJson(config.chromeJsonPath, info);
 
-  // Handle welcome page / blank tab
-  const pages = await browser.pages();
-  const blank = pages.find((p) => p.url() === 'about:blank');
-  if (blank) {
-    if (pages.length === 1) {
-      const html = buildWelcomeHTML();
-      const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
-      await blank.goto(dataUrl, { waitUntil: 'domcontentloaded' });
-    } else {
-      await blank.close();
-    }
+  // Connect briefly to handle welcome page / blank tab
+  let browser: Browser;
+  try {
+    browser = await puppeteer.connect({
+      browserWSEndpoint: wsEndpoint,
+      defaultViewport: null,
+    });
+  } catch (err) {
+    // Chrome is running but connect failed — still return info
+    return info;
   }
 
-  // Do NOT apply emulateFocus/applyCoordFix — they'd be lost on disconnect
-  browser.disconnect();
+  try {
+    const pages = await browser.pages();
+    const blank = pages.find((p) => p.url() === 'about:blank');
+    if (blank) {
+      if (pages.length === 1) {
+        const html = buildWelcomeHTML();
+        const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
+        await blank.goto(dataUrl, { waitUntil: 'domcontentloaded' });
+      } else {
+        await blank.close();
+      }
+    }
+  } finally {
+    browser.disconnect();
+  }
 
   return info;
 }
@@ -300,9 +468,22 @@ export async function ensureBrowser(opts?: { autoLaunch?: boolean; extraArgs?: s
 // closeBrowser — kill Chrome and delete chrome.json
 // ---------------------------------------------------------------------------
 
-export async function closeBrowser(): Promise<void> {
+export interface CloseResult {
+  found: boolean;
+  pid?: number;
+  recovered?: boolean;
+}
+
+export async function closeBrowser(): Promise<CloseResult> {
   const config = getConfig();
-  const info = readChromeJson(config.chromeJsonPath);
+  let info = readChromeJson(config.chromeJsonPath);
+  let recovered = false;
+
+  // If chrome.json is missing, try to recover orphan Chrome
+  if (!info) {
+    info = await recoverOrphanChrome(config.chromeProfileDir, config.chromeJsonPath);
+    if (info) recovered = true;
+  }
 
   if (browserInstance) {
     try {
@@ -324,6 +505,8 @@ export async function closeBrowser(): Promise<void> {
   }
 
   try { unlinkSync(config.chromeJsonPath); } catch {}
+
+  return { found: !!info, pid: info?.pid, recovered };
 }
 
 // ---------------------------------------------------------------------------

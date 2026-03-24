@@ -36,6 +36,17 @@ vi.mock('puppeteer-core', () => ({
   default: { launch: mockLaunch, connect: mockConnect },
 }));
 
+// Mock child_process.spawn for launchAndDetach
+const mockSpawnProcess = {
+  pid: 12345,
+  unref: vi.fn(),
+};
+const mockSpawn = vi.fn().mockReturnValue(mockSpawnProcess);
+
+vi.mock('node:child_process', () => ({
+  spawn: (...args: unknown[]) => mockSpawn(...args),
+}));
+
 vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs')>();
   return {
@@ -44,6 +55,10 @@ vi.mock('node:fs', async (importOriginal) => {
       // Check chrome.json store
       if (typeof filePath === 'string' && filePath.endsWith('chrome.json') && chromeJsonStore[filePath]) {
         return chromeJsonStore[filePath];
+      }
+      // DevToolsActivePort — return mock port info
+      if (typeof filePath === 'string' && filePath.endsWith('DevToolsActivePort')) {
+        return '9222\n/devtools/browser/mock\n';
       }
       throw new Error('ENOENT');
     }),
@@ -57,7 +72,11 @@ vi.mock('node:fs', async (importOriginal) => {
         delete chromeJsonStore[filePath];
       }
     }),
-    existsSync: vi.fn(() => false),
+    existsSync: vi.fn((filePath: string) => {
+      // Chrome executable path — pretend it exists
+      if (typeof filePath === 'string' && filePath.includes('chrome')) return true;
+      return false;
+    }),
     mkdirSync: vi.fn(),
   };
 });
@@ -104,12 +123,19 @@ const defaultReadFileSync = (filePath: string, _encoding?: string) => {
   if (typeof filePath === 'string' && filePath.endsWith('chrome.json') && chromeJsonStore[filePath]) {
     return chromeJsonStore[filePath];
   }
+  if (typeof filePath === 'string' && filePath.endsWith('DevToolsActivePort')) {
+    return '9222\n/devtools/browser/mock\n';
+  }
   throw new Error('ENOENT');
 };
 const defaultWriteFileSync = (filePath: string, data: string) => {
   if (typeof filePath === 'string' && filePath.endsWith('chrome.json')) {
     chromeJsonStore[filePath] = data;
   }
+};
+const defaultExistsSync = (filePath: string) => {
+  if (typeof filePath === 'string' && filePath.includes('chrome')) return true;
+  return false;
 };
 
 describe('browser', () => {
@@ -120,6 +146,9 @@ describe('browser', () => {
     mockLaunch.mockResolvedValue(mockBrowser);
     mockConnect.mockClear();
     mockConnect.mockResolvedValue(mockConnectedBrowser);
+    mockSpawn.mockClear();
+    mockSpawn.mockReturnValue(mockSpawnProcess);
+    mockSpawnProcess.unref.mockClear();
     mockBrowser.on.mockClear();
     mockBrowser.connected = true;
     mockBrowser.disconnect.mockClear();
@@ -129,6 +158,8 @@ describe('browser', () => {
     // Restore default fs mock implementations
     vi.mocked(readFileSync).mockImplementation(defaultReadFileSync as any);
     vi.mocked(writeFileSync).mockImplementation(defaultWriteFileSync as any);
+    const { existsSync } = await import('node:fs');
+    vi.mocked(existsSync).mockImplementation(defaultExistsSync as any);
     testConfig = {
       dataDir: '/tmp/test-site-use',
       chromeProfileDir: '/tmp/test-site-use/chrome-profile',
@@ -143,36 +174,41 @@ describe('browser', () => {
     it('launches Chrome via launchAndDetach then connects when autoLaunch=true', async () => {
       const browser = await ensureBrowser({ autoLaunch: true });
       expect(browser).toBe(mockConnectedBrowser);
-      expect(mockLaunch).toHaveBeenCalledOnce();
-      expect(mockConnect).toHaveBeenCalledOnce();
+      // launchAndDetach uses spawn (not puppeteer.launch) then puppeteer.connect
+      expect(mockSpawn).toHaveBeenCalledOnce();
+      // ensureBrowser connects after launchAndDetach writes chrome.json
+      expect(mockConnect).toHaveBeenCalled();
     });
 
-    it('passes correct Chrome launch args', async () => {
+    it('passes correct Chrome launch args to spawn', async () => {
       await ensureBrowser({ autoLaunch: true });
-      const launchArgs = mockLaunch.mock.calls[0][0];
-      expect(launchArgs.channel).toBe('chrome');
-      expect(launchArgs.headless).toBe(false);
-      expect(launchArgs.ignoreDefaultArgs).toContain('--enable-automation');
-      const args: string[] = launchArgs.args;
+      const spawnArgs: string[] = mockSpawn.mock.calls[0][1];
       expect(
-        args.some((a: string) => a.startsWith('--user-data-dir=')),
+        spawnArgs.some((a: string) => a.startsWith('--user-data-dir=')),
       ).toBe(true);
-      expect(args).toContain('--remote-debugging-port=0');
-      expect(args).toContain('--no-first-run');
-      expect(args).toContain('--no-default-browser-check');
-      expect(args).toContain('--disable-blink-features=AutomationControlled');
-      expect(args).toContain('--window-size=1920,1080');
-      expect(args).toContain('--lang=en-US');
-      expect(args).toContain('--accept-lang=en-US,en');
-      expect(args).toContain('--restore-last-session');
-      expect(args).toContain('--hide-crash-restore-bubble');
+      expect(spawnArgs).toContain('--remote-debugging-port=0');
+      expect(spawnArgs).toContain('--no-first-run');
+      expect(spawnArgs).toContain('--no-default-browser-check');
+      expect(spawnArgs).toContain('--disable-blink-features=AutomationControlled');
+      expect(spawnArgs).toContain('--window-size=1920,1080');
+      expect(spawnArgs).toContain('--lang=en-US');
+      expect(spawnArgs).toContain('--accept-lang=en-US,en');
+      expect(spawnArgs).toContain('--restore-last-session');
+      expect(spawnArgs).toContain('--hide-crash-restore-bubble');
+    });
+
+    it('spawns Chrome with detached:true and stdio:ignore', async () => {
+      await ensureBrowser({ autoLaunch: true });
+      const spawnOpts = mockSpawn.mock.calls[0][2];
+      expect(spawnOpts.detached).toBe(true);
+      expect(spawnOpts.stdio).toBe('ignore');
     });
 
     it('does not include --proxy-server when no proxy configured', async () => {
       await ensureBrowser({ autoLaunch: true });
-      const args: string[] = mockLaunch.mock.calls[0][0].args;
+      const spawnArgs: string[] = mockSpawn.mock.calls[0][1];
       expect(
-        args.some((a: string) => a.startsWith('--proxy-server=')),
+        spawnArgs.some((a: string) => a.startsWith('--proxy-server=')),
       ).toBe(false);
     });
 
@@ -180,7 +216,7 @@ describe('browser', () => {
       const first = await ensureBrowser({ autoLaunch: true });
       const second = await ensureBrowser({ autoLaunch: true });
       expect(first).toBe(second);
-      expect(mockLaunch).toHaveBeenCalledOnce();
+      expect(mockSpawn).toHaveBeenCalledOnce();
     });
 
     it('re-connects when browser is disconnected', async () => {
@@ -259,8 +295,8 @@ describe('browser', () => {
         proxySource: 'SITE_USE_PROXY',
       };
       await ensureBrowser({ autoLaunch: true });
-      const args: string[] = mockLaunch.mock.calls[0][0].args;
-      expect(args).toContain('--proxy-server=http://127.0.0.1:7890');
+      const spawnArgs: string[] = mockSpawn.mock.calls[0][1];
+      expect(spawnArgs).toContain('--proxy-server=http://127.0.0.1:7890');
     });
 
     it('includes --proxy-server for SOCKS5 proxy', async () => {
@@ -270,17 +306,17 @@ describe('browser', () => {
         proxySource: 'HTTPS_PROXY',
       };
       await ensureBrowser({ autoLaunch: true });
-      const args: string[] = mockLaunch.mock.calls[0][0].args;
-      expect(args).toContain('--proxy-server=socks5://127.0.0.1:1080');
+      const spawnArgs: string[] = mockSpawn.mock.calls[0][1];
+      expect(spawnArgs).toContain('--proxy-server=socks5://127.0.0.1:1080');
     });
   });
 
   describe('platform-specific args', () => {
     it('does not include --no-sandbox on non-linux platforms', async () => {
       await ensureBrowser({ autoLaunch: true });
-      const args: string[] = mockLaunch.mock.calls[0][0].args;
+      const spawnArgs: string[] = mockSpawn.mock.calls[0][1];
       if (process.platform !== 'linux') {
-        expect(args).not.toContain('--no-sandbox');
+        expect(spawnArgs).not.toContain('--no-sandbox');
       }
     });
   });
@@ -292,6 +328,9 @@ describe('browser', () => {
         const fp = String(filePath);
         if (fp.endsWith('chrome.json') && chromeJsonStore[fp]) {
           return chromeJsonStore[fp];
+        }
+        if (fp.endsWith('DevToolsActivePort')) {
+          return '9222\n/devtools/browser/mock\n';
         }
         if (fp.includes('Preferences')) {
           return JSON.stringify({
@@ -317,6 +356,9 @@ describe('browser', () => {
         const fp = String(filePath);
         if (fp.endsWith('chrome.json') && chromeJsonStore[fp]) {
           return chromeJsonStore[fp];
+        }
+        if (fp.endsWith('DevToolsActivePort')) {
+          return '9222\n/devtools/browser/mock\n';
         }
         // Return correct prefs so fixPreferences should NOT write
         return JSON.stringify({
@@ -346,13 +388,15 @@ describe('browser', () => {
   });
 
   describe('error handling', () => {
-    it('throws BrowserDisconnected when Chrome fails to launch', async () => {
-      mockLaunch.mockRejectedValueOnce(new Error('Chrome not found'));
-      await expect(ensureBrowser({ autoLaunch: true })).rejects.toThrow('Failed to launch Chrome');
+    it('throws BrowserDisconnected when Chrome executable not found', async () => {
+      const { existsSync } = await import('node:fs');
+      vi.mocked(existsSync).mockReturnValue(false);
+      await expect(ensureBrowser({ autoLaunch: true })).rejects.toThrow('Chrome executable not found');
     });
 
     it('thrown error is instance of BrowserDisconnected', async () => {
-      mockLaunch.mockRejectedValueOnce(new Error('Chrome not found'));
+      const { existsSync } = await import('node:fs');
+      vi.mocked(existsSync).mockReturnValue(false);
       try {
         await ensureBrowser({ autoLaunch: true });
         expect.unreachable('should have thrown');
@@ -363,11 +407,13 @@ describe('browser', () => {
     });
 
     it('can recover after a failed launch', async () => {
-      // First call fails
-      mockLaunch.mockRejectedValueOnce(new Error('Chrome not found'));
+      const { existsSync } = await import('node:fs');
+      // First call: Chrome not found
+      vi.mocked(existsSync).mockReturnValue(false);
       await expect(ensureBrowser({ autoLaunch: true })).rejects.toThrow();
 
-      // Second call succeeds (mockLaunch falls back to default mock)
+      // Second call: Chrome found (restore defaults)
+      vi.mocked(existsSync).mockImplementation(defaultExistsSync as any);
       const browser = await ensureBrowser({ autoLaunch: true });
       expect(browser).toBe(mockConnectedBrowser);
     });

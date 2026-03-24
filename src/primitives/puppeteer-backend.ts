@@ -245,8 +245,9 @@ export class PuppeteerBackend implements Primitives {
   async click(uid: string, site?: string): Promise<void> {
     this.checkRateLimit('click', site);
     if (this.uidToBackendNodeId.size === 0) {
-      throw new Error(
+      throw new ElementNotFound(
         'No snapshot available. Call takeSnapshot() before click().',
+        { step: 'click', retryable: false, hint: 'Take a snapshot first to populate the element map, then retry the click.' },
       );
     }
 
@@ -308,8 +309,9 @@ export class PuppeteerBackend implements Primitives {
   async scrollIntoView(uid: string, site?: string): Promise<void> {
     this.checkRateLimit('scrollIntoView', site);
     if (this.uidToBackendNodeId.size === 0) {
-      throw new Error(
+      throw new ElementNotFound(
         'No snapshot available. Call takeSnapshot() before scrollIntoView().',
+        { step: 'scrollIntoView', retryable: false, hint: 'Take a snapshot first to populate the element map, then retry scrollIntoView.' },
       );
     }
 

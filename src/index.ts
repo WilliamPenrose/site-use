@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { main as startServer } from './server.js';
-import { launchAndDetach, readChromeJson, closeBrowser } from './browser/browser.js';
+import { launchAndDetach, readChromeJson, closeBrowser, recoverOrphanChrome } from './browser/browser.js';
 import { getConfig } from './config.js';
 import { runKnowledgeCli } from './cli/knowledge.js';
 import { runWorkflowCli } from './cli/workflow.js';
@@ -44,7 +44,13 @@ Extra Chrome flags can be passed directly:
 
 async function browserLaunch(): Promise<void> {
   const config = getConfig();
-  const existing = readChromeJson(config.chromeJsonPath);
+  let existing = readChromeJson(config.chromeJsonPath);
+  if (!existing) {
+    existing = await recoverOrphanChrome(config.chromeProfileDir, config.chromeJsonPath);
+    if (existing) {
+      console.log(`Recovered orphan Chrome (PID: ${existing.pid}) — chrome.json restored.`);
+    }
+  }
   if (existing) {
     console.log(`Chrome already running (pid ${existing.pid})`);
     return;
@@ -87,8 +93,14 @@ async function browserStatus(): Promise<void> {
 }
 
 async function browserClose(): Promise<void> {
-  await closeBrowser();
-  console.log('Chrome closed and chrome.json cleaned up.');
+  const result = await closeBrowser();
+  if (!result.found) {
+    console.log('No running Chrome found — nothing to close.');
+  } else if (result.recovered) {
+    console.log(`Found orphan Chrome (PID: ${result.pid}) — killed and cleaned up.`);
+  } else {
+    console.log(`Chrome (PID: ${result.pid}) closed and chrome.json cleaned up.`);
+  }
 }
 
 async function run(): Promise<void> {
