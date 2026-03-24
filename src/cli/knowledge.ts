@@ -8,6 +8,21 @@ function getDbPath(): string {
   return path.join(dataDir, 'data', 'knowledge.db');
 }
 
+/** Interpret user input as local time and return UTC ISO string for DB comparison. */
+export function localToUtc(input: string): string {
+  // Normalize '/' to '-' for Date compatibility
+  let s = input.trim().replace(/\//g, '-');
+  // Date-only: '2026-03-24' → append T00:00 so Date treats it as local (not UTC)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) s += 'T00:00';
+  // Partial hour: '2026-03-24 09' → '2026-03-24T09:00'
+  else if (/^\d{4}-\d{2}-\d{2}\s+\d{1,2}$/.test(s)) s = s.replace(/\s+/, 'T') + ':00';
+  // Space separator: '2026-03-24 09:00' → '2026-03-24T09:00'
+  else s = s.replace(/^(\d{4}-\d{2}-\d{2})\s+/, '$1T');
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return input; // fallback: pass through as-is
+  return d.toISOString();
+}
+
 export function parseSearchArgs(args: string[]): SearchParams & { json?: boolean } {
   const params: SearchParams & { json?: boolean } = {};
   let i = 0;
@@ -16,25 +31,28 @@ export function parseSearchArgs(args: string[]): SearchParams & { json?: boolean
     const arg = args[i];
     switch (arg) {
       case '--author':
-        params.author = args[++i];
+        params.author = args[++i]?.replace(/^@/, '');
         break;
-      case '--since':
-        params.since = args[++i];
+      case '--start-date':
+        params.start_date = localToUtc(args[++i]);
         break;
-      case '--until':
-        params.until = args[++i];
+      case '--end-date':
+        params.end_date = localToUtc(args[++i]);
         break;
-      case '--limit':
-        params.limit = parseInt(args[++i], 10);
+      case '--max-results':
+        params.max_results = parseInt(args[++i], 10);
         break;
       case '--hashtag':
-        params.siteFilters = { ...params.siteFilters, hashtag: args[++i] };
+        params.hashtag = args[++i];
         break;
       case '--min-likes':
-        params.siteFilters = { ...params.siteFilters, minLikes: parseInt(args[++i], 10) };
+        params.min_likes = parseInt(args[++i], 10);
         break;
       case '--min-retweets':
-        params.siteFilters = { ...params.siteFilters, minRetweets: parseInt(args[++i], 10) };
+        params.min_retweets = parseInt(args[++i], 10);
+        break;
+      case '--fields':
+        params.fields = args[++i].split(',') as SearchParams['fields'];
         break;
       case '--json':
         params.json = true;
@@ -56,7 +74,8 @@ export function formatHumanReadable(result: SearchResult): string {
 
   for (let i = 0; i < result.items.length; i++) {
     const item = result.items[i];
-    const date = item.timestamp.replace('T', ' ').replace(/:\d{2}\.\d{3}Z$|Z$/, '');
+    const d = new Date(item.timestamp);
+    const date = d.toLocaleString('sv-SE', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
     lines.push(`@${item.author} · ${date}`);
     lines.push(item.text);
 
@@ -76,9 +95,9 @@ export function formatHumanReadable(result: SearchResult): string {
     }
   }
 
-  const noun = result.total === 1 ? 'result' : 'results';
   lines.push('');
-  lines.push(`Found ${result.total} ${noun}`);
+  const noun = result.items.length === 1 ? 'result' : 'results';
+  lines.push(`Found ${result.items.length} ${noun}`);
 
   return lines.join('\n');
 }
@@ -124,16 +143,38 @@ export async function runKnowledgeCli(command: string, args: string[]): Promise<
 
   try {
     if (command === 'search') {
+      if (args.length === 0) {
+        console.log(`Usage: site-use search <query> [options]
+
+Options:
+  --author <name>        Filter by author (@ prefix optional)
+  --start-date <date>    Start date (local time, flexible format)
+  --end-date <date>      End date (local time, flexible format)
+  --max-results <n>      Max results (default: 20)
+  --hashtag <tag>        Filter by hashtag
+  --min-likes <n>        Minimum likes
+  --min-retweets <n>     Minimum retweets
+  --fields <list>        Comma-separated fields: author,text,url,timestamp,likes,retweets,replies,views
+  --json                 Output as JSON
+
+Examples:
+  site-use search "bitcoin"
+  site-use search --author elonmusk --start-date 2024-01-01
+  site-use search "AI" --min-likes 1000 --json
+  site-use search --fields author,url --max-results 5`);
+        return;
+      }
+
       const parsed = parseSearchArgs(args);
       const isJson = parsed.json;
       delete parsed.json;
       const result = await store.search(parsed);
 
-      if (result.total === 0) {
+      if (result.items.length === 0) {
         writeError(
           'NoResults',
           'No items match the search criteria',
-          'Try broadening filters: remove --author or --since, or use a shorter query.',
+          'Try broadening filters: remove --author or --start-date, or use a shorter query.',
         );
         return;
       }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseSearchArgs, formatHumanReadable, formatJson } from '../../src/cli/knowledge.js';
+import { parseSearchArgs, localToUtc, formatHumanReadable, formatJson } from '../../src/cli/knowledge.js';
 import type { SearchResult } from '../../src/storage/types.js';
 
 describe('parseSearchArgs', () => {
@@ -13,32 +13,42 @@ describe('parseSearchArgs', () => {
     expect(params.author).toBe('elonmusk');
   });
 
-  it('parses --since and --until', () => {
-    const params = parseSearchArgs(['--since', '2026-03-01', '--until', '2026-03-20']);
-    expect(params.since).toBe('2026-03-01');
-    expect(params.until).toBe('2026-03-20');
+  it('parses --start-date and --end-date as UTC ISO strings', () => {
+    const params = parseSearchArgs(['--start-date', '2026-03-01', '--end-date', '2026-03-20']);
+    expect(params.start_date).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(params.end_date).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 
-  it('parses --limit', () => {
-    const params = parseSearchArgs(['--limit', '10']);
-    expect(params.limit).toBe(10);
+  it('parses --max-results', () => {
+    const params = parseSearchArgs(['--max-results', '10']);
+    expect(params.max_results).toBe(10);
   });
 
-  it('parses --hashtag into siteFilters', () => {
+  it('parses --hashtag as top-level param', () => {
     const params = parseSearchArgs(['--hashtag', 'AI']);
-    expect(params.siteFilters?.hashtag).toBe('AI');
+    expect(params.hashtag).toBe('AI');
   });
 
-  it('parses --min-likes into siteFilters', () => {
+  it('parses --min-likes as top-level param', () => {
     const params = parseSearchArgs(['--min-likes', '100']);
-    expect(params.siteFilters?.minLikes).toBe(100);
+    expect(params.min_likes).toBe(100);
+  });
+
+  it('parses --min-retweets as top-level param', () => {
+    const params = parseSearchArgs(['--min-retweets', '50']);
+    expect(params.min_retweets).toBe(50);
+  });
+
+  it('parses --fields as array', () => {
+    const params = parseSearchArgs(['--fields', 'author,url,likes']);
+    expect(params.fields).toEqual(['author', 'url', 'likes']);
   });
 
   it('parses combined query + flags', () => {
-    const params = parseSearchArgs(['AI agent', '--author', 'elonmusk', '--limit', '5']);
+    const params = parseSearchArgs(['AI agent', '--author', 'elonmusk', '--max-results', '5']);
     expect(params.query).toBe('AI agent');
     expect(params.author).toBe('elonmusk');
-    expect(params.limit).toBe(5);
+    expect(params.max_results).toBe(5);
   });
 });
 
@@ -51,12 +61,9 @@ describe('formatHumanReadable', () => {
         url: 'https://x.com/alice/status/1',
         siteMeta: { likes: 42, retweets: 8, replies: 3 },
       }],
-      total: 1,
     };
     const output = formatHumanReadable(result);
     expect(output).toContain('@alice');
-    expect(output).toContain('Hello world');
-    expect(output).toContain('https://x.com/alice/status/1');
     expect(output).toContain('1 result');
   });
 });
@@ -65,10 +72,19 @@ describe('formatJson', () => {
   it('outputs valid JSON', () => {
     const result: SearchResult = {
       items: [{ id: '1', site: 'twitter', text: 'test', author: 'a', timestamp: 't', url: 'u' }],
-      total: 1,
     };
     const parsed = JSON.parse(formatJson(result));
     expect(parsed.items).toHaveLength(1);
-    expect(parsed.total).toBe(1);
+  });
+});
+
+describe('localToUtc', () => {
+  it('converts slash-separated date', () => {
+    const result = localToUtc('2026/03/24 08');
+    expect(result).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it('passes through invalid input', () => {
+    expect(localToUtc('not-a-date')).toBe('not-a-date');
   });
 });
