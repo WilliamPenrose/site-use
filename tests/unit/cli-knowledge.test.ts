@@ -50,8 +50,13 @@ describe('parseSearchArgs', () => {
   });
 
   it('parses --fields as array', () => {
-    const params = parseSearchArgs(['--fields', 'author,url,likes']);
-    expect(params.fields).toEqual(['author', 'url', 'likes']);
+    const params = parseSearchArgs(['--fields', 'author,url,links']);
+    expect(params.fields).toEqual(['author', 'url', 'links']);
+  });
+
+  it('rejects unknown fields', () => {
+    parseSearchArgs(['--fields', 'author,likes']);
+    expect(process.exitCode).toBe(1);
   });
 
   it('parses combined query + flags', () => {

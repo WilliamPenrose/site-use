@@ -145,14 +145,18 @@ describe('search', () => {
     expect(result.items[0].siteMeta).toBeUndefined();
   });
 
-  it('returns only requested engagement fields and strips bookmarks/quotes', () => {
-    const result = search(db, { fields: ['likes'] });
-    const meta = result.items[0].siteMeta as Record<string, unknown>;
-    expect(meta.likes).toBeDefined();
-    expect(meta.retweets).toBeUndefined();
-    expect(meta.bookmarks).toBeUndefined();
-    expect(meta.quotes).toBeUndefined();
+  it('includes engagement metrics when text is in fields', () => {
+    const result = search(db, { fields: ['text'] });
+    expect(result.items[0].text).toBeDefined();
+    expect(result.items[0].siteMeta).toBeDefined();
+    expect(result.items[0].author).toBeUndefined();
+  });
+
+  it('strips engagement metrics when text is not in fields', () => {
+    const result = search(db, { fields: ['author', 'url'] });
+    expect(result.items[0].author).toBeDefined();
     expect(result.items[0].text).toBeUndefined();
+    expect(result.items[0].siteMeta).toBeUndefined();
   });
 
   it('strips links when not in fields', () => {

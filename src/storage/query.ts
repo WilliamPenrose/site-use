@@ -147,28 +147,16 @@ export function search(db: DatabaseSync, params: SearchParams): SearchResult {
 
   // Apply fields filter — strip unrequested fields to save tokens for AI consumers.
   // `id` and `site` are always returned (needed for identity).
+  // Engagement metrics (siteMeta) follow `text` — included when text is present.
   if (params.fields && params.fields.length > 0) {
     const f = new Set(params.fields);
-    const metaFields = ['likes', 'retweets', 'replies', 'views'] as const;
     for (const item of items) {
-      if (!f.has('text')) delete item.text;
+      if (!f.has('text')) { delete item.text; delete item.siteMeta; }
       if (!f.has('author')) delete item.author;
       if (!f.has('url')) delete item.url;
       if (!f.has('timestamp')) delete item.timestamp;
       if (!f.has('links')) delete item.links;
       if (!f.has('mentions')) delete item.mentions;
-      if (item.siteMeta) {
-        // Only keep explicitly requested engagement fields; always strip bookmarks/quotes
-        // (not in the fields enum — add to enum if needed later).
-        const meta = item.siteMeta as Record<string, unknown>;
-        for (const key of Object.keys(meta)) {
-          const inEnum = metaFields.includes(key as (typeof metaFields)[number]);
-          if (!inEnum || !f.has(key as (typeof metaFields)[number])) {
-            delete meta[key];
-          }
-        }
-        if (Object.keys(meta).length === 0) delete item.siteMeta;
-      }
     }
   }
 

@@ -35,7 +35,7 @@ export interface SearchParams {
   fields?: SearchField[];
 }
 
-export const SEARCH_FIELDS = ['author', 'text', 'url', 'timestamp', 'likes', 'retweets', 'replies', 'views', 'links', 'mentions'] as const;
+export const SEARCH_FIELDS = ['author', 'text', 'url', 'timestamp', 'links', 'mentions'] as const;
 export type SearchField = (typeof SEARCH_FIELDS)[number];
 
 export interface SearchResultItem {

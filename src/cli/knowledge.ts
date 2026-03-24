@@ -77,9 +77,18 @@ export function parseSearchArgs(args: string[]): SearchParams & { json?: boolean
       case '--min-retweets':
         params.min_retweets = parseInt(args[++i], 10);
         break;
-      case '--fields':
-        params.fields = args[++i].split(',') as SearchParams['fields'];
+      case '--fields': {
+        const raw = args[++i].split(',');
+        const valid = new Set<string>(SEARCH_FIELDS);
+        const invalid = raw.filter((f) => !valid.has(f));
+        if (invalid.length > 0) {
+          process.stderr.write(`Unknown field(s): ${invalid.join(', ')}\nValid fields: ${SEARCH_FIELDS.join(',')}\n`);
+          process.exitCode = 1;
+          return params;
+        }
+        params.fields = raw as SearchParams['fields'];
         break;
+      }
       case '--json':
         params.json = true;
         break;
@@ -108,17 +117,18 @@ export function parseSearchArgs(args: string[]): SearchParams & { json?: boolean
 
 export function formatHumanReadable(result: SearchResult): string {
   const lines: string[] = [];
+  let rendered = 0;
 
-  for (let i = 0; i < result.items.length; i++) {
-    const item = result.items[i];
+  for (const item of result.items) {
+    const itemLines: string[] = [];
     const header: string[] = [];
     if (item.author) header.push(`@${item.author}`);
     if (item.timestamp) {
       const d = new Date(item.timestamp);
       header.push(d.toLocaleString('sv-SE', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' }));
     }
-    if (header.length > 0) lines.push(header.join(' · '));
-    if (item.text) lines.push(item.text);
+    if (header.length > 0) itemLines.push(header.join(' · '));
+    if (item.text) itemLines.push(item.text);
 
     if (item.siteMeta) {
       const meta = item.siteMeta as Record<string, unknown>;
@@ -126,21 +136,23 @@ export function formatHumanReadable(result: SearchResult): string {
       if (meta.likes != null) parts.push(`likes: ${Number(meta.likes).toLocaleString()}`);
       if (meta.retweets != null) parts.push(`retweets: ${Number(meta.retweets).toLocaleString()}`);
       if (meta.replies != null) parts.push(`replies: ${Number(meta.replies).toLocaleString()}`);
-      if (parts.length > 0) lines.push(parts.join('  '));
+      if (parts.length > 0) itemLines.push(parts.join('  '));
     }
 
-    if (item.mentions && item.mentions.length > 0) lines.push(`mentions: ${item.mentions.map(m => '@' + m).join(' ')}`);
-    if (item.links && item.links.length > 0) lines.push(`links: ${item.links.join(' ')}`);
-    if (item.url) lines.push(item.url);
+    if (item.mentions && item.mentions.length > 0) itemLines.push(`mentions: ${item.mentions.map(m => '@' + m).join(' ')}`);
+    if (item.links && item.links.length > 0) itemLines.push(`links: ${item.links.join(' ')}`);
+    if (item.url) itemLines.push(item.url);
 
-    if (i < result.items.length - 1) {
-      lines.push('───────────────────────────────────');
-    }
+    if (itemLines.length === 0) continue;
+
+    if (rendered > 0) lines.push('───────────────────────────────────');
+    lines.push(...itemLines);
+    rendered++;
   }
 
   lines.push('');
-  const noun = result.items.length === 1 ? 'result' : 'results';
-  lines.push(`Found ${result.items.length} ${noun}`);
+  const noun = rendered === 1 ? 'result' : 'results';
+  lines.push(`Found ${rendered} ${noun}`);
 
   return lines.join('\n');
 }
