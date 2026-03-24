@@ -112,6 +112,13 @@ async function run(): Promise<void> {
 
   switch (command) {
     case 'mcp':
+      if (args.includes('--help') || args.includes('-h')) {
+        console.log(`site-use mcp — Start MCP server (stdio transport)
+
+The server communicates via stdin/stdout using the MCP protocol.
+`);
+        break;
+      }
       await startServer();
       break;
 
@@ -133,6 +140,8 @@ async function run(): Promise<void> {
           break;
         case undefined:
         case 'help':
+        case '--help':
+        case '-h':
           console.log(BROWSER_HELP);
           break;
         default:

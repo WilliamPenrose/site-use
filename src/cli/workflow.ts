@@ -94,7 +94,8 @@ export function formatHumanReadable(result: FeedResult): string {
     const tweet = result.tweets[i];
     const time = formatTimestamp(tweet.timestamp);
 
-    lines.push(`@${tweet.author.handle} · ${time}`);
+    const followTag = tweet.author.following ? '' : ' [not following]';
+    lines.push(`@${tweet.author.handle}${followTag} · ${time}`);
     lines.push(tweet.text);
 
     const parts: string[] = [];
@@ -135,7 +136,21 @@ function writeError(error: string, message: string, hint: string): void {
 // runTwitterFeed — main CLI flow
 // ---------------------------------------------------------------------------
 
+const FEED_HELP = `\
+site-use twitter feed — Collect tweets from the home timeline
+
+Options:
+  --count <n>     Number of tweets (1-100, default: 20)
+  --tab <name>    Feed tab: following | for_you (default: following)
+  --debug         Include diagnostic info
+  --json          Output as JSON
+`;
+
 async function runTwitterFeed(args: string[]): Promise<void> {
+  if (args.includes('--help') || args.includes('-h') || args.includes('help')) {
+    console.log(FEED_HELP);
+    return;
+  }
   const parsed = parseFeedArgs(args);
 
   try {
@@ -188,6 +203,8 @@ export async function runWorkflowCli(site: string, args: string[]): Promise<void
           break;
         case undefined:
         case 'help':
+        case '--help':
+        case '-h':
           console.log(`site-use twitter — Twitter workflow commands
 
 Subcommands:

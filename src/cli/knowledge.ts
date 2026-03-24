@@ -122,7 +122,11 @@ export function formatHumanReadable(result: SearchResult): string {
   for (const item of result.items) {
     const itemLines: string[] = [];
     const header: string[] = [];
-    if (item.author) header.push(`@${item.author}`);
+    if (item.author) {
+      const meta = item.siteMeta as Record<string, unknown> | undefined;
+      const followTag = meta?.following === false ? ' [not following]' : '';
+      header.push(`@${item.author}${followTag}`);
+    }
     if (item.timestamp) {
       const d = new Date(item.timestamp);
       header.push(d.toLocaleString('sv-SE', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' }));
@@ -205,7 +209,7 @@ export async function runKnowledgeCli(command: string, args: string[]): Promise<
 
   try {
     if (command === 'search') {
-      if (args.length === 0) {
+      if (args.length === 0 || args.includes('--help') || args.includes('-h')) {
         console.log(`Usage: site-use search <query> [options]
 
 Options:
@@ -250,6 +254,14 @@ Examples:
         console.log(formatHumanReadable(result));
       }
     } else if (command === 'stats') {
+      if (args.includes('--help') || args.includes('-h')) {
+        console.log(`site-use stats — Show storage statistics
+
+Options:
+  --json    Output as JSON
+`);
+        return;
+      }
       const isJson = args.includes('--json');
       const s = await store.stats();
       if (isJson) {
@@ -258,6 +270,14 @@ Examples:
         console.log(formatStatsHumanReadable(s));
       }
     } else if (command === 'rebuild') {
+      if (args.includes('--help') || args.includes('-h')) {
+        console.log(`site-use rebuild — Rebuild search index
+
+Status: Not available until Phase 2 (semantic search).
+Phase 1 supports keyword search (FTS) and structured filters.
+`);
+        return;
+      }
       writeError(
         'NotImplemented',
         'rebuild is not available until Phase 2 (semantic search)',
