@@ -26,7 +26,10 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await closeBrowser();
-  if (tmpDir) fs.rmSync(tmpDir, { recursive: true, force: true });
+  await new Promise((r) => setTimeout(r, 500));
+  try {
+    if (tmpDir) fs.rmSync(tmpDir, { recursive: true, force: true });
+  } catch {}
 });
 
 describe('diagnose runner', () => {

@@ -302,6 +302,7 @@ export async function ensureBrowser(opts?: { autoLaunch?: boolean; extraArgs?: s
 
 export async function closeBrowser(): Promise<void> {
   const config = getConfig();
+  const info = readChromeJson(config.chromeJsonPath);
 
   if (browserInstance) {
     try {
@@ -310,6 +311,16 @@ export async function closeBrowser(): Promise<void> {
       // Browser may already be gone
     }
     browserInstance = null;
+  }
+
+  // Fallback: if browser.close() didn't kill the process (connect mode),
+  // kill it by PID directly
+  if (info && isPidAlive(info.pid)) {
+    try {
+      process.kill(info.pid);
+    } catch {
+      // Process already gone
+    }
   }
 
   try { unlinkSync(config.chromeJsonPath); } catch {}
