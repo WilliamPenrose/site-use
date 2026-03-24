@@ -35,10 +35,10 @@ export interface SearchParams {
 export interface SearchResultItem {
   id: string;
   site: string;
-  text: string;
-  author: string;
-  timestamp: string;
-  url: string;
+  text?: string;
+  author?: string;
+  timestamp?: string;
+  url?: string;
   snippet?: string;
   siteMeta?: Record<string, unknown>;
 }

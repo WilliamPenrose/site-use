@@ -42,7 +42,7 @@ export function search(db: DatabaseSync, params: SearchParams): SearchResult {
   if (params.hashtag) {
     joins.push('JOIN item_hashtags h ON h.site = i.site AND h.item_id = i.id');
     conditions.push('h.tag = ?');
-    values.push(params.hashtag);
+    values.push(params.hashtag.toLowerCase().replace(/^#/, ''));
   }
   if (params.min_likes != null) {
     joins.push('JOIN twitter_meta tm ON tm.site = i.site AND tm.item_id = i.id');
@@ -102,10 +102,10 @@ export function search(db: DatabaseSync, params: SearchParams): SearchResult {
     const f = new Set(params.fields);
     const metaFields = ['likes', 'retweets', 'replies', 'views'] as const;
     for (const item of items) {
-      if (!f.has('text')) item.text = '';
-      if (!f.has('author')) item.author = '';
-      if (!f.has('url')) item.url = '';
-      if (!f.has('timestamp')) item.timestamp = '';
+      if (!f.has('text')) delete item.text;
+      if (!f.has('author')) delete item.author;
+      if (!f.has('url')) delete item.url;
+      if (!f.has('timestamp')) delete item.timestamp;
       if (item.siteMeta) {
         // Only keep explicitly requested engagement fields; always strip bookmarks/quotes
         // (not in the fields enum — add to enum if needed later).

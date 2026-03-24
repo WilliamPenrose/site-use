@@ -99,7 +99,7 @@ describe('search', () => {
     const result = search(db, { fields: ['author', 'url'] });
     expect(result.items[0].author).toBe('alice');
     expect(result.items[0].url).toContain('x.com');
-    expect(result.items[0].text).toBe('');
+    expect(result.items[0].text).toBeUndefined();
     expect(result.items[0].siteMeta).toBeUndefined();
   });
 
@@ -110,7 +110,7 @@ describe('search', () => {
     expect(meta.retweets).toBeUndefined();
     expect(meta.bookmarks).toBeUndefined();
     expect(meta.quotes).toBeUndefined();
-    expect(result.items[0].text).toBe('');
+    expect(result.items[0].text).toBeUndefined();
   });
 
   it('returns all fields when fields is omitted', () => {

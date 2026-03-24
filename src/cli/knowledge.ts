@@ -27,8 +27,25 @@ export function parseSearchArgs(args: string[]): SearchParams & { json?: boolean
   const params: SearchParams & { json?: boolean } = {};
   let i = 0;
 
+  const needsValue = new Set(['--author', '--start-date', '--end-date', '--max-results', '--hashtag', '--min-likes', '--min-retweets', '--fields']);
+
   while (i < args.length) {
     const arg = args[i];
+    if (needsValue.has(arg) && (i + 1 >= args.length || args[i + 1].startsWith('--'))) {
+      const examples: Record<string, string> = {
+        '--author': '--author elonmusk',
+        '--start-date': '--start-date 2026-03-01',
+        '--end-date': '--end-date 2026-03-24',
+        '--max-results': '--max-results 10',
+        '--hashtag': '--hashtag AI',
+        '--min-likes': '--min-likes 100',
+        '--min-retweets': '--min-retweets 50',
+        '--fields': '--fields author,text,url,timestamp,likes,retweets,replies,views',
+      };
+      process.stderr.write(`Missing value for ${arg}\nUsage: ${examples[arg] ?? arg + ' <value>'}\n`);
+      process.exitCode = 1;
+      return params;
+    }
     switch (arg) {
       case '--author':
         params.author = args[++i]?.replace(/^@/, '');
@@ -58,9 +75,20 @@ export function parseSearchArgs(args: string[]): SearchParams & { json?: boolean
         params.json = true;
         break;
       default:
-        if (!arg.startsWith('--')) {
-          params.query = arg;
+        if (arg.startsWith('--')) {
+          const renames: Record<string, string> = {
+            '--since': '--start-date', '--until': '--end-date', '--limit': '--max-results',
+          };
+          const hint = renames[arg];
+          if (hint) {
+            process.stderr.write(`Unknown option: ${arg} (renamed to ${hint})\n`);
+          } else {
+            process.stderr.write(`Unknown option: ${arg}\n`);
+          }
+          process.exitCode = 1;
+          return params;
         }
+        params.query = arg;
         break;
     }
     i++;
@@ -74,10 +102,14 @@ export function formatHumanReadable(result: SearchResult): string {
 
   for (let i = 0; i < result.items.length; i++) {
     const item = result.items[i];
-    const d = new Date(item.timestamp);
-    const date = d.toLocaleString('sv-SE', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
-    lines.push(`@${item.author} · ${date}`);
-    lines.push(item.text);
+    const header: string[] = [];
+    if (item.author) header.push(`@${item.author}`);
+    if (item.timestamp) {
+      const d = new Date(item.timestamp);
+      header.push(d.toLocaleString('sv-SE', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' }));
+    }
+    if (header.length > 0) lines.push(header.join(' · '));
+    if (item.text) lines.push(item.text);
 
     if (item.siteMeta) {
       const meta = item.siteMeta as Record<string, unknown>;
@@ -88,7 +120,7 @@ export function formatHumanReadable(result: SearchResult): string {
       if (parts.length > 0) lines.push(parts.join('  '));
     }
 
-    lines.push(item.url);
+    if (item.url) lines.push(item.url);
 
     if (i < result.items.length - 1) {
       lines.push('───────────────────────────────────');
@@ -166,6 +198,7 @@ Examples:
       }
 
       const parsed = parseSearchArgs(args);
+      if (process.exitCode) return;
       const isJson = parsed.json;
       delete parsed.json;
       const result = await store.search(parsed);
