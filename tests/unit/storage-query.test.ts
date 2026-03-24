@@ -41,54 +41,87 @@ afterEach(() => {
 describe('search', () => {
   it('returns all items when no filters', () => {
     const result = search(db, {});
-    expect(result.total).toBe(3);
     expect(result.items).toHaveLength(3);
   });
 
   it('filters by author', () => {
     const result = search(db, { author: 'alice' });
-    expect(result.total).toBe(2);
+    expect(result.items).toHaveLength(2);
     expect(result.items.every((i) => i.author === 'alice')).toBe(true);
   });
 
-  it('filters by time range (since/until)', () => {
-    const result = search(db, { since: '2026-03-20T00:00:00Z' });
-    expect(result.total).toBe(2);
+  it('filters by time range (start_date/end_date)', () => {
+    const result = search(db, { start_date: '2026-03-20T00:00:00Z' });
+    expect(result.items).toHaveLength(2);
   });
 
   it('searches by FTS keyword', () => {
     const result = search(db, { query: 'AI' });
-    expect(result.total).toBe(2);
+    expect(result.items).toHaveLength(2);
     expect(result.items.every((i) => i.text.toLowerCase().includes('ai'))).toBe(true);
   });
 
   it('combines FTS + structured filters', () => {
     const result = search(db, { query: 'AI', author: 'alice' });
-    expect(result.total).toBe(2);
+    expect(result.items).toHaveLength(2);
   });
 
-  it('filters by hashtag via siteFilters', () => {
-    const result = search(db, { siteFilters: { hashtag: 'crypto' } });
-    expect(result.total).toBe(1);
-    expect(result.items[0].author).toBe('bob');
-  });
-
-  it('filters by minLikes via siteFilters', () => {
-    const result = search(db, { siteFilters: { minLikes: 150 } });
-    expect(result.total).toBe(1);
-    expect(result.items[0].author).toBe('bob');
-  });
-
-  it('respects limit and still reports total', () => {
-    const result = search(db, { limit: 1 });
+  it('filters by hashtag', () => {
+    const result = search(db, { hashtag: 'crypto' });
     expect(result.items).toHaveLength(1);
-    expect(result.total).toBe(3);
+    expect(result.items[0].author).toBe('bob');
+  });
+
+  it('filters by min_likes', () => {
+    const result = search(db, { min_likes: 150 });
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].author).toBe('bob');
+  });
+
+  it('filters by min_retweets', () => {
+    const result = search(db, { min_retweets: 15 });
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].author).toBe('bob');
+  });
+
+  it('respects max_results', () => {
+    const result = search(db, { max_results: 1 });
+    expect(result.items).toHaveLength(1);
   });
 
   it('orders by time descending by default', () => {
     const result = search(db, {});
     const timestamps = result.items.map((i) => i.timestamp);
     expect(timestamps).toEqual([...timestamps].sort().reverse());
+  });
+
+  it('filters returned fields', () => {
+    const result = search(db, { fields: ['author', 'url'] });
+    expect(result.items[0].author).toBe('alice');
+    expect(result.items[0].url).toContain('x.com');
+    expect(result.items[0].text).toBe('');
+    expect(result.items[0].siteMeta).toBeUndefined();
+  });
+
+  it('returns only requested engagement fields and strips bookmarks/quotes', () => {
+    const result = search(db, { fields: ['likes'] });
+    const meta = result.items[0].siteMeta as Record<string, unknown>;
+    expect(meta.likes).toBeDefined();
+    expect(meta.retweets).toBeUndefined();
+    expect(meta.bookmarks).toBeUndefined();
+    expect(meta.quotes).toBeUndefined();
+    expect(result.items[0].text).toBe('');
+  });
+
+  it('returns all fields when fields is omitted', () => {
+    const result = search(db, {});
+    expect(result.items[0].text).not.toBe('');
+    expect(result.items[0].author).not.toBe('');
+  });
+
+  it('returns all fields when fields is empty array', () => {
+    const result = search(db, { fields: [] });
+    expect(result.items[0].text).not.toBe('');
   });
 });
 

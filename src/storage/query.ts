@@ -8,7 +8,7 @@ export function search(db: DatabaseSync, params: SearchParams): SearchResult {
   const conditions: string[] = [];
   const joins: string[] = [];
   const values: SqlValue[] = [];
-  const limit = params.limit ?? 20;
+  const limit = params.max_results ?? 20;
 
   // FTS join — id+site columns stored in FTS table (rowids are independent from items)
   if (params.query) {
@@ -27,46 +27,40 @@ export function search(db: DatabaseSync, params: SearchParams): SearchResult {
     values.push(params.author);
   }
 
-  if (params.since) {
+  if (params.start_date) {
     conditions.push('i.timestamp >= ?');
-    values.push(params.since);
+    values.push(params.start_date);
   }
 
-  if (params.until) {
+  if (params.end_date) {
     conditions.push('i.timestamp < ?');
-    values.push(params.until);
+    values.push(params.end_date);
   }
 
   // Site-specific filters
   let tmJoined = false;
-  if (params.siteFilters) {
-    if (params.siteFilters.hashtag) {
-      joins.push('JOIN item_hashtags h ON h.site = i.site AND h.item_id = i.id');
-      conditions.push('h.tag = ?');
-      values.push(params.siteFilters.hashtag as string);
-    }
-    if (params.siteFilters.minLikes != null) {
+  if (params.hashtag) {
+    joins.push('JOIN item_hashtags h ON h.site = i.site AND h.item_id = i.id');
+    conditions.push('h.tag = ?');
+    values.push(params.hashtag);
+  }
+  if (params.min_likes != null) {
+    joins.push('JOIN twitter_meta tm ON tm.site = i.site AND tm.item_id = i.id');
+    tmJoined = true;
+    conditions.push('tm.likes >= ?');
+    values.push(params.min_likes);
+  }
+  if (params.min_retweets != null) {
+    if (!tmJoined) {
       joins.push('JOIN twitter_meta tm ON tm.site = i.site AND tm.item_id = i.id');
       tmJoined = true;
-      conditions.push('tm.likes >= ?');
-      values.push(params.siteFilters.minLikes as number);
     }
-    if (params.siteFilters.minRetweets != null) {
-      if (!tmJoined) {
-        joins.push('JOIN twitter_meta tm ON tm.site = i.site AND tm.item_id = i.id');
-        tmJoined = true;
-      }
-      conditions.push('tm.retweets >= ?');
-      values.push(params.siteFilters.minRetweets as number);
-    }
+    conditions.push('tm.retweets >= ?');
+    values.push(params.min_retweets);
   }
 
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
   const joinClause = joins.join(' ');
-
-  // Count total matches
-  const countSql = `SELECT COUNT(*) as cnt FROM items i ${joinClause} ${whereClause}`;
-  const total = (db.prepare(countSql).get(...values) as { cnt: number }).cnt;
 
   // Fetch items — LEFT JOIN twitter_meta to populate siteMeta
   const metaJoin = tmJoined ? '' : 'LEFT JOIN twitter_meta tm ON tm.site = i.site AND tm.item_id = i.id';
@@ -102,7 +96,32 @@ export function search(db: DatabaseSync, params: SearchParams): SearchResult {
     return item;
   });
 
-  return { items, total };
+  // Apply fields filter — strip unrequested fields to save tokens for AI consumers.
+  // `id` and `site` are always returned (needed for identity).
+  if (params.fields && params.fields.length > 0) {
+    const f = new Set(params.fields);
+    const metaFields = ['likes', 'retweets', 'replies', 'views'] as const;
+    for (const item of items) {
+      if (!f.has('text')) item.text = '';
+      if (!f.has('author')) item.author = '';
+      if (!f.has('url')) item.url = '';
+      if (!f.has('timestamp')) item.timestamp = '';
+      if (item.siteMeta) {
+        // Only keep explicitly requested engagement fields; always strip bookmarks/quotes
+        // (not in the fields enum — add to enum if needed later).
+        const meta = item.siteMeta as Record<string, unknown>;
+        for (const key of Object.keys(meta)) {
+          const inEnum = metaFields.includes(key as (typeof metaFields)[number]);
+          if (!inEnum || !f.has(key as (typeof metaFields)[number])) {
+            delete meta[key];
+          }
+        }
+        if (Object.keys(meta).length === 0) delete item.siteMeta;
+      }
+    }
+  }
+
+  return { items };
 }
 
 export function stats(db: DatabaseSync): StoreStats {

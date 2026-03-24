@@ -23,11 +23,13 @@ export interface SearchParams {
   query?: string;
   site?: string;
   author?: string;
-  since?: string;
-  until?: string;
-  limit?: number;
-  orderBy?: 'time' | 'relevance';
-  siteFilters?: Record<string, unknown>;
+  start_date?: string;
+  end_date?: string;
+  max_results?: number;
+  hashtag?: string;
+  min_likes?: number;
+  min_retweets?: number;
+  fields?: Array<'author' | 'text' | 'url' | 'timestamp' | 'likes' | 'retweets' | 'replies' | 'views'>;
 }
 
 export interface SearchResultItem {
@@ -43,7 +45,6 @@ export interface SearchResultItem {
 
 export interface SearchResult {
   items: SearchResultItem[];
-  total: number;
 }
 
 export interface StoreStats {
