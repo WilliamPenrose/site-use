@@ -36,6 +36,7 @@ export function initializeDatabase(dbPath: string): DatabaseSync {
       views       INTEGER,
       bookmarks   INTEGER,
       quotes      INTEGER,
+      following   INTEGER,
       is_retweet  INTEGER NOT NULL DEFAULT 0,
       is_ad       INTEGER NOT NULL DEFAULT 0,
       PRIMARY KEY (site, item_id),
@@ -89,6 +90,12 @@ export function initializeDatabase(dbPath: string): DatabaseSync {
       FOREIGN KEY (site, item_id) REFERENCES items(site, id)
     )
   `);
+
+  // Migration: add following column to existing databases
+  const cols = db.prepare("PRAGMA table_info('twitter_meta')").all() as Array<{ name: string }>;
+  if (cols.length > 0 && !cols.some((c) => c.name === 'following')) {
+    db.exec('ALTER TABLE twitter_meta ADD COLUMN following INTEGER');
+  }
 
   db.exec(`
     CREATE VIRTUAL TABLE IF NOT EXISTS items_fts USING fts5(

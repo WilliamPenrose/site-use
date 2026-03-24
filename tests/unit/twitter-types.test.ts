@@ -12,6 +12,7 @@ describe('TweetAuthorSchema', () => {
     const result = TweetAuthorSchema.safeParse({
       handle: 'karpathy',
       name: 'Andrej Karpathy',
+      following: true,
     });
     expect(result.success).toBe(true);
   });
@@ -25,7 +26,7 @@ describe('TweetAuthorSchema', () => {
 describe('TweetSchema', () => {
   const validTweet = {
     id: '2034416944074613174',
-    author: { handle: 'karpathy', name: 'Andrej Karpathy' },
+    author: { handle: 'karpathy', name: 'Andrej Karpathy', following: true },
     text: 'Hello world',
     timestamp: '2026-03-18T23:49:31.000Z',
     url: 'https://x.com/karpathy/status/2034416944074613174',
@@ -61,6 +62,7 @@ describe('RawTweetDataSchema', () => {
     const result = RawTweetDataSchema.safeParse({
       authorHandle: 'steipete',
       authorName: 'Peter Steinberger',
+      following: false,
       text: 'Hear me out...',
       timestamp: '2026-03-18T23:49:31.000Z',
       url: 'https://x.com/steipete/status/123',

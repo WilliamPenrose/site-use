@@ -76,7 +76,7 @@ export function search(db: DatabaseSync, params: SearchParams): SearchResult {
   const metaJoin = tmJoined ? '' : 'LEFT JOIN twitter_meta tm ON tm.site = i.site AND tm.item_id = i.id';
   const selectSql = `
     SELECT i.id, i.site, i.text, i.author, i.timestamp, i.url,
-           tm.likes, tm.retweets, tm.replies, tm.views, tm.bookmarks, tm.quotes
+           tm.likes, tm.retweets, tm.replies, tm.views, tm.bookmarks, tm.quotes, tm.following
     FROM items i ${joinClause} ${metaJoin} ${whereClause}
     ORDER BY i.timestamp DESC
     LIMIT ?
@@ -101,6 +101,7 @@ export function search(db: DatabaseSync, params: SearchParams): SearchResult {
         views: row.views as number | null,
         bookmarks: row.bookmarks as number | null,
         quotes: row.quotes as number | null,
+        following: row.following != null ? (row.following as number) === 1 : null,
       };
     }
     return item;
@@ -166,7 +167,16 @@ export function search(db: DatabaseSync, params: SearchParams): SearchResult {
   if (params.fields && params.fields.length > 0) {
     const f = new Set(params.fields);
     for (const item of items) {
-      if (!f.has('text')) { delete item.text; delete item.siteMeta; }
+      if (!f.has('text')) {
+        delete item.text;
+        // Preserve following (author-level info) even without text
+        const following = (item.siteMeta as Record<string, unknown> | undefined)?.following;
+        if (following != null && f.has('author')) {
+          item.siteMeta = { following };
+        } else {
+          delete item.siteMeta;
+        }
+      }
       if (!f.has('author')) delete item.author;
       if (!f.has('url')) delete item.url;
       if (!f.has('timestamp')) delete item.timestamp;

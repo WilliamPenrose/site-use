@@ -5,6 +5,7 @@ import { z } from 'zod';
 export const TweetAuthorSchema = z.object({
   handle: z.string(),
   name: z.string(),
+  following: z.boolean(),
 });
 
 export type TweetAuthor = z.infer<typeof TweetAuthorSchema>;
@@ -64,6 +65,7 @@ export type RawTweetMedia = z.infer<typeof RawTweetMediaSchema>;
 export const RawTweetDataSchema = z.object({
   authorHandle: z.string(),
   authorName: z.string(),
+  following: z.boolean(),
   text: z.string(),
   timestamp: z.string(),
   url: z.string(),

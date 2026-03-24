@@ -22,6 +22,7 @@ export function tweetsToIngestItems(tweets: Tweet[]): IngestItem[] {
       ...(m.duration != null ? { duration: m.duration } : {}),
     })),
     siteMeta: {
+      following: tweet.author.following,
       likes: tweet.metrics.likes,
       retweets: tweet.metrics.retweets,
       replies: tweet.metrics.replies,

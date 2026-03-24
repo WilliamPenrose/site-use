@@ -13,8 +13,8 @@ export function ingest(db: DatabaseSync, items: IngestItem[]): IngestResult {
   `);
 
   const insertTwitterMeta = db.prepare(`
-    INSERT OR IGNORE INTO twitter_meta (item_id, site, likes, retweets, replies, views, bookmarks, quotes, is_retweet, is_ad)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT OR IGNORE INTO twitter_meta (item_id, site, likes, retweets, replies, views, bookmarks, quotes, following, is_retweet, is_ad)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertMention = db.prepare(`
@@ -66,6 +66,7 @@ export function ingest(db: DatabaseSync, items: IngestItem[]): IngestResult {
             (m.views as number | null) ?? null,
             (m.bookmarks as number | null) ?? null,
             (m.quotes as number | null) ?? null,
+            m.following != null ? (m.following ? 1 : 0) : null,
             m.isRetweet ? 1 : 0,
             m.isAd ? 1 : 0,
           );

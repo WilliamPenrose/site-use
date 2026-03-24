@@ -143,6 +143,7 @@ export function parseTweet(raw: RawTweetData): Tweet {
     author: {
       handle: raw.authorHandle,
       name: raw.authorName,
+      following: raw.following,
     },
     text: raw.text,
     timestamp: raw.timestamp,
@@ -242,6 +243,7 @@ function extractFromTweetResult(
 
   const handle: string = userInfo.screen_name ?? '';
   const name: string = userInfo.name ?? '';
+  const following: boolean = userResult?.following === true;
   const fullText: string = legacy.full_text ?? '';
   const createdAt: string = legacy.created_at ?? '';
   const idStr: string = legacy.id_str ?? (core as any).rest_id ?? '';
@@ -271,6 +273,7 @@ function extractFromTweetResult(
   return {
     authorHandle: handle,
     authorName: name,
+    following,
     text,
     timestamp,
     url,

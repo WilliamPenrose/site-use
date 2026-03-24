@@ -5,7 +5,7 @@ import type { Tweet } from '../../src/sites/twitter/types.js';
 
 const TWEET: Tweet = {
   id: '123456',
-  author: { handle: 'karpathy', name: 'Andrej Karpathy' },
+  author: { handle: 'karpathy', name: 'Andrej Karpathy', following: true },
   text: 'Training with @openai on #AI and #ML today https://arxiv.org/abs/2401.00001',
   timestamp: '2026-03-20T10:00:00Z',
   url: 'https://x.com/karpathy/status/123456',
@@ -47,6 +47,7 @@ describe('tweetsToIngestItems', () => {
   it('maps metrics to siteMeta', () => {
     const [item] = tweetsToIngestItems([TWEET]);
     expect(item.siteMeta).toEqual({
+      following: true,
       likes: 1500, retweets: 83, replies: 42,
       views: 50000, bookmarks: 10, quotes: 5,
       isRetweet: false, isAd: false,

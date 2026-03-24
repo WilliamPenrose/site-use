@@ -10,6 +10,7 @@ import type { RawTweetData } from '../../src/sites/twitter/types.js';
 const RAW_TWEET: RawTweetData = {
   authorHandle: 'karpathy',
   authorName: 'Andrej Karpathy',
+  following: true,
   text: 'Training a new model today',
   timestamp: '2026-03-18T23:49:31.000Z',
   url: 'https://x.com/karpathy/status/2034416944074613174',
