@@ -14,12 +14,11 @@ beforeAll(async () => {
   delete process.env.SITE_USE_PROXY;
   delete process.env.HTTPS_PROXY;
   delete process.env.HTTP_PROXY;
-  browser = await ensureBrowser();
+  browser = await ensureBrowser({ autoLaunch: true });
 }, 30_000);
 
 afterAll(async () => {
-  closeBrowser();
-  await browser?.close();
+  await closeBrowser();
   if (tmpDir) fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 

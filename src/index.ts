@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import { main as startServer } from './server.js';
-import { ensureBrowser, closeBrowser } from './browser/browser.js';
-import { runDiagnose } from './diagnose/runner.js';
+import { launchAndDetach, readChromeJson, closeBrowser } from './browser/browser.js';
 import { getConfig } from './config.js';
 import { runKnowledgeCli } from './cli/knowledge.js';
+import { runWorkflowCli } from './cli/workflow.js';
 
 const HELP = `\
 site-use — Site-level browser automation via MCP
@@ -12,9 +12,10 @@ Usage: site-use <command> [subcommand]
 
 Commands:
   serve, mcp         Start MCP server (stdio transport)
-  browser launch     Launch Chrome and keep it running
-  browser status     Show connection status, PID, and profile path
-  browser close      Detach from Chrome (process stays alive)
+  browser launch     Launch Chrome (detached — stays alive after exit)
+  browser status     Show Chrome connection status, PID, and profile path
+  browser close      Kill Chrome and clean up
+  twitter feed       Collect tweets from the home timeline
   search             Search stored tweets (FTS + structured filters)
   stats              Show storage statistics
   rebuild            Rebuild search index (Phase 2)
@@ -33,56 +34,31 @@ const BROWSER_HELP = `\
 site-use browser — Chrome lifecycle management
 
 Subcommands:
-  launch    Launch Chrome and keep it running until Ctrl+C
-  status    Show connection status, PID, and profile path
-  close     Detach from Chrome (process stays alive)
-
-Options (launch):
-  --diagnose    Run anti-detection health check after launch
-  --keep-open   Keep browser and detection page open after diagnose
+  launch    Launch Chrome (detached — stays alive after exit)
+  status    Show Chrome connection status, PID, and profile path
+  close     Kill Chrome and clean up
 
 Extra Chrome flags can be passed directly:
   site-use browser launch --disable-web-security --some-flag
 `;
 
 async function browserLaunch(): Promise<void> {
-  const knownFlags = new Set(['--diagnose', '--keep-open']);
   const launchArgs = process.argv.slice(2);
-  const diagnose = launchArgs.includes('--diagnose');
-  const keepOpen = launchArgs.includes('--keep-open');
 
   // Collect extra --flags not recognized by site-use → pass to Chrome
   const extraChromeArgs = launchArgs
-    .filter((a) => a.startsWith('--') && !knownFlags.has(a));
+    .filter((a) => a.startsWith('--'));
 
   if (extraChromeArgs.length > 0) {
     console.log(`Extra Chrome args: ${extraChromeArgs.join(' ')}`);
   }
 
   console.log('Launching Chrome...');
-  const browser = await ensureBrowser(extraChromeArgs.length > 0 ? extraChromeArgs : undefined);
-  const pid = browser.process()?.pid;
+  const info = await launchAndDetach(extraChromeArgs.length > 0 ? extraChromeArgs : undefined);
   const config = getConfig();
-  console.log(`Chrome running (PID: ${pid})`);
+  console.log(`Chrome running (PID: ${info.pid})`);
   console.log(`Profile: ${config.chromeProfileDir}`);
-
-  if (diagnose) {
-    await runDiagnose(browser, { keepOpen });
-  }
-
-  console.log('Press Ctrl+C to detach (Chrome will stay open)');
-
-  await new Promise<void>((resolve) => {
-    const onExit = () => {
-      console.log('\nDetaching from Chrome (process stays alive)');
-      closeBrowser();
-      resolve();
-      // Force exit — keep-open diagnose server or other handles may linger
-      process.exit(0);
-    };
-    process.once('SIGINT', onExit);
-    process.once('SIGTERM', onExit);
-  });
+  console.log('Chrome is detached and will stay alive after this process exits.');
 }
 
 async function browserStatus(): Promise<void> {
@@ -95,13 +71,18 @@ async function browserStatus(): Promise<void> {
     console.log('Proxy: none');
   }
 
-  // Cannot check singleton state from a fresh process — just report config
-  console.log('\nNote: status reflects config only. Browser state is per-process.');
+  const info = readChromeJson(config.chromeJsonPath);
+  if (info) {
+    console.log(`Chrome PID: ${info.pid}`);
+    console.log(`WebSocket: ${info.wsEndpoint}`);
+  } else {
+    console.log('Chrome: not running');
+  }
 }
 
 async function browserClose(): Promise<void> {
-  closeBrowser();
-  console.log('Singleton reference cleared. Chrome process (if any) stays alive.');
+  await closeBrowser();
+  console.log('Chrome closed and chrome.json cleaned up.');
 }
 
 async function run(): Promise<void> {
@@ -141,6 +122,10 @@ async function run(): Promise<void> {
       }
       break;
     }
+
+    case 'twitter':
+      await runWorkflowCli('twitter', args.slice(1));
+      break;
 
     case 'search':
     case 'stats':

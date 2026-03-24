@@ -12,6 +12,7 @@ import { createAuthGuardedPrimitives } from './primitives/auth-guard.js';
 import { matchByRule, rules } from './sites/twitter/matchers.js';
 import { getConfig } from './config.js';
 import { Mutex } from './mutex.js';
+import { withLock } from './lock.js';
 import path from 'node:path';
 import fs from 'node:fs';
 import { SiteUseError, BrowserDisconnected, RateLimited } from './errors.js';
@@ -33,7 +34,7 @@ async function getPrimitives(): Promise<Primitives> {
   primitivesInstance = null;
   throttledInstance = null;
 
-  const browser = await ensureBrowser();
+  const browser = await ensureBrowser({ autoLaunch: true });
   const detector = new RateLimitDetector({ twitter: twitterDetect });
   const raw = new PuppeteerBackend(browser, {
     [twitterSite.name]: [...twitterSite.domains],
@@ -196,17 +197,19 @@ export function createServer(): McpServer {
     'twitter_check_login',
     { description: 'Check if the user is logged in to Twitter/X' },
     async () => {
-      return mutex.run(async () => {
-        try {
-          await getPrimitives(); // ensures both instances are initialized
-          const result = await checkLogin(throttledInstance!);
-          resetErrorStreak();
-          return {
-            content: [{ type: 'text' as const, text: JSON.stringify(result) }],
-          };
-        } catch (err) {
-          return await formatToolError(err, primitivesInstance ?? undefined);
-        }
+      return withLock(async () => {
+        return mutex.run(async () => {
+          try {
+            await getPrimitives(); // ensures both instances are initialized
+            const result = await checkLogin(throttledInstance!);
+            resetErrorStreak();
+            return {
+              content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+            };
+          } catch (err) {
+            return await formatToolError(err, primitivesInstance ?? undefined);
+          }
+        });
       });
     },
   );
@@ -220,26 +223,28 @@ export function createServer(): McpServer {
       inputSchema: {
         count: z.number().min(1).max(100).default(20)
           .describe('Number of tweets to collect'),
-        feed: z.enum(['following', 'for_you']).default('following')
-          .describe('Which feed to read: "following" (chronological) or "for_you" (algorithmic)'),
+        tab: z.enum(['following', 'for_you']).default('following')
+          .describe('Which feed tab to read: "following" (chronological) or "for_you" (algorithmic)'),
         debug: z.boolean().default(false)
           .describe('Include diagnostic info (tab action, reload fallback, GraphQL counts, timing)'),
       },
     },
-    async ({ count, feed, debug }) => {
-      return mutex.run(async () => {
-        let primitives: Primitives | undefined;
-        try {
-          primitives = await getPrimitives();
-          const store = getOrCreateStore();
-          const result = await getFeed(primitives, count, feed, debug, store);
-          resetErrorStreak();
-          return {
-            content: [{ type: 'text' as const, text: JSON.stringify(result) }],
-          };
-        } catch (err) {
-          return await formatToolError(err, primitives);
-        }
+    async ({ count, tab, debug }) => {
+      return withLock(async () => {
+        return mutex.run(async () => {
+          let primitives: Primitives | undefined;
+          try {
+            primitives = await getPrimitives();
+            const store = getOrCreateStore();
+            const result = await getFeed(primitives, count, tab, debug, store);
+            resetErrorStreak();
+            return {
+              content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+            };
+          } catch (err) {
+            return await formatToolError(err, primitives);
+          }
+        });
       });
     },
   );
@@ -256,18 +261,20 @@ export function createServer(): McpServer {
       },
     },
     async ({ site }) => {
-      return mutex.run(async () => {
-        let primitives: Primitives | undefined;
-        try {
-          primitives = await getPrimitives();
-          const data = await primitives.screenshot(site);
-          resetErrorStreak();
-          return {
-            content: [{ type: 'image' as const, data, mimeType: 'image/png' }],
-          };
-        } catch (err) {
-          return await formatToolError(err, primitives);
-        }
+      return withLock(async () => {
+        return mutex.run(async () => {
+          let primitives: Primitives | undefined;
+          try {
+            primitives = await getPrimitives();
+            const data = await primitives.screenshot(site);
+            resetErrorStreak();
+            return {
+              content: [{ type: 'image' as const, data, mimeType: 'image/png' }],
+            };
+          } catch (err) {
+            return await formatToolError(err, primitives);
+          }
+        });
       });
     },
   );

@@ -19,14 +19,13 @@ beforeAll(async () => {
   delete process.env.SITE_USE_PROXY;
   delete process.env.HTTPS_PROXY;
   delete process.env.HTTP_PROXY;
-  browser = await ensureBrowser();
+  browser = await ensureBrowser({ autoLaunch: true });
   // Run diagnose once and cache results for all assertions
   cachedResults = await runDiagnose(browser, { keepOpen: false });
 }, 60_000);
 
 afterAll(async () => {
-  closeBrowser();
-  await browser?.close();
+  await closeBrowser();
   if (tmpDir) fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 

@@ -1,12 +1,43 @@
 import puppeteer, { type Browser, type Page } from 'puppeteer-core';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { getConfig, type WebRTCPolicy } from '../config.js';
 import { injectCoordFix } from '../primitives/click-enhanced.js';
-import { BrowserDisconnected } from '../errors.js';
+import { BrowserDisconnected, BrowserNotRunning } from '../errors.js';
+import { isPidAlive } from '../lock.js';
 import { buildWelcomeHTML } from './welcome.js';
 
 let browserInstance: Browser | null = null;
+
+// ---------------------------------------------------------------------------
+// ChromeInfo — shared type for chrome.json persistence
+// ---------------------------------------------------------------------------
+
+export interface ChromeInfo {
+  pid: number;
+  wsEndpoint: string;
+}
+
+export function readChromeJson(chromeJsonPath: string): ChromeInfo | null {
+  try {
+    const data = JSON.parse(readFileSync(chromeJsonPath, 'utf-8'));
+    if (!isPidAlive(data.pid)) {
+      try { unlinkSync(chromeJsonPath); } catch {}
+      return null;
+    }
+    return { pid: data.pid, wsEndpoint: data.wsEndpoint };
+  } catch {
+    return null;
+  }
+}
+
+export function writeChromeJson(chromeJsonPath: string, info: ChromeInfo): void {
+  writeFileSync(chromeJsonPath, JSON.stringify(info));
+}
+
+// ---------------------------------------------------------------------------
+// Page-level setup helpers
+// ---------------------------------------------------------------------------
 
 async function emulateFocus(pages: Page[]): Promise<void> {
   for (const page of pages) {
@@ -80,13 +111,11 @@ function fixPreferences(profileDir: string, webrtcPolicy: WebRTCPolicy): void {
   }
 }
 
-export async function ensureBrowser(extraArgs?: string[]): Promise<Browser> {
-  if (browserInstance && browserInstance.connected) {
-    return browserInstance;
-  }
+// ---------------------------------------------------------------------------
+// Shared Chrome launch args builder
+// ---------------------------------------------------------------------------
 
-  const config = getConfig();
-
+function buildLaunchArgs(config: ReturnType<typeof getConfig>, extraArgs?: string[]): string[] {
   const args = [
     `--user-data-dir=${config.chromeProfileDir}`,
     '--remote-debugging-port=0',
@@ -112,6 +141,53 @@ export async function ensureBrowser(extraArgs?: string[]): Promise<Browser> {
     args.push(...extraArgs);
   }
 
+  return args;
+}
+
+// ---------------------------------------------------------------------------
+// Apply per-connection setup (focus emulation, coord fix, new-tab listener)
+// ---------------------------------------------------------------------------
+
+async function applyConnectionSetup(browser: Browser): Promise<void> {
+  const pages = await browser.pages();
+  await emulateFocus(pages);
+  await applyCoordFix(pages);
+
+  browser.on('targetcreated', async (target) => {
+    if (target.type() === 'page') {
+      const page = await target.page();
+      if (page) await emulateFocus([page]);
+      if (page) await applyCoordFix([page]);
+    }
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Apply proxy auth if configured
+// ---------------------------------------------------------------------------
+
+async function applyProxyAuth(browser: Browser): Promise<void> {
+  const config = getConfig();
+  if (config.proxy?.username) {
+    const pages = await browser.pages();
+    const page = pages[0];
+    if (page) {
+      await page.authenticate({
+        username: config.proxy.username,
+        password: config.proxy.password ?? '',
+      });
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// launchAndDetach — launch Chrome, write chrome.json, disconnect (Chrome stays alive)
+// ---------------------------------------------------------------------------
+
+export async function launchAndDetach(extraArgs?: string[]): Promise<ChromeInfo> {
+  const config = getConfig();
+  const args = buildLaunchArgs(config, extraArgs);
+
   const proxyLog = config.proxySource
     ? `${config.proxy!.server} (from ${config.proxySource}${config.proxySource !== 'SITE_USE_PROXY' ? ' fallback' : ''})`
     : 'none';
@@ -119,13 +195,17 @@ export async function ensureBrowser(extraArgs?: string[]): Promise<Browser> {
 
   fixPreferences(config.chromeProfileDir, config.webrtcPolicy);
 
+  let browser: Browser;
   try {
-    browserInstance = await puppeteer.launch({
+    browser = await puppeteer.launch({
       channel: 'chrome',
       headless: false,
       defaultViewport: null,
       args,
       ignoreDefaultArgs: ['--enable-automation', '--disable-extensions'],
+      handleSIGINT: false,
+      handleSIGTERM: false,
+      handleSIGHUP: false,
     });
   } catch (err) {
     throw new BrowserDisconnected(
@@ -133,27 +213,18 @@ export async function ensureBrowser(extraArgs?: string[]): Promise<Browser> {
     );
   }
 
-  browserInstance.on('disconnected', () => {
-    browserInstance = null;
-  });
+  const pid = browser.process()?.pid;
+  if (!pid) {
+    throw new BrowserDisconnected('Chrome launched but PID not available');
+  }
 
-  // First launch: show the welcome page via data URL
-  // Session restore: close the extra about:blank tab Puppeteer opens
-  const pages = await browserInstance.pages();
+  const wsEndpoint = browser.wsEndpoint();
+  const info: ChromeInfo = { pid, wsEndpoint };
+  writeChromeJson(config.chromeJsonPath, info);
+
+  // Handle welcome page / blank tab
+  const pages = await browser.pages();
   const blank = pages.find((p) => p.url() === 'about:blank');
-
-  // Keep pages focused even when browser window is in background.
-  // Also locks document.visibilityState to "visible".
-  // Must be set per-page (Emulation is a page-level CDP domain).
-  await emulateFocus(pages);
-  await applyCoordFix(pages);
-  browserInstance.on('targetcreated', async (target) => {
-    if (target.type() === 'page') {
-      const page = await target.page();
-      if (page) await emulateFocus([page]);
-      if (page) await applyCoordFix([page]);
-    }
-  });
   if (blank) {
     if (pages.length === 1) {
       const html = buildWelcomeHTML();
@@ -164,12 +235,89 @@ export async function ensureBrowser(extraArgs?: string[]): Promise<Browser> {
     }
   }
 
+  // Do NOT apply emulateFocus/applyCoordFix — they'd be lost on disconnect
+  browser.disconnect();
+
+  return info;
+}
+
+// ---------------------------------------------------------------------------
+// ensureBrowser — connect to existing Chrome or optionally launch one
+// ---------------------------------------------------------------------------
+
+export async function ensureBrowser(opts?: { autoLaunch?: boolean; extraArgs?: string[] }): Promise<Browser> {
+  if (browserInstance && browserInstance.connected) {
+    return browserInstance;
+  }
+
+  const config = getConfig();
+  const autoLaunch = opts?.autoLaunch ?? false;
+
+  let info = readChromeJson(config.chromeJsonPath);
+
+  // No chrome.json — either launch or throw
+  if (!info) {
+    if (!autoLaunch) {
+      throw new BrowserNotRunning('Chrome is not running. Launch it first with: npx site-use browser launch');
+    }
+    info = await launchAndDetach(opts?.extraArgs);
+  }
+
+  // Try to connect
+  try {
+    browserInstance = await puppeteer.connect({
+      browserWSEndpoint: info.wsEndpoint,
+      defaultViewport: null,
+    });
+  } catch {
+    // Connection failed — chrome.json is stale
+    try { unlinkSync(config.chromeJsonPath); } catch {}
+
+    if (!autoLaunch) {
+      throw new BrowserNotRunning('Chrome is not running (connection failed). Launch it first with: npx site-use browser launch');
+    }
+
+    // Relaunch and connect
+    info = await launchAndDetach(opts?.extraArgs);
+    browserInstance = await puppeteer.connect({
+      browserWSEndpoint: info.wsEndpoint,
+      defaultViewport: null,
+    });
+  }
+
+  browserInstance.on('disconnected', () => {
+    browserInstance = null;
+  });
+
+  // Apply per-connection setup on EVERY connect
+  await applyConnectionSetup(browserInstance);
+  await applyProxyAuth(browserInstance);
+
   return browserInstance;
 }
 
-export function closeBrowser(): void {
-  browserInstance = null;
+// ---------------------------------------------------------------------------
+// closeBrowser — kill Chrome and delete chrome.json
+// ---------------------------------------------------------------------------
+
+export async function closeBrowser(): Promise<void> {
+  const config = getConfig();
+
+  if (browserInstance) {
+    try {
+      await browserInstance.close();
+    } catch {
+      // Browser may already be gone
+    }
+    browserInstance = null;
+  }
+
+  try { unlinkSync(config.chromeJsonPath); } catch {}
 }
+
+// ---------------------------------------------------------------------------
+// isBrowserConnected — check if we have a live connection
+// ---------------------------------------------------------------------------
 
 export function isBrowserConnected(): boolean {
   return browserInstance !== null && browserInstance.connected;
