@@ -11,6 +11,7 @@ export interface IngestItem {
   siteMeta?: Record<string, unknown>;
   mentions?: string[];
   hashtags?: string[];
+  links?: string[];
 }
 
 export interface IngestResult {
@@ -27,10 +28,14 @@ export interface SearchParams {
   end_date?: string;
   max_results?: number;
   hashtag?: string;
+  link?: string;
   min_likes?: number;
   min_retweets?: number;
-  fields?: Array<'author' | 'text' | 'url' | 'timestamp' | 'likes' | 'retweets' | 'replies' | 'views'>;
+  fields?: SearchField[];
 }
+
+export const SEARCH_FIELDS = ['author', 'text', 'url', 'timestamp', 'likes', 'retweets', 'replies', 'views', 'links'] as const;
+export type SearchField = (typeof SEARCH_FIELDS)[number];
 
 export interface SearchResultItem {
   id: string;
@@ -39,6 +44,7 @@ export interface SearchResultItem {
   author?: string;
   timestamp?: string;
   url?: string;
+  links?: string[];
   snippet?: string;
   siteMeta?: Record<string, unknown>;
 }

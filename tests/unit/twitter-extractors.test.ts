@@ -17,6 +17,7 @@ const RAW_TWEET: RawTweetData = {
   retweets: 83,
   replies: 42,
   media: [],
+  links: [],
   isRetweet: false,
   isAd: false,
 };
@@ -35,6 +36,7 @@ describe('parseTweet', () => {
       views: undefined, bookmarks: undefined, quotes: undefined,
     });
     expect(tweet.media).toEqual([]);
+    expect(tweet.links).toEqual([]);
     expect(tweet.isRetweet).toBe(false);
     expect(tweet.isAd).toBe(false);
   });
@@ -435,6 +437,43 @@ describe('parseGraphQLTimeline', () => {
     expect(vid.videoUrl).toBe('https://video.twimg.com/xxx_high.mp4');
     expect(vid.durationMs).toBe(30000);
     expect(vid.mediaUrl).toBe('https://pbs.twimg.com/ext_tw_video_thumb/xxx/thumb.jpg');
+  });
+
+  it('extracts expanded URLs into links array', () => {
+    const body = wrapTimeline([makeTweetEntry({
+      id_str: '903',
+      full_text: 'Read this https://t.co/link1 and https://t.co/link2',
+      created_at: '',
+      favorite_count: 0,
+      retweet_count: 0,
+      reply_count: 0,
+      entities: {
+        urls: [
+          { url: 'https://t.co/link1', expanded_url: 'https://arxiv.org/abs/123', indices: [10, 28] },
+          { url: 'https://t.co/link2', expanded_url: 'https://github.com/repo', indices: [33, 51] },
+        ],
+      },
+    })]);
+
+    const results = parseGraphQLTimeline(body);
+    expect(results[0].links).toEqual([
+      'https://arxiv.org/abs/123',
+      'https://github.com/repo',
+    ]);
+  });
+
+  it('returns empty links when no URLs in entities', () => {
+    const body = wrapTimeline([makeTweetEntry({
+      id_str: '904',
+      full_text: 'No links here',
+      created_at: '',
+      favorite_count: 0,
+      retweet_count: 0,
+      reply_count: 0,
+    })]);
+
+    const results = parseGraphQLTimeline(body);
+    expect(results[0].links).toEqual([]);
   });
 
   it('expands external t.co URLs in tweet text', () => {

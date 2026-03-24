@@ -41,6 +41,7 @@ export const TweetSchema = z.object({
   url: z.string(),
   metrics: TweetMetricsSchema,
   media: z.array(TweetMediaSchema),
+  links: z.array(z.string()),
   isRetweet: z.boolean(),
   isAd: z.boolean(),
 });
@@ -73,6 +74,7 @@ export const RawTweetDataSchema = z.object({
   bookmarks: z.number().optional(),
   quotes: z.number().optional(),
   media: z.array(RawTweetMediaSchema),
+  links: z.array(z.string()),
   isRetweet: z.boolean(),
   isAd: z.boolean(),
 });

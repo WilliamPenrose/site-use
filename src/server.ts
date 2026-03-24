@@ -13,6 +13,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { SiteUseError, BrowserDisconnected, RateLimited } from './errors.js';
 import { createStore, type KnowledgeStore } from './storage/index.js';
+import { SEARCH_FIELDS } from './storage/types.js';
 
 // ---------------------------------------------------------------------------
 // Primitives singleton + lazy Chrome + disconnect recovery
@@ -259,19 +260,21 @@ export function createServer(): McpServer {
           .describe('Maximum number of results to return'),
         hashtag: z.string().optional()
           .describe('Filter by hashtag (without # prefix)'),
+        link: z.string().optional()
+          .describe('Filter by URL substring in expanded links (e.g. "github.com")'),
         min_likes: z.number().optional()
           .describe('Minimum likes threshold'),
         min_retweets: z.number().optional()
           .describe('Minimum retweets threshold'),
-        fields: z.array(z.enum(['author', 'text', 'url', 'timestamp', 'likes', 'retweets', 'replies', 'views'])).optional()
+        fields: z.array(z.enum(SEARCH_FIELDS)).optional()
           .describe('Fields to include in results. Defaults to all fields.'),
       },
     },
-    async ({ query, author, start_date, end_date, max_results, hashtag, min_likes, min_retweets, fields }) => {
+    async ({ query, author, start_date, end_date, max_results, hashtag, link, min_likes, min_retweets, fields }) => {
       try {
         const store = getOrCreateStore();
         const result = await store.search({
-          query, author, start_date, end_date, max_results, hashtag, min_likes, min_retweets, fields,
+          query, author, start_date, end_date, max_results, hashtag, link, min_likes, min_retweets, fields,
         });
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result) }],

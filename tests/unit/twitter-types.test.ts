@@ -31,6 +31,7 @@ describe('TweetSchema', () => {
     url: 'https://x.com/karpathy/status/2034416944074613174',
     metrics: { likes: 100, retweets: 10, replies: 5 },
     media: [],
+    links: [],
     isRetweet: false,
     isAd: false,
   };
@@ -67,6 +68,7 @@ describe('RawTweetDataSchema', () => {
       retweets: 83,
       replies: 163,
       media: [],
+      links: [],
       isRetweet: false,
       isAd: false,
     });

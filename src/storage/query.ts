@@ -44,6 +44,11 @@ export function search(db: DatabaseSync, params: SearchParams): SearchResult {
     conditions.push('h.tag = ?');
     values.push(params.hashtag.toLowerCase().replace(/^#/, ''));
   }
+  if (params.link) {
+    joins.push('JOIN item_links lk ON lk.site = i.site AND lk.item_id = i.id');
+    conditions.push('lk.url LIKE ?');
+    values.push(`%${params.link}%`);
+  }
   if (params.min_likes != null) {
     joins.push('JOIN twitter_meta tm ON tm.site = i.site AND tm.item_id = i.id');
     tmJoined = true;
@@ -96,6 +101,30 @@ export function search(db: DatabaseSync, params: SearchParams): SearchResult {
     return item;
   });
 
+  // Batch-fetch links for returned items
+  if (items.length > 0) {
+    const orClauses = items.map(() => '(site = ? AND item_id = ?)').join(' OR ');
+    const linkValues: SqlValue[] = [];
+    for (const item of items) {
+      linkValues.push(item.site, item.id);
+    }
+    const linkRows = db.prepare(
+      `SELECT site, item_id, url FROM item_links WHERE ${orClauses}`,
+    ).all(...linkValues) as Array<{ site: string; item_id: string; url: string }>;
+
+    const linkMap = new Map<string, string[]>();
+    for (const row of linkRows) {
+      const key = `${row.site}:${row.item_id}`;
+      const arr = linkMap.get(key);
+      if (arr) arr.push(row.url);
+      else linkMap.set(key, [row.url]);
+    }
+    for (const item of items) {
+      const links = linkMap.get(`${item.site}:${item.id}`);
+      if (links) item.links = links;
+    }
+  }
+
   // Apply fields filter — strip unrequested fields to save tokens for AI consumers.
   // `id` and `site` are always returned (needed for identity).
   if (params.fields && params.fields.length > 0) {
@@ -106,6 +135,7 @@ export function search(db: DatabaseSync, params: SearchParams): SearchResult {
       if (!f.has('author')) delete item.author;
       if (!f.has('url')) delete item.url;
       if (!f.has('timestamp')) delete item.timestamp;
+      if (!f.has('links')) delete item.links;
       if (item.siteMeta) {
         // Only keep explicitly requested engagement fields; always strip bookmarks/quotes
         // (not in the fields enum — add to enum if needed later).

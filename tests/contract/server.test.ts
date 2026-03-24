@@ -72,11 +72,12 @@ describe('MCP Server contract', () => {
     expect(props.end_date).toBeDefined();
     expect(props.author).toBeDefined();
     expect(props.hashtag).toBeDefined();
+    expect(props.link).toBeDefined();
     expect(props.min_likes).toBeDefined();
     expect(props.min_retweets).toBeDefined();
     expect(props.fields).toBeDefined();
     expect((props.fields as any).items.enum).toEqual(
-      expect.arrayContaining(['author', 'text', 'url', 'timestamp', 'likes', 'retweets', 'replies', 'views'])
+      expect.arrayContaining(['author', 'text', 'url', 'timestamp', 'likes', 'retweets', 'replies', 'views', 'links'])
     );
   });
 

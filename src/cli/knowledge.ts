@@ -1,6 +1,7 @@
 import path from 'node:path';
 import os from 'node:os';
 import { createStore } from '../storage/index.js';
+import { SEARCH_FIELDS } from '../storage/types.js';
 import type { SearchParams, SearchResult, StoreStats } from '../storage/types.js';
 
 function getDbPath(): string {
@@ -27,7 +28,7 @@ export function parseSearchArgs(args: string[]): SearchParams & { json?: boolean
   const params: SearchParams & { json?: boolean } = {};
   let i = 0;
 
-  const needsValue = new Set(['--author', '--start-date', '--end-date', '--max-results', '--hashtag', '--min-likes', '--min-retweets', '--fields']);
+  const needsValue = new Set(['--author', '--start-date', '--end-date', '--max-results', '--hashtag', '--link', '--min-likes', '--min-retweets', '--fields']);
 
   while (i < args.length) {
     const arg = args[i];
@@ -38,9 +39,10 @@ export function parseSearchArgs(args: string[]): SearchParams & { json?: boolean
         '--end-date': '--end-date 2026-03-24',
         '--max-results': '--max-results 10',
         '--hashtag': '--hashtag AI',
+        '--link': '--link github.com',
         '--min-likes': '--min-likes 100',
         '--min-retweets': '--min-retweets 50',
-        '--fields': '--fields author,text,url,timestamp,likes,retweets,replies,views',
+        '--fields': `--fields ${SEARCH_FIELDS.join(',')}`,
       };
       process.stderr.write(`Missing value for ${arg}\nUsage: ${examples[arg] ?? arg + ' <value>'}\n`);
       process.exitCode = 1;
@@ -61,6 +63,9 @@ export function parseSearchArgs(args: string[]): SearchParams & { json?: boolean
         break;
       case '--hashtag':
         params.hashtag = args[++i];
+        break;
+      case '--link':
+        params.link = args[++i];
         break;
       case '--min-likes':
         params.min_likes = parseInt(args[++i], 10);
@@ -184,9 +189,10 @@ Options:
   --end-date <date>      End date (local time, flexible format)
   --max-results <n>      Max results (default: 20)
   --hashtag <tag>        Filter by hashtag
+  --link <substr>        Filter by URL substring in expanded links
   --min-likes <n>        Minimum likes
   --min-retweets <n>     Minimum retweets
-  --fields <list>        Comma-separated fields: author,text,url,timestamp,likes,retweets,replies,views
+  --fields <list>        Comma-separated fields: ${SEARCH_FIELDS.join(',')}
   --json                 Output as JSON
 
 Examples:

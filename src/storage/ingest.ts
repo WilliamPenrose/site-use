@@ -25,6 +25,10 @@ export function ingest(db: DatabaseSync, items: IngestItem[]): IngestResult {
     INSERT OR IGNORE INTO item_hashtags (site, item_id, tag) VALUES (?, ?, ?)
   `);
 
+  const insertLink = db.prepare(`
+    INSERT OR IGNORE INTO item_links (site, item_id, url) VALUES (?, ?, ?)
+  `);
+
   const insertFts = db.prepare(`
     INSERT INTO items_fts (text, id, site, author, timestamp) VALUES (?, ?, ?, ?, ?)
   `);
@@ -73,6 +77,13 @@ export function ingest(db: DatabaseSync, items: IngestItem[]): IngestResult {
         if (item.hashtags) {
           for (const tag of item.hashtags) {
             insertHashtag.run(item.site, item.id, tag);
+          }
+        }
+
+        // Links
+        if (item.links) {
+          for (const linkUrl of item.links) {
+            insertLink.run(item.site, item.id, linkUrl);
           }
         }
       } else {

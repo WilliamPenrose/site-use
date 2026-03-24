@@ -28,8 +28,8 @@ beforeEach(() => {
   db = initializeDatabase(':memory:');
   // Seed data
   ingest(db, [
-    makeItem({ id: '1', text: 'AI agents are reshaping the world', author: 'alice', timestamp: '2026-03-20T10:00:00Z', hashtags: ['AI'] }),
-    makeItem({ id: '2', text: 'Crypto markets showing volatility', author: 'bob', timestamp: '2026-03-19T08:00:00Z', hashtags: ['crypto'], siteMeta: { likes: 200, retweets: 20, replies: 10, views: 8000, bookmarks: 5, quotes: 3, isRetweet: false, isAd: false } }),
+    makeItem({ id: '1', text: 'AI agents are reshaping the world', author: 'alice', timestamp: '2026-03-20T10:00:00Z', hashtags: ['AI'], links: ['https://arxiv.org/abs/2401.00001'] }),
+    makeItem({ id: '2', text: 'Crypto markets showing volatility', author: 'bob', timestamp: '2026-03-19T08:00:00Z', hashtags: ['crypto'], links: ['https://coindesk.com/article'], siteMeta: { likes: 200, retweets: 20, replies: 10, views: 8000, bookmarks: 5, quotes: 3, isRetweet: false, isAd: false } }),
     makeItem({ id: '3', text: 'Building AI systems with autonomous agents', author: 'alice', timestamp: '2026-03-21T12:00:00Z', hashtags: ['AI', 'agents'] }),
   ]);
 });
@@ -72,6 +72,22 @@ describe('search', () => {
     expect(result.items[0].author).toBe('bob');
   });
 
+  it('filters by link substring', () => {
+    const result = search(db, { link: 'arxiv.org' });
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].author).toBe('alice');
+  });
+
+  it('returns links in results', () => {
+    const result = search(db, {});
+    // Item 3 has no links
+    const item3 = result.items.find((i) => i.id === '3');
+    expect(item3?.links).toBeUndefined();
+    // Item 1 has a link
+    const item1 = result.items.find((i) => i.id === '1');
+    expect(item1?.links).toEqual(['https://arxiv.org/abs/2401.00001']);
+  });
+
   it('filters by min_likes', () => {
     const result = search(db, { min_likes: 150 });
     expect(result.items).toHaveLength(1);
@@ -111,6 +127,18 @@ describe('search', () => {
     expect(meta.bookmarks).toBeUndefined();
     expect(meta.quotes).toBeUndefined();
     expect(result.items[0].text).toBeUndefined();
+  });
+
+  it('strips links when not in fields', () => {
+    const result = search(db, { fields: ['author'] });
+    expect(result.items[0].links).toBeUndefined();
+  });
+
+  it('includes links when in fields', () => {
+    const result = search(db, { fields: ['links'], author: 'alice' });
+    const item1 = result.items.find((i) => i.id === '1');
+    expect(item1?.links).toEqual(['https://arxiv.org/abs/2401.00001']);
+    expect(item1?.text).toBeUndefined();
   });
 
   it('returns all fields when fields is omitted', () => {

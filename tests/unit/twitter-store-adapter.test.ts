@@ -6,11 +6,12 @@ import type { Tweet } from '../../src/sites/twitter/types.js';
 const TWEET: Tweet = {
   id: '123456',
   author: { handle: 'karpathy', name: 'Andrej Karpathy' },
-  text: 'Training with @openai on #AI and #ML today',
+  text: 'Training with @openai on #AI and #ML today https://arxiv.org/abs/2401.00001',
   timestamp: '2026-03-20T10:00:00Z',
   url: 'https://x.com/karpathy/status/123456',
   metrics: { likes: 1500, retweets: 83, replies: 42, views: 50000, bookmarks: 10, quotes: 5 },
   media: [{ type: 'photo', url: 'https://pbs.twimg.com/media/abc.jpg?name=orig', width: 1200, height: 800 }],
+  links: ['https://arxiv.org/abs/2401.00001'],
   isRetweet: false,
   isAd: false,
 };
@@ -57,10 +58,16 @@ describe('tweetsToIngestItems', () => {
     expect(item.siteMeta).not.toHaveProperty('media');
   });
 
-  it('handles tweet with no mentions or hashtags', () => {
-    const plain: Tweet = { ...TWEET, text: 'Just a plain tweet' };
+  it('maps links from tweet to IngestItem', () => {
+    const [item] = tweetsToIngestItems([TWEET]);
+    expect(item.links).toEqual(['https://arxiv.org/abs/2401.00001']);
+  });
+
+  it('handles tweet with no mentions, hashtags, or links', () => {
+    const plain: Tweet = { ...TWEET, text: 'Just a plain tweet', links: [] };
     const [item] = tweetsToIngestItems([plain]);
     expect(item.mentions).toEqual([]);
     expect(item.hashtags).toEqual([]);
+    expect(item.links).toEqual([]);
   });
 });

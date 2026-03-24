@@ -29,6 +29,11 @@ describe('parseSearchArgs', () => {
     expect(params.hashtag).toBe('AI');
   });
 
+  it('parses --link as top-level param', () => {
+    const params = parseSearchArgs(['--link', 'github.com']);
+    expect(params.link).toBe('github.com');
+  });
+
   it('parses --min-likes as top-level param', () => {
     const params = parseSearchArgs(['--min-likes', '100']);
     expect(params.min_likes).toBe(100);

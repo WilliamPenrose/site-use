@@ -13,6 +13,7 @@ export function tweetsToIngestItems(tweets: Tweet[]): IngestItem[] {
     rawJson: JSON.stringify(tweet),
     mentions: extractMentions(tweet.text),
     hashtags: extractHashtags(tweet.text),
+    links: tweet.links,
     siteMeta: {
       likes: tweet.metrics.likes,
       retweets: tweet.metrics.retweets,

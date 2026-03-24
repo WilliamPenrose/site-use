@@ -25,6 +25,7 @@ describe('storage integration', () => {
       rawJson: '{"test": true}',
       mentions: ['someone'],
       hashtags: ['ai'],
+      links: ['https://example.com/post'],
       siteMeta: { likes: 10, retweets: 2, replies: 1, views: 100, bookmarks: 0, quotes: 0, isRetweet: false, isAd: false },
     }]);
     expect(ingestResult.inserted).toBe(1);
@@ -38,6 +39,10 @@ describe('storage integration', () => {
 
     const hashResult = await store.search({ hashtag: 'ai' });
     expect(hashResult.items).toHaveLength(1);
+
+    const linkResult = await store.search({ link: 'example.com' });
+    expect(linkResult.items).toHaveLength(1);
+    expect(linkResult.items[0].links).toEqual(['https://example.com/post']);
 
     const s = await store.stats();
     expect(s.totalItems).toBe(1);

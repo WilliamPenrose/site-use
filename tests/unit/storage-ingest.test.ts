@@ -16,6 +16,7 @@ function makeItem(overrides: Partial<IngestItem> = {}): IngestItem {
     rawJson: '{"full": "data"}',
     mentions: ['someone'],
     hashtags: ['testing'],
+    links: ['https://example.com/article'],
     siteMeta: { likes: 42, retweets: 5, replies: 3, views: 1000, bookmarks: 1, quotes: 0, isRetweet: false, isAd: false },
     ...overrides,
   };
@@ -63,6 +64,12 @@ describe('ingest', () => {
     ingest(db, [makeItem()]);
     const rows = db.prepare('SELECT tag FROM item_hashtags WHERE item_id = ?').all('123456') as any[];
     expect(rows.map((r: any) => r.tag)).toEqual(['testing']);
+  });
+
+  it('writes links to item_links', () => {
+    ingest(db, [makeItem()]);
+    const rows = db.prepare('SELECT url FROM item_links WHERE item_id = ?').all('123456') as any[];
+    expect(rows.map((r: any) => r.url)).toEqual(['https://example.com/article']);
   });
 
   it('does not create duplicate FTS rows on re-ingest', () => {

@@ -64,6 +64,13 @@ export function processFullText(
   return decodeHTMLEntities(result.trim());
 }
 
+/** Extract expanded URLs from tweet entities (external links the author included). */
+function extractLinks(entities: { urls?: any[] }): string[] {
+  return (entities.urls ?? [])
+    .map((u: any) => u.expanded_url as string | undefined)
+    .filter((url): url is string => url != null);
+}
+
 /** Extract media items from GraphQL extended_entities or entities. */
 function extractMedia(legacy: any): RawTweetMedia[] {
   const mediaItems =
@@ -149,6 +156,7 @@ export function parseTweet(raw: RawTweetData): Tweet {
       quotes: raw.quotes,
     },
     media: raw.media.map(mapMedia),
+    links: raw.links,
     isRetweet: raw.isRetweet,
     isAd: raw.isAd,
   };
@@ -249,11 +257,16 @@ function extractFromTweetResult(
 
   const isRetweet = legacy.retweeted_status_result != null;
 
+  const entities = legacy.entities ?? {};
+
   // Process text: expand external URLs, strip media URLs, decode HTML entities
-  const text = processFullText(fullText, legacy.entities ?? {});
+  const text = processFullText(fullText, entities);
 
   // Extract media from extended_entities (preferred) or entities
   const media = extractMedia(legacy);
+
+  // Extract expanded URLs from entities (external links the author included)
+  const links = extractLinks(entities);
 
   return {
     authorHandle: handle,
@@ -268,6 +281,7 @@ function extractFromTweetResult(
     bookmarks: legacy.bookmark_count ?? undefined,
     quotes: legacy.quote_count ?? undefined,
     media,
+    links,
     isRetweet,
     isAd: false,
   };
