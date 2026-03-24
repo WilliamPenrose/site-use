@@ -129,6 +129,7 @@ describe('ensureState — element state', () => {
   });
 
   it('throws ElementNotFound when element not in snapshot', async () => {
+    vi.useFakeTimers();
     const snapshot = buildSnapshot([
       { uid: '1', role: 'button', name: 'Post' },
     ]);
@@ -137,9 +138,13 @@ describe('ensureState — element state', () => {
     });
     const ensure = makeEnsureState(primitives, 'twitter');
 
-    await expect(
-      ensure({ role: 'tab', name: 'Following', selected: true }),
-    ).rejects.toThrow(ElementNotFound);
+    const promise = ensure({ role: 'tab', name: 'Following', selected: true });
+    const assertion = expect(promise).rejects.toThrow(ElementNotFound);
+
+    await vi.advanceTimersByTimeAsync(16_000);
+
+    await assertion;
+    vi.useRealTimers();
   });
 
   it('throws StateTransitionFailed on poll timeout', async () => {

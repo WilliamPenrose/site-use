@@ -76,8 +76,16 @@ async function ensureElementState(
   target: StateDescriptor,
   site: string,
 ): Promise<EnsureStateResult> {
-  const snapshot = await primitives.takeSnapshot(site);
-  const match = findByDescriptor(snapshot, target);
+  // Poll until the element appears or timeout
+  const deadline = Date.now() + POLL_TIMEOUT_MS;
+  let snapshot = await primitives.takeSnapshot(site);
+  let match = findByDescriptor(snapshot, target);
+
+  while (!match && Date.now() < deadline) {
+    await sleep(POLL_INTERVAL_MS);
+    snapshot = await primitives.takeSnapshot(site);
+    match = findByDescriptor(snapshot, target);
+  }
 
   if (!match) {
     throw new ElementNotFound(
@@ -94,7 +102,6 @@ async function ensureElementState(
   await primitives.click(match.uid, site);
 
   // Poll until condition met or timeout
-  const deadline = Date.now() + POLL_TIMEOUT_MS;
   while (Date.now() < deadline) {
     await sleep(POLL_INTERVAL_MS);
     const pollSnapshot = await primitives.takeSnapshot(site);
