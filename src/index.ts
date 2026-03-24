@@ -4,6 +4,8 @@ import { launchAndDetach, readChromeJson, closeBrowser, recoverOrphanChrome } fr
 import { getConfig } from './config.js';
 import { runKnowledgeCli } from './cli/knowledge.js';
 import { runWorkflowCli } from './cli/workflow.js';
+import { ensureBrowser } from './browser/browser.js';
+import { runDiagnose } from './diagnose/runner.js';
 
 const HELP = `\
 site-use — Site-level browser automation via MCP
@@ -19,6 +21,7 @@ Commands:
   search             Search stored tweets (FTS + structured filters)
   stats              Show storage statistics
   rebuild            Rebuild search index (Phase 2)
+  diagnose           Run anti-detection diagnostic checks
   help               Show this help message
 
 Environment:
@@ -150,6 +153,21 @@ async function run(): Promise<void> {
     case 'rebuild':
       await runKnowledgeCli(command, args.slice(1));
       break;
+
+    case 'diagnose': {
+      if (args.includes('--help') || args.includes('-h') || args.includes('help')) {
+        console.log(`site-use diagnose — Run anti-detection diagnostic checks
+
+Options:
+  --keep-open    Keep the diagnose page open after checks complete
+`);
+        break;
+      }
+      const keepOpen = args.includes('--keep-open');
+      const browser = await ensureBrowser({ autoLaunch: true });
+      await runDiagnose(browser, { keepOpen });
+      break;
+    }
 
     case 'help':
     case '--help':
