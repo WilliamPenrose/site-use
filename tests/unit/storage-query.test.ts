@@ -28,8 +28,8 @@ beforeEach(() => {
   db = initializeDatabase(':memory:');
   // Seed data
   ingest(db, [
-    makeItem({ id: '1', text: 'AI agents are reshaping the world', author: 'alice', timestamp: '2026-03-20T10:00:00Z', hashtags: ['AI'], links: ['https://arxiv.org/abs/2401.00001'] }),
-    makeItem({ id: '2', text: 'Crypto markets showing volatility', author: 'bob', timestamp: '2026-03-19T08:00:00Z', hashtags: ['crypto'], links: ['https://coindesk.com/article'], siteMeta: { likes: 200, retweets: 20, replies: 10, views: 8000, bookmarks: 5, quotes: 3, isRetweet: false, isAd: false } }),
+    makeItem({ id: '1', text: 'AI agents are reshaping the world', author: 'alice', timestamp: '2026-03-20T10:00:00Z', hashtags: ['AI'], links: ['https://arxiv.org/abs/2401.00001'], media: [{ type: 'photo', url: 'https://pbs.twimg.com/media/ai.jpg', width: 1200, height: 800 }] }),
+    makeItem({ id: '2', text: 'Crypto markets showing volatility', author: 'bob', timestamp: '2026-03-19T08:00:00Z', hashtags: ['crypto'], links: ['https://coindesk.com/article'], media: [{ type: 'video', url: 'https://video.twimg.com/crypto.mp4', width: 1280, height: 720, duration: 30000 }], siteMeta: { likes: 200, retweets: 20, replies: 10, views: 8000, bookmarks: 5, quotes: 3, isRetweet: false, isAd: false } }),
     makeItem({ id: '3', text: 'Building AI systems with autonomous agents', author: 'alice', timestamp: '2026-03-21T12:00:00Z', hashtags: ['AI', 'agents'] }),
   ]);
 });
@@ -168,6 +168,28 @@ describe('search', () => {
     const result = search(db, { fields: ['links'], author: 'alice' });
     const item1 = result.items.find((i) => i.id === '1');
     expect(item1?.links).toEqual(['https://arxiv.org/abs/2401.00001']);
+    expect(item1?.text).toBeUndefined();
+  });
+
+  it('returns media in results', () => {
+    const result = search(db, {});
+    const item1 = result.items.find((i) => i.id === '1');
+    expect(item1?.media).toEqual([{ type: 'photo', url: 'https://pbs.twimg.com/media/ai.jpg', width: 1200, height: 800 }]);
+    const item2 = result.items.find((i) => i.id === '2');
+    expect(item2?.media).toEqual([{ type: 'video', url: 'https://video.twimg.com/crypto.mp4', width: 1280, height: 720, duration: 30000 }]);
+    const item3 = result.items.find((i) => i.id === '3');
+    expect(item3?.media).toBeUndefined();
+  });
+
+  it('strips media when not in fields', () => {
+    const result = search(db, { fields: ['author'] });
+    expect(result.items[0].media).toBeUndefined();
+  });
+
+  it('includes media when in fields', () => {
+    const result = search(db, { fields: ['media'], author: 'alice' });
+    const item1 = result.items.find((i) => i.id === '1');
+    expect(item1?.media).toHaveLength(1);
     expect(item1?.text).toBeUndefined();
   });
 

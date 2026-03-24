@@ -1,5 +1,13 @@
 // src/storage/types.ts
 
+export interface MediaItem {
+  type: string;
+  url: string;
+  width: number;
+  height: number;
+  duration?: number;
+}
+
 export interface IngestItem {
   site: string;
   id: string;
@@ -12,6 +20,7 @@ export interface IngestItem {
   mentions?: string[];
   hashtags?: string[];
   links?: string[];
+  media?: MediaItem[];
 }
 
 export interface IngestResult {
@@ -35,7 +44,7 @@ export interface SearchParams {
   fields?: SearchField[];
 }
 
-export const SEARCH_FIELDS = ['author', 'text', 'url', 'timestamp', 'links', 'mentions'] as const;
+export const SEARCH_FIELDS = ['author', 'text', 'url', 'timestamp', 'links', 'mentions', 'media'] as const;
 export type SearchField = (typeof SEARCH_FIELDS)[number];
 
 export interface SearchResultItem {
@@ -47,6 +56,7 @@ export interface SearchResultItem {
   url?: string;
   links?: string[];
   mentions?: string[];
+  media?: MediaItem[];
   snippet?: string;
   siteMeta?: Record<string, unknown>;
 }

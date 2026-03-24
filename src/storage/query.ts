@@ -1,6 +1,6 @@
 // src/storage/query.ts
 import type { DatabaseSync } from 'node:sqlite';
-import type { SearchParams, SearchResult, SearchResultItem, StoreStats } from './types.js';
+import type { MediaItem, SearchParams, SearchResult, SearchResultItem, StoreStats } from './types.js';
 
 type SqlValue = null | number | bigint | string;
 
@@ -136,12 +136,27 @@ export function search(db: DatabaseSync, params: SearchParams): SearchResult {
       else mentionMap.set(key, [row.handle]);
     }
 
+    const mediaRows = db.prepare(
+      `SELECT site, item_id, type, url, width, height, duration FROM item_media WHERE ${orClauses}`,
+    ).all(...bindValues) as Array<{ site: string; item_id: string; type: string; url: string; width: number; height: number; duration: number | null }>;
+    const mediaMap = new Map<string, MediaItem[]>();
+    for (const row of mediaRows) {
+      const key = `${row.site}:${row.item_id}`;
+      const m: MediaItem = { type: row.type, url: row.url, width: row.width, height: row.height };
+      if (row.duration != null) m.duration = row.duration;
+      const arr = mediaMap.get(key);
+      if (arr) arr.push(m);
+      else mediaMap.set(key, [m]);
+    }
+
     for (const item of items) {
       const key = `${item.site}:${item.id}`;
       const links = linkMap.get(key);
       if (links) item.links = links;
       const mentions = mentionMap.get(key);
       if (mentions) item.mentions = mentions;
+      const media = mediaMap.get(key);
+      if (media) item.media = media;
     }
   }
 
@@ -157,6 +172,7 @@ export function search(db: DatabaseSync, params: SearchParams): SearchResult {
       if (!f.has('timestamp')) delete item.timestamp;
       if (!f.has('links')) delete item.links;
       if (!f.has('mentions')) delete item.mentions;
+      if (!f.has('media')) delete item.media;
     }
   }
 

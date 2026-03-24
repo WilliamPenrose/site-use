@@ -17,6 +17,7 @@ function makeItem(overrides: Partial<IngestItem> = {}): IngestItem {
     mentions: ['someone'],
     hashtags: ['testing'],
     links: ['https://example.com/article'],
+    media: [{ type: 'photo', url: 'https://pbs.twimg.com/media/abc.jpg', width: 1920, height: 1080 }],
     siteMeta: { likes: 42, retweets: 5, replies: 3, views: 1000, bookmarks: 1, quotes: 0, isRetweet: false, isAd: false },
     ...overrides,
   };
@@ -70,6 +71,24 @@ describe('ingest', () => {
     ingest(db, [makeItem()]);
     const rows = db.prepare('SELECT url FROM item_links WHERE item_id = ?').all('123456') as any[];
     expect(rows.map((r: any) => r.url)).toEqual(['https://example.com/article']);
+  });
+
+  it('writes media to item_media', () => {
+    ingest(db, [makeItem()]);
+    const rows = db.prepare('SELECT type, url, width, height, duration FROM item_media WHERE item_id = ?').all('123456') as any[];
+    expect(rows).toHaveLength(1);
+    expect(rows[0].type).toBe('photo');
+    expect(rows[0].url).toBe('https://pbs.twimg.com/media/abc.jpg');
+    expect(rows[0].width).toBe(1920);
+    expect(rows[0].height).toBe(1080);
+    expect(rows[0].duration).toBeNull();
+  });
+
+  it('writes video media with duration', () => {
+    ingest(db, [makeItem({ media: [{ type: 'video', url: 'https://video.twimg.com/v.mp4', width: 1280, height: 720, duration: 15000 }] })]);
+    const rows = db.prepare('SELECT type, duration FROM item_media WHERE item_id = ?').all('123456') as any[];
+    expect(rows[0].type).toBe('video');
+    expect(rows[0].duration).toBe(15000);
   });
 
   it('does not create duplicate FTS rows on re-ingest', () => {

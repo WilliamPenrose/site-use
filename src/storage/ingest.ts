@@ -29,6 +29,11 @@ export function ingest(db: DatabaseSync, items: IngestItem[]): IngestResult {
     INSERT OR IGNORE INTO item_links (site, item_id, url) VALUES (?, ?, ?)
   `);
 
+  const insertMedia = db.prepare(`
+    INSERT OR IGNORE INTO item_media (site, item_id, type, url, width, height, duration)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `);
+
   const insertFts = db.prepare(`
     INSERT INTO items_fts (text, id, site, author, timestamp) VALUES (?, ?, ?, ?, ?)
   `);
@@ -84,6 +89,13 @@ export function ingest(db: DatabaseSync, items: IngestItem[]): IngestResult {
         if (item.links) {
           for (const linkUrl of item.links) {
             insertLink.run(item.site, item.id, linkUrl);
+          }
+        }
+
+        // Media
+        if (item.media) {
+          for (const m of item.media) {
+            insertMedia.run(item.site, item.id, m.type, m.url, m.width, m.height, m.duration ?? null);
           }
         }
       } else {

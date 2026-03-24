@@ -14,6 +14,13 @@ export function tweetsToIngestItems(tweets: Tweet[]): IngestItem[] {
     mentions: extractMentions(tweet.text),
     hashtags: extractHashtags(tweet.text),
     links: tweet.links,
+    media: tweet.media.map((m) => ({
+      type: m.type,
+      url: m.url,
+      width: m.width,
+      height: m.height,
+      ...(m.duration != null ? { duration: m.duration } : {}),
+    })),
     siteMeta: {
       likes: tweet.metrics.likes,
       retweets: tweet.metrics.retweets,

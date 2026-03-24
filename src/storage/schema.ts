@@ -77,6 +77,20 @@ export function initializeDatabase(dbPath: string): DatabaseSync {
   db.exec('CREATE INDEX IF NOT EXISTS idx_links_url ON item_links(url)');
 
   db.exec(`
+    CREATE TABLE IF NOT EXISTS item_media (
+      site     TEXT    NOT NULL,
+      item_id  TEXT    NOT NULL,
+      type     TEXT    NOT NULL,
+      url      TEXT    NOT NULL,
+      width    INTEGER NOT NULL DEFAULT 0,
+      height   INTEGER NOT NULL DEFAULT 0,
+      duration INTEGER,
+      PRIMARY KEY (site, item_id, url),
+      FOREIGN KEY (site, item_id) REFERENCES items(site, id)
+    )
+  `);
+
+  db.exec(`
     CREATE VIRTUAL TABLE IF NOT EXISTS items_fts USING fts5(
       text,
       id UNINDEXED,

@@ -141,6 +141,9 @@ export function formatHumanReadable(result: SearchResult): string {
 
     if (item.mentions && item.mentions.length > 0) itemLines.push(`mentions: ${item.mentions.map(m => '@' + m).join(' ')}`);
     if (item.links && item.links.length > 0) itemLines.push(`links: ${item.links.join(' ')}`);
+    if (item.media && item.media.length > 0) {
+      itemLines.push(`media: ${item.media.map(m => `${m.type} ${m.width}x${m.height}${m.duration != null ? ` ${m.duration}ms` : ''}`).join(', ')}`);
+    }
     if (item.url) itemLines.push(item.url);
 
     if (itemLines.length === 0) continue;
