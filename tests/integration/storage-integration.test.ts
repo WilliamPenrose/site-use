@@ -30,14 +30,14 @@ describe('storage integration', () => {
     expect(ingestResult.inserted).toBe(1);
 
     const searchResult = await store.search({ query: 'AI agents' });
-    expect(searchResult.total).toBe(1);
+    expect(searchResult.items).toHaveLength(1);
     expect(searchResult.items[0].author).toBe('testbot');
 
     const authorResult = await store.search({ author: 'testbot' });
-    expect(authorResult.total).toBe(1);
+    expect(authorResult.items).toHaveLength(1);
 
-    const hashResult = await store.search({ siteFilters: { hashtag: 'ai' } });
-    expect(hashResult.total).toBe(1);
+    const hashResult = await store.search({ hashtag: 'ai' });
+    expect(hashResult.items).toHaveLength(1);
 
     const s = await store.stats();
     expect(s.totalItems).toBe(1);
@@ -81,7 +81,7 @@ describe('storage integration', () => {
       }]);
 
       const result = await reader.search({ author: 'tester' });
-      expect(result.total).toBe(1);
+      expect(result.items).toHaveLength(1);
 
       writer.close();
       reader.close();
