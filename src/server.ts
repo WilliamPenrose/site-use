@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { checkLogin, getTimeline } from './sites/twitter/workflows.js';
+import { checkLogin, getFeed } from './sites/twitter/workflows.js';
 import { twitterSite, twitterDetect } from './sites/twitter/site.js';
 import type { Primitives } from './primitives/types.js';
 import { ensureBrowser, isBrowserConnected } from './browser/browser.js';
@@ -232,7 +232,7 @@ export function createServer(): McpServer {
         try {
           primitives = await getPrimitives();
           const store = getOrCreateStore();
-          const result = await getTimeline(primitives, count, feed, debug, store);
+          const result = await getFeed(primitives, count, feed, debug, store);
           resetErrorStreak();
           return {
             content: [{ type: 'text' as const, text: JSON.stringify(result) }],

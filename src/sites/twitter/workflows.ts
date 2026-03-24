@@ -6,10 +6,10 @@ import {
   collectTweetsFromTimeline,
   parseGraphQLTimeline,
   parseTweet,
-  buildTimelineMeta,
+  buildFeedMeta,
   GRAPHQL_TIMELINE_PATTERN,
 } from './extractors.js';
-import type { RawTweetData, TimelineDebug, TimelineResult } from './types.js';
+import type { RawTweetData, FeedDebug, FeedResult } from './types.js';
 import { tweetsToIngestItems } from './store-adapter.js';
 import type { KnowledgeStore } from '../../storage/types.js';
 
@@ -82,13 +82,13 @@ export async function requireLogin(primitives: Primitives): Promise<void> {
  */
 export type TimelineFeed = 'following' | 'for_you';
 
-export async function getTimeline(
+export async function getFeed(
   primitives: Primitives,
   count: number = 20,
-  feed: TimelineFeed = 'following',
+  tab: TimelineFeed = 'following',
   debug: boolean = false,
   store?: KnowledgeStore,
-): Promise<TimelineResult> {
+): Promise<FeedResult> {
   const startTime = Date.now();
   let graphqlResponseCount = 0;
   let reloadFallback = false;
@@ -119,7 +119,7 @@ export async function getTimeline(
     }
 
     // Switch to the requested feed tab
-    const tabName = feed === 'following' ? 'Following' : 'For you';
+    const tabName = tab === 'following' ? 'Following' : 'For you';
     const { action: tabAction } = await ensure({ role: 'tab', name: tabName, selected: true });
     if (tabAction !== 'already_there') {
       // Tab was switched — discard data from the previous tab and wait for
@@ -145,12 +145,12 @@ export async function getTimeline(
       .filter((t) => !t.isAd)
       .slice(0, count);
 
-    const meta = buildTimelineMeta(tweets);
+    const meta = buildFeedMeta(tweets);
 
-    const result: TimelineResult = { tweets, meta };
+    const result: FeedResult = { tweets, meta };
     if (debug) {
       result.debug = {
-        feedRequested: feed,
+        tabRequested: tab,
         navAction: action,
         tabAction,
         reloadFallback,

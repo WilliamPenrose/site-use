@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   parseTweet,
-  buildTimelineMeta,
+  buildFeedMeta,
   parseGraphQLTimeline,
   processFullText,
 } from '../../src/sites/twitter/extractors.js';
@@ -108,7 +108,7 @@ describe('parseTweet', () => {
   });
 });
 
-describe('buildTimelineMeta', () => {
+describe('buildFeedMeta', () => {
   it('computes meta from tweet array', () => {
     const tweets = [
       parseTweet(RAW_TWEET),
@@ -121,7 +121,7 @@ describe('buildTimelineMeta', () => {
       }),
     ];
 
-    const meta = buildTimelineMeta(tweets);
+    const meta = buildFeedMeta(tweets);
     expect(meta.coveredUsers).toContain('karpathy');
     expect(meta.coveredUsers).toContain('steipete');
     expect(meta.timeRange.from).toBe('2026-03-18T20:00:00.000Z');
@@ -129,7 +129,7 @@ describe('buildTimelineMeta', () => {
   });
 
   it('handles empty tweet array', () => {
-    const meta = buildTimelineMeta([]);
+    const meta = buildFeedMeta([]);
     expect(meta.coveredUsers).toEqual([]);
     expect(meta.timeRange.from).toBe('');
     expect(meta.timeRange.to).toBe('');
@@ -140,7 +140,7 @@ describe('buildTimelineMeta', () => {
       parseTweet(RAW_TWEET),
       parseTweet({ ...RAW_TWEET, url: 'https://x.com/karpathy/status/222' }),
     ];
-    const meta = buildTimelineMeta(tweets);
+    const meta = buildFeedMeta(tweets);
     expect(meta.coveredUsers).toEqual(['karpathy']);
   });
 });

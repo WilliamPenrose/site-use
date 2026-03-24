@@ -1,5 +1,5 @@
 import type { Primitives } from '../../primitives/types.js';
-import type { Tweet, TweetMedia, RawTweetData, RawTweetMedia, TimelineMeta } from './types.js';
+import type { Tweet, TweetMedia, RawTweetData, RawTweetMedia, FeedMeta } from './types.js';
 
 const GRAPHQL_TIMELINE_PATTERN = /\/i\/api\/graphql\/.*\/Home.*Timeline/;
 const MAX_STALE_ROUNDS = 3;
@@ -154,8 +154,8 @@ export function parseTweet(raw: RawTweetData): Tweet {
   };
 }
 
-/** Build timeline coverage metadata from parsed tweets. Pure function. */
-export function buildTimelineMeta(tweets: Tweet[]): TimelineMeta {
+/** Build feed coverage metadata from parsed tweets. Pure function. */
+export function buildFeedMeta(tweets: Tweet[]): FeedMeta {
   if (tweets.length === 0) {
     return {
       coveredUsers: [],

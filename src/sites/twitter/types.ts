@@ -79,9 +79,9 @@ export const RawTweetDataSchema = z.object({
 
 export type RawTweetData = z.infer<typeof RawTweetDataSchema>;
 
-// --- TimelineMeta ---
+// --- FeedMeta ---
 
-export const TimelineMetaSchema = z.object({
+export const FeedMetaSchema = z.object({
   coveredUsers: z.array(z.string()),
   timeRange: z.object({
     from: z.string(),
@@ -89,12 +89,12 @@ export const TimelineMetaSchema = z.object({
   }),
 });
 
-export type TimelineMeta = z.infer<typeof TimelineMetaSchema>;
+export type FeedMeta = z.infer<typeof FeedMetaSchema>;
 
-// --- TimelineDebug ---
+// --- FeedDebug ---
 
-export interface TimelineDebug {
-  feedRequested: string;
+export interface FeedDebug {
+  tabRequested: string;
   navAction: string;
   tabAction: string;
   reloadFallback: boolean;
@@ -103,13 +103,13 @@ export interface TimelineDebug {
   elapsedMs: number;
 }
 
-// --- TimelineResult ---
+// --- FeedResult ---
 
-export const TimelineResultSchema = z.object({
+export const FeedResultSchema = z.object({
   tweets: z.array(TweetSchema),
-  meta: TimelineMetaSchema,
+  meta: FeedMetaSchema,
 });
 
-export type TimelineResult = z.infer<typeof TimelineResultSchema> & {
-  debug?: TimelineDebug;
+export type FeedResult = z.infer<typeof FeedResultSchema> & {
+  debug?: FeedDebug;
 };

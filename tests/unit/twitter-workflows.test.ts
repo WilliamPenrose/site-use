@@ -26,13 +26,13 @@ function buildSnapshot(nodes: SnapshotNode[]): Snapshot {
 
 let checkLogin: typeof import('../../src/sites/twitter/workflows.js').checkLogin;
 let requireLogin: typeof import('../../src/sites/twitter/workflows.js').requireLogin;
-let getTimeline: typeof import('../../src/sites/twitter/workflows.js').getTimeline;
+let getFeed: typeof import('../../src/sites/twitter/workflows.js').getFeed;
 
 beforeEach(async () => {
   const mod = await import('../../src/sites/twitter/workflows.js');
   checkLogin = mod.checkLogin;
   requireLogin = mod.requireLogin;
-  getTimeline = mod.getTimeline;
+  getFeed = mod.getFeed;
 });
 
 describe('checkLogin', () => {
@@ -106,7 +106,7 @@ describe('requireLogin', () => {
   });
 });
 
-describe('getTimeline', () => {
+describe('getFeed', () => {
   it('navigates to x.com/home directly (auth guard handles login check)', async () => {
     const GRAPHQL_BODY = JSON.stringify({
       data: {
@@ -138,7 +138,7 @@ describe('getTimeline', () => {
       ),
     });
 
-    const result = await getTimeline(primitives, 0);
+    const result = await getFeed(primitives, 0);
     expect(primitives.navigate).toHaveBeenCalledWith('https://x.com/home', 'twitter');
     expect(result.tweets).toBeDefined();
   });
@@ -228,7 +228,7 @@ describe('getTimeline', () => {
       }),
     });
 
-    const result = await getTimeline(primitives, 1);
+    const result = await getFeed(primitives, 1);
     expect(result.tweets).toHaveLength(1);
     expect(result.tweets[0].text).toBe('Test tweet');
     expect(result.tweets[0].author.handle).toBe('testuser');

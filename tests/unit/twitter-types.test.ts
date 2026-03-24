@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   TweetAuthorSchema,
   TweetSchema,
-  TimelineMetaSchema,
-  TimelineResultSchema,
+  FeedMetaSchema,
+  FeedResultSchema,
   RawTweetDataSchema,
 } from '../../src/sites/twitter/types.js';
 
@@ -74,9 +74,9 @@ describe('RawTweetDataSchema', () => {
   });
 });
 
-describe('TimelineMetaSchema', () => {
+describe('FeedMetaSchema', () => {
   it('accepts valid meta', () => {
-    const result = TimelineMetaSchema.safeParse({
+    const result = FeedMetaSchema.safeParse({
       coveredUsers: ['karpathy', 'steipete'],
       timeRange: {
         from: '2026-03-18T20:00:00.000Z',
@@ -87,9 +87,9 @@ describe('TimelineMetaSchema', () => {
   });
 });
 
-describe('TimelineResultSchema', () => {
+describe('FeedResultSchema', () => {
   it('accepts valid result with tweets and meta', () => {
-    const result = TimelineResultSchema.safeParse({
+    const result = FeedResultSchema.safeParse({
       tweets: [],
       meta: {
         coveredUsers: [],
