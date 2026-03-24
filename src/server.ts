@@ -240,6 +240,51 @@ export function createServer(): McpServer {
     },
   );
 
+  // -- search ---------------------------------------------------------------
+
+  server.registerTool(
+    'search',
+    {
+      description: 'Search the local knowledge base of collected social media posts',
+      inputSchema: {
+        query: z.string().optional()
+          .describe('Full-text search query'),
+        author: z.string().optional()
+          .describe('Filter by author handle (without @ prefix)'),
+        start_date: z.string().optional()
+          .describe('Return items after this date (ISO 8601, e.g. 2026-03-01T00:00:00Z)'),
+        end_date: z.string().optional()
+          .describe('Return items before this date (ISO 8601, e.g. 2026-03-24T00:00:00Z)'),
+        max_results: z.number().min(1).max(100).default(20)
+          .describe('Maximum number of results to return'),
+        hashtag: z.string().optional()
+          .describe('Filter by hashtag (without # prefix)'),
+        min_likes: z.number().optional()
+          .describe('Minimum likes threshold'),
+        min_retweets: z.number().optional()
+          .describe('Minimum retweets threshold'),
+        fields: z.array(z.enum(['author', 'text', 'url', 'timestamp', 'likes', 'retweets', 'replies', 'views'])).optional()
+          .describe('Fields to include in results. Defaults to all fields.'),
+      },
+    },
+    async ({ query, author, start_date, end_date, max_results, hashtag, min_likes, min_retweets, fields }) => {
+      try {
+        const store = getOrCreateStore();
+        const result = await store.search({
+          query, author, start_date, end_date, max_results, hashtag, min_likes, min_retweets, fields,
+        });
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+        };
+      } catch (err) {
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify({ error: String(err) }) }],
+          isError: true,
+        };
+      }
+    },
+  );
+
   return server;
 }
 

@@ -51,12 +51,33 @@ describe('MCP Server contract', () => {
     expect(serverInfo!.name).toBe('site-use');
   });
 
-  it('lists all three M1 tools', async () => {
+  it('lists all four tools', async () => {
     const { tools } = await client.listTools();
+    expect(tools).toHaveLength(4);
     const toolNames = tools.map((t) => t.name);
     expect(toolNames).toContain('twitter_check_login');
     expect(toolNames).toContain('twitter_feed');
     expect(toolNames).toContain('screenshot');
+    expect(toolNames).toContain('search');
+  });
+
+  it('search tool has correct schema', async () => {
+    const { tools } = await client.listTools();
+    const search = tools.find((t: { name: string }) => t.name === 'search');
+    expect(search).toBeDefined();
+    const props = search!.inputSchema.properties;
+    expect(props.query).toBeDefined();
+    expect(props.max_results).toBeDefined();
+    expect(props.start_date).toBeDefined();
+    expect(props.end_date).toBeDefined();
+    expect(props.author).toBeDefined();
+    expect(props.hashtag).toBeDefined();
+    expect(props.min_likes).toBeDefined();
+    expect(props.min_retweets).toBeDefined();
+    expect(props.fields).toBeDefined();
+    expect((props.fields as any).items.enum).toEqual(
+      expect.arrayContaining(['author', 'text', 'url', 'timestamp', 'likes', 'retweets', 'replies', 'views'])
+    );
   });
 
   it('screenshot tool returns image content', async () => {
