@@ -72,6 +72,32 @@ describe('search', () => {
     expect(result.items[0].author).toBe('bob');
   });
 
+  it('filters by mention', () => {
+    ingest(db, [makeItem({ id: '4', text: 'Hey @openai check this out', author: 'carol', timestamp: '2026-03-18T06:00:00Z', mentions: ['openai'], hashtags: [] })]);
+    const result = search(db, { mention: 'openai' });
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].author).toBe('carol');
+  });
+
+  it('normalizes mention input (strips @ and lowercases)', () => {
+    ingest(db, [makeItem({ id: '5', text: 'cc @Tesla', author: 'dave', timestamp: '2026-03-17T06:00:00Z', mentions: ['tesla'], hashtags: [] })]);
+    const result = search(db, { mention: '@Tesla' });
+    expect(result.items).toHaveLength(1);
+  });
+
+  it('returns mentions in results', () => {
+    ingest(db, [makeItem({ id: '6', text: 'Hey @openai @anthropic', author: 'eve', timestamp: '2026-03-16T06:00:00Z', mentions: ['openai', 'anthropic'], hashtags: [] })]);
+    const result = search(db, { author: 'eve' });
+    expect(result.items[0].mentions).toEqual(expect.arrayContaining(['openai', 'anthropic']));
+    expect(result.items[0].mentions).toHaveLength(2);
+  });
+
+  it('strips mentions when not in fields', () => {
+    ingest(db, [makeItem({ id: '7', text: '@foo hi', author: 'fay', timestamp: '2026-03-15T06:00:00Z', mentions: ['foo'], hashtags: [] })]);
+    const result = search(db, { fields: ['author'], author: 'fay' });
+    expect(result.items[0].mentions).toBeUndefined();
+  });
+
   it('filters by link substring', () => {
     const result = search(db, { link: 'arxiv.org' });
     expect(result.items).toHaveLength(1);

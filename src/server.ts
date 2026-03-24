@@ -260,6 +260,8 @@ export function createServer(): McpServer {
           .describe('Maximum number of results to return'),
         hashtag: z.string().optional()
           .describe('Filter by hashtag (without # prefix)'),
+        mention: z.string().optional()
+          .describe('Filter by mentioned handle (without @ prefix)'),
         link: z.string().optional()
           .describe('Filter by URL substring in expanded links (e.g. "github.com")'),
         min_likes: z.number().optional()
@@ -270,11 +272,11 @@ export function createServer(): McpServer {
           .describe('Fields to include in results. Defaults to all fields.'),
       },
     },
-    async ({ query, author, start_date, end_date, max_results, hashtag, link, min_likes, min_retweets, fields }) => {
+    async ({ query, author, start_date, end_date, max_results, hashtag, mention, link, min_likes, min_retweets, fields }) => {
       try {
         const store = getOrCreateStore();
         const result = await store.search({
-          query, author, start_date, end_date, max_results, hashtag, link, min_likes, min_retweets, fields,
+          query, author, start_date, end_date, max_results, hashtag, mention, link, min_likes, min_retweets, fields,
         });
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result) }],

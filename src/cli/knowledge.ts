@@ -28,7 +28,7 @@ export function parseSearchArgs(args: string[]): SearchParams & { json?: boolean
   const params: SearchParams & { json?: boolean } = {};
   let i = 0;
 
-  const needsValue = new Set(['--author', '--start-date', '--end-date', '--max-results', '--hashtag', '--link', '--min-likes', '--min-retweets', '--fields']);
+  const needsValue = new Set(['--author', '--start-date', '--end-date', '--max-results', '--hashtag', '--mention', '--link', '--min-likes', '--min-retweets', '--fields']);
 
   while (i < args.length) {
     const arg = args[i];
@@ -39,6 +39,7 @@ export function parseSearchArgs(args: string[]): SearchParams & { json?: boolean
         '--end-date': '--end-date 2026-03-24',
         '--max-results': '--max-results 10',
         '--hashtag': '--hashtag AI',
+        '--mention': '--mention openai',
         '--link': '--link github.com',
         '--min-likes': '--min-likes 100',
         '--min-retweets': '--min-retweets 50',
@@ -63,6 +64,9 @@ export function parseSearchArgs(args: string[]): SearchParams & { json?: boolean
         break;
       case '--hashtag':
         params.hashtag = args[++i];
+        break;
+      case '--mention':
+        params.mention = args[++i]?.replace(/^@/, '');
         break;
       case '--link':
         params.link = args[++i];
@@ -125,6 +129,8 @@ export function formatHumanReadable(result: SearchResult): string {
       if (parts.length > 0) lines.push(parts.join('  '));
     }
 
+    if (item.mentions && item.mentions.length > 0) lines.push(`mentions: ${item.mentions.map(m => '@' + m).join(' ')}`);
+    if (item.links && item.links.length > 0) lines.push(`links: ${item.links.join(' ')}`);
     if (item.url) lines.push(item.url);
 
     if (i < result.items.length - 1) {
@@ -189,6 +195,7 @@ Options:
   --end-date <date>      End date (local time, flexible format)
   --max-results <n>      Max results (default: 20)
   --hashtag <tag>        Filter by hashtag
+  --mention <handle>     Filter by mentioned handle (@ prefix optional)
   --link <substr>        Filter by URL substring in expanded links
   --min-likes <n>        Minimum likes
   --min-retweets <n>     Minimum retweets

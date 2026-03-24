@@ -28,13 +28,14 @@ export interface SearchParams {
   end_date?: string;
   max_results?: number;
   hashtag?: string;
+  mention?: string;
   link?: string;
   min_likes?: number;
   min_retweets?: number;
   fields?: SearchField[];
 }
 
-export const SEARCH_FIELDS = ['author', 'text', 'url', 'timestamp', 'likes', 'retweets', 'replies', 'views', 'links'] as const;
+export const SEARCH_FIELDS = ['author', 'text', 'url', 'timestamp', 'likes', 'retweets', 'replies', 'views', 'links', 'mentions'] as const;
 export type SearchField = (typeof SEARCH_FIELDS)[number];
 
 export interface SearchResultItem {
@@ -45,6 +46,7 @@ export interface SearchResultItem {
   timestamp?: string;
   url?: string;
   links?: string[];
+  mentions?: string[];
   snippet?: string;
   siteMeta?: Record<string, unknown>;
 }

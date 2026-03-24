@@ -44,6 +44,11 @@ export function search(db: DatabaseSync, params: SearchParams): SearchResult {
     conditions.push('h.tag = ?');
     values.push(params.hashtag.toLowerCase().replace(/^#/, ''));
   }
+  if (params.mention) {
+    joins.push('JOIN item_mentions mn ON mn.site = i.site AND mn.item_id = i.id');
+    conditions.push('mn.handle = ?');
+    values.push(params.mention.toLowerCase().replace(/^@/, ''));
+  }
   if (params.link) {
     joins.push('JOIN item_links lk ON lk.site = i.site AND lk.item_id = i.id');
     conditions.push('lk.url LIKE ?');
@@ -101,17 +106,17 @@ export function search(db: DatabaseSync, params: SearchParams): SearchResult {
     return item;
   });
 
-  // Batch-fetch links for returned items
+  // Batch-fetch links and mentions for returned items
   if (items.length > 0) {
     const orClauses = items.map(() => '(site = ? AND item_id = ?)').join(' OR ');
-    const linkValues: SqlValue[] = [];
+    const bindValues: SqlValue[] = [];
     for (const item of items) {
-      linkValues.push(item.site, item.id);
+      bindValues.push(item.site, item.id);
     }
+
     const linkRows = db.prepare(
       `SELECT site, item_id, url FROM item_links WHERE ${orClauses}`,
-    ).all(...linkValues) as Array<{ site: string; item_id: string; url: string }>;
-
+    ).all(...bindValues) as Array<{ site: string; item_id: string; url: string }>;
     const linkMap = new Map<string, string[]>();
     for (const row of linkRows) {
       const key = `${row.site}:${row.item_id}`;
@@ -119,9 +124,24 @@ export function search(db: DatabaseSync, params: SearchParams): SearchResult {
       if (arr) arr.push(row.url);
       else linkMap.set(key, [row.url]);
     }
+
+    const mentionRows = db.prepare(
+      `SELECT site, item_id, handle FROM item_mentions WHERE ${orClauses}`,
+    ).all(...bindValues) as Array<{ site: string; item_id: string; handle: string }>;
+    const mentionMap = new Map<string, string[]>();
+    for (const row of mentionRows) {
+      const key = `${row.site}:${row.item_id}`;
+      const arr = mentionMap.get(key);
+      if (arr) arr.push(row.handle);
+      else mentionMap.set(key, [row.handle]);
+    }
+
     for (const item of items) {
-      const links = linkMap.get(`${item.site}:${item.id}`);
+      const key = `${item.site}:${item.id}`;
+      const links = linkMap.get(key);
       if (links) item.links = links;
+      const mentions = mentionMap.get(key);
+      if (mentions) item.mentions = mentions;
     }
   }
 
@@ -136,6 +156,7 @@ export function search(db: DatabaseSync, params: SearchParams): SearchResult {
       if (!f.has('url')) delete item.url;
       if (!f.has('timestamp')) delete item.timestamp;
       if (!f.has('links')) delete item.links;
+      if (!f.has('mentions')) delete item.mentions;
       if (item.siteMeta) {
         // Only keep explicitly requested engagement fields; always strip bookmarks/quotes
         // (not in the fields enum — add to enum if needed later).

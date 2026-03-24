@@ -29,6 +29,11 @@ describe('parseSearchArgs', () => {
     expect(params.hashtag).toBe('AI');
   });
 
+  it('parses --mention as top-level param (strips @)', () => {
+    const params = parseSearchArgs(['--mention', '@openai']);
+    expect(params.mention).toBe('openai');
+  });
+
   it('parses --link as top-level param', () => {
     const params = parseSearchArgs(['--link', 'github.com']);
     expect(params.link).toBe('github.com');
