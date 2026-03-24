@@ -54,7 +54,7 @@ describe('MCP Server contract', () => {
     const { tools } = await client.listTools();
     const toolNames = tools.map((t) => t.name);
     expect(toolNames).toContain('twitter_check_login');
-    expect(toolNames).toContain('twitter_timeline');
+    expect(toolNames).toContain('twitter_feed');
     expect(toolNames).toContain('screenshot');
   });
 

@@ -214,12 +214,12 @@ export function createServer(): McpServer {
     },
   );
 
-  // -- twitter_timeline -----------------------------------------------------
+  // -- twitter_feed ----------------------------------------------------------
 
   server.registerTool(
-    'twitter_timeline',
+    'twitter_feed',
     {
-      description: 'Collect tweets from the Twitter/X home timeline',
+      description: 'Collect tweets from the Twitter/X home feed',
       inputSchema: {
         count: z.number().min(1).max(100).default(20)
           .describe('Number of tweets to collect'),
