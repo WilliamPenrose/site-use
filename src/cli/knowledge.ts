@@ -142,7 +142,11 @@ export function formatHumanReadable(result: SearchResult): string {
     if (item.mentions && item.mentions.length > 0) itemLines.push(`mentions: ${item.mentions.map(m => '@' + m).join(' ')}`);
     if (item.links && item.links.length > 0) itemLines.push(`links: ${item.links.join(' ')}`);
     if (item.media && item.media.length > 0) {
-      itemLines.push(`media: ${item.media.map(m => `${m.type} ${m.width}x${m.height}${m.duration != null ? ` ${m.duration}ms` : ''}`).join(', ')}`);
+      for (const m of item.media) {
+        const dim = m.width && m.height ? ` ${m.width}x${m.height}` : '';
+        const dur = m.duration != null ? ` ${m.duration}ms` : '';
+        itemLines.push(`media: ${m.type}${dim}${dur} ${m.url}`);
+      }
     }
     if (item.url) itemLines.push(item.url);
 
