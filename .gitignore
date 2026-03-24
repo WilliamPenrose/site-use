@@ -19,6 +19,9 @@ chrome-profile/
 # Superpowers intermediate process docs
 docs/superpowers/
 
+# Temporary debug/scratch files
+tmp/
+
 # Git worktrees
 .worktrees/
 .gitnexus
