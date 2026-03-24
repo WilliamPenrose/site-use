@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env node --no-warnings=ExperimentalWarning
 import { main as startServer } from './server.js';
 import { launchAndDetach, readChromeJson, closeBrowser, recoverOrphanChrome } from './browser/browser.js';
 import { getConfig } from './config.js';
@@ -164,7 +164,12 @@ async function run(): Promise<void> {
   }
 }
 
-run().catch((err) => {
+run().then(() => {
+  // CLI commands that connect to Chrome (via puppeteer.connect) may leave
+  // WebSocket handles that keep the event loop alive.  Explicit exit is the
+  // standard pattern for CLI tools that spawn or connect to external processes.
+  process.exit(process.exitCode ?? 0);
+}).catch((err) => {
   console.error('site-use failed:', err);
   process.exit(1);
 });

@@ -75,7 +75,17 @@ export const twitterSiteConfig: SiteConfig = {
     if (currentUrl.includes('/login') || currentUrl.includes('/i/flow/login')) {
       return false;
     }
-    const snapshot = await inner.takeSnapshot('twitter');
-    return !!matchByRule(snapshot, homeNavLink);
+    // Twitter SPA: 'load' event fires before React mounts the nav tree.
+    // Poll for the Home link up to 10 seconds before concluding not logged in.
+    const deadline = Date.now() + 10_000;
+    while (Date.now() < deadline) {
+      const snapshot = await inner.takeSnapshot('twitter');
+      if (matchByRule(snapshot, homeNavLink)) return true;
+      // Re-check URL — Twitter may redirect to login after initial load
+      const url = await inner.evaluate<string>('window.location.href', 'twitter');
+      if (url.includes('/login') || url.includes('/i/flow/login')) return false;
+      await new Promise(r => setTimeout(r, 500));
+    }
+    return false;
   },
 };
