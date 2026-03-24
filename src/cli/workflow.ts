@@ -169,8 +169,7 @@ async function runTwitterFeed(args: string[]): Promise<void> {
       }
 
       // Open store for auto-ingest
-      const config2 = getConfig();
-      const dbPath = path.join(config2.dataDir, 'data', 'knowledge.db');
+      const dbPath = path.join(config.dataDir, 'data', 'knowledge.db');
       fs.mkdirSync(path.dirname(dbPath), { recursive: true });
       const store = createStore(dbPath);
 
