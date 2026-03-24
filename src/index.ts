@@ -43,6 +43,13 @@ Extra Chrome flags can be passed directly:
 `;
 
 async function browserLaunch(): Promise<void> {
+  const config = getConfig();
+  const existing = readChromeJson(config.chromeJsonPath);
+  if (existing) {
+    console.log(`Chrome already running (pid ${existing.pid})`);
+    return;
+  }
+
   const launchArgs = process.argv.slice(2);
 
   // Collect extra --flags not recognized by site-use → pass to Chrome
@@ -55,7 +62,6 @@ async function browserLaunch(): Promise<void> {
 
   console.log('Launching Chrome...');
   const info = await launchAndDetach(extraChromeArgs.length > 0 ? extraChromeArgs : undefined);
-  const config = getConfig();
   console.log(`Chrome running (PID: ${info.pid})`);
   console.log(`Profile: ${config.chromeProfileDir}`);
   console.log('Chrome is detached and will stay alive after this process exits.');

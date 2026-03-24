@@ -11,6 +11,9 @@ import { matchByRule, rules } from '../sites/twitter/matchers.js';
 import { getFeed, type TimelineFeed } from '../sites/twitter/workflows.js';
 import { getConfig } from '../config.js';
 import { withLock } from '../lock.js';
+import { createStore, type KnowledgeStore } from '../storage/index.js';
+import path from 'node:path';
+import fs from 'node:fs';
 
 // ---------------------------------------------------------------------------
 // Arg parsing
@@ -165,7 +168,18 @@ async function runTwitterFeed(args: string[]): Promise<void> {
         }
       }
 
-      const result = await getFeed(primitives, parsed.count, parsed.tab, parsed.debug);
+      // Open store for auto-ingest
+      const config2 = getConfig();
+      const dbPath = path.join(config2.dataDir, 'data', 'knowledge.db');
+      fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+      const store = createStore(dbPath);
+
+      let result: FeedResult;
+      try {
+        result = await getFeed(primitives, parsed.count, parsed.tab, parsed.debug, store);
+      } finally {
+        store.close();
+      }
 
       // Disconnect (Chrome stays alive)
       browser.disconnect();
