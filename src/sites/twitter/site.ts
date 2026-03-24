@@ -1,5 +1,8 @@
 /** Twitter site definition — single source of truth for site identity. */
 import type { DetectFn } from '../../primitives/rate-limit-detect.js';
+import type { SiteConfig } from '../../primitives/factory.js';
+import { matchByRule } from '../../ops/matchers.js';
+import type { MatcherRule } from '../../ops/matchers.js';
 
 export const twitterSite = {
   name: 'twitter',
@@ -59,4 +62,20 @@ export const twitterDetect: DetectFn = (response) => {
   }
 
   return null;
+};
+
+const homeNavLink: MatcherRule = { role: 'link', name: /^Home$/i };
+
+export const twitterSiteConfig: SiteConfig = {
+  name: twitterSite.name,
+  domains: [...twitterSite.domains],
+  detect: twitterDetect,
+  authCheck: async (inner) => {
+    const currentUrl = await inner.evaluate<string>('window.location.href', 'twitter');
+    if (currentUrl.includes('/login') || currentUrl.includes('/i/flow/login')) {
+      return false;
+    }
+    const snapshot = await inner.takeSnapshot('twitter');
+    return !!matchByRule(snapshot, homeNavLink);
+  },
 };

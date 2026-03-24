@@ -2,12 +2,8 @@ import type { Browser } from 'puppeteer-core';
 import type { Primitives } from '../primitives/types.js';
 import type { FeedResult } from '../sites/twitter/types.js';
 import { ensureBrowser } from '../browser/browser.js';
-import { PuppeteerBackend } from '../primitives/puppeteer-backend.js';
-import { RateLimitDetector } from '../primitives/rate-limit-detect.js';
-import { createThrottledPrimitives } from '../primitives/throttle.js';
-import { createAuthGuardedPrimitives } from '../primitives/auth-guard.js';
-import { twitterSite, twitterDetect } from '../sites/twitter/site.js';
-import { matchByRule, rules } from '../sites/twitter/matchers.js';
+import { buildPrimitivesStack } from '../primitives/factory.js';
+import { twitterSiteConfig } from '../sites/twitter/site.js';
 import { getFeed, type TimelineFeed } from '../sites/twitter/workflows.js';
 import { getConfig } from '../config.js';
 import { withLock } from '../lock.js';
@@ -33,12 +29,22 @@ export function parseFeedArgs(args: string[]): FeedArgs {
   while (i < args.length) {
     const arg = args[i];
     switch (arg) {
-      case '--count':
-        result.count = parseInt(args[++i], 10);
+      case '--count': {
+        const n = parseInt(args[++i], 10);
+        if (isNaN(n) || n < 1 || n > 100) {
+          throw new Error(`Invalid --count: expected 1-100, got "${args[i]}"`);
+        }
+        result.count = n;
         break;
-      case '--tab':
-        result.tab = args[++i] as TimelineFeed;
+      }
+      case '--tab': {
+        const val = args[++i];
+        if (val !== 'following' && val !== 'for_you') {
+          throw new Error(`Invalid --tab: expected "following" or "for_you", got "${val}"`);
+        }
+        result.tab = val;
         break;
+      }
       case '--debug':
         result.debug = true;
         break;
@@ -57,26 +63,7 @@ export function parseFeedArgs(args: string[]): FeedArgs {
 // ---------------------------------------------------------------------------
 
 export function buildPrimitives(browser: Browser): Primitives {
-  const detector = new RateLimitDetector({ twitter: twitterDetect });
-  const raw = new PuppeteerBackend(browser, {
-    [twitterSite.name]: [...twitterSite.domains],
-  }, detector);
-  const throttled = createThrottledPrimitives(raw);
-
-  const guarded = createAuthGuardedPrimitives(throttled, [{
-    site: twitterSite.name,
-    domains: [...twitterSite.domains],
-    check: async (inner) => {
-      const currentUrl = await inner.evaluate<string>('window.location.href', 'twitter');
-      if (currentUrl.includes('/login') || currentUrl.includes('/i/flow/login')) {
-        return false;
-      }
-      const snapshot = await inner.takeSnapshot('twitter');
-      return !!matchByRule(snapshot, rules.homeNavLink);
-    },
-  }]);
-
-  return guarded;
+  return buildPrimitivesStack(browser, [twitterSiteConfig]).guarded;
 }
 
 // ---------------------------------------------------------------------------
@@ -156,19 +143,8 @@ async function runTwitterFeed(args: string[]): Promise<void> {
       const browser = await ensureBrowser();
       const primitives = buildPrimitives(browser);
 
-      const config = getConfig();
-      if (config.proxy?.username) {
-        const pages = await browser.pages();
-        const page = pages[0];
-        if (page) {
-          await page.authenticate({
-            username: config.proxy.username,
-            password: config.proxy.password ?? '',
-          });
-        }
-      }
-
       // Open store for auto-ingest
+      const config = getConfig();
       const dbPath = path.join(config.dataDir, 'data', 'knowledge.db');
       fs.mkdirSync(path.dirname(dbPath), { recursive: true });
       const store = createStore(dbPath);

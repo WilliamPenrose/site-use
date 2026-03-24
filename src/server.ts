@@ -2,14 +2,10 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { checkLogin, getFeed } from './sites/twitter/workflows.js';
-import { twitterSite, twitterDetect } from './sites/twitter/site.js';
+import { twitterSiteConfig } from './sites/twitter/site.js';
 import type { Primitives } from './primitives/types.js';
 import { ensureBrowser, isBrowserConnected } from './browser/browser.js';
-import { PuppeteerBackend } from './primitives/puppeteer-backend.js';
-import { RateLimitDetector } from './primitives/rate-limit-detect.js';
-import { createThrottledPrimitives } from './primitives/throttle.js';
-import { createAuthGuardedPrimitives } from './primitives/auth-guard.js';
-import { matchByRule, rules } from './sites/twitter/matchers.js';
+import { buildPrimitivesStack, type PrimitivesStack } from './primitives/factory.js';
 import { getConfig } from './config.js';
 import { Mutex } from './mutex.js';
 import { withLock } from './lock.js';
@@ -22,52 +18,19 @@ import { createStore, type KnowledgeStore } from './storage/index.js';
 // Primitives singleton + lazy Chrome + disconnect recovery
 // ---------------------------------------------------------------------------
 
-let primitivesInstance: Primitives | null = null;
-let throttledInstance: Primitives | null = null;
+let stack: PrimitivesStack | null = null;
 
-async function getPrimitives(): Promise<Primitives> {
-  if (primitivesInstance && isBrowserConnected()) {
-    return primitivesInstance;
+async function getPrimitives(): Promise<PrimitivesStack> {
+  if (stack && isBrowserConnected()) {
+    return stack;
   }
 
   // Disconnected or first call — (re)create everything
-  primitivesInstance = null;
-  throttledInstance = null;
+  stack = null;
 
   const browser = await ensureBrowser({ autoLaunch: true });
-  const detector = new RateLimitDetector({ twitter: twitterDetect });
-  const raw = new PuppeteerBackend(browser, {
-    [twitterSite.name]: [...twitterSite.domains],
-  }, detector);
-  const throttled = createThrottledPrimitives(raw);
-
-  // Proxy auth (page-level) — must happen after backend creation
-  const config = getConfig();
-  if (config.proxy?.username) {
-    const page = await raw.getRawPage();
-    await page.authenticate({
-      username: config.proxy.username,
-      password: config.proxy.password ?? '',
-    });
-  }
-
-  const guarded = createAuthGuardedPrimitives(throttled, [{
-    site: twitterSite.name,
-    domains: [...twitterSite.domains],
-    check: async (inner) => {
-      // Replicate both checks from checkLogin: URL redirect + ARIA snapshot
-      const currentUrl = await inner.evaluate<string>('window.location.href', 'twitter');
-      if (currentUrl.includes('/login') || currentUrl.includes('/i/flow/login')) {
-        return false;
-      }
-      const snapshot = await inner.takeSnapshot('twitter');
-      return !!matchByRule(snapshot, rules.homeNavLink);
-    },
-  }]);
-
-  throttledInstance = throttled;
-  primitivesInstance = guarded;
-  return guarded;
+  stack = buildPrimitivesStack(browser, [twitterSiteConfig]);
+  return stack;
 }
 
 // ---------------------------------------------------------------------------
@@ -114,7 +77,7 @@ interface ToolResult {
 export async function formatToolError(err: unknown, primitives?: Primitives): Promise<ToolResult> {
   if (err instanceof BrowserDisconnected) {
     // Force reconnect on next tool call
-    primitivesInstance = null;
+    stack = null;
     // Don't count browser crashes toward the circuit breaker
   } else if (err instanceof RateLimited) {
     // Already rate limited — don't count to avoid re-triggering
@@ -200,14 +163,14 @@ export function createServer(): McpServer {
       return withLock(async () => {
         return mutex.run(async () => {
           try {
-            await getPrimitives(); // ensures both instances are initialized
-            const result = await checkLogin(throttledInstance!);
+            const s = await getPrimitives();
+            const result = await checkLogin(s.throttled);
             resetErrorStreak();
             return {
               content: [{ type: 'text' as const, text: JSON.stringify(result) }],
             };
           } catch (err) {
-            return await formatToolError(err, primitivesInstance ?? undefined);
+            return await formatToolError(err, stack?.guarded);
           }
         });
       });
@@ -232,17 +195,16 @@ export function createServer(): McpServer {
     async ({ count, tab, debug }) => {
       return withLock(async () => {
         return mutex.run(async () => {
-          let primitives: Primitives | undefined;
           try {
-            primitives = await getPrimitives();
+            const s = await getPrimitives();
             const store = getOrCreateStore();
-            const result = await getFeed(primitives, count, tab, debug, store);
+            const result = await getFeed(s.guarded, count, tab, debug, store);
             resetErrorStreak();
             return {
               content: [{ type: 'text' as const, text: JSON.stringify(result) }],
             };
           } catch (err) {
-            return await formatToolError(err, primitives);
+            return await formatToolError(err, stack?.guarded);
           }
         });
       });
@@ -263,16 +225,15 @@ export function createServer(): McpServer {
     async ({ site }) => {
       return withLock(async () => {
         return mutex.run(async () => {
-          let primitives: Primitives | undefined;
           try {
-            primitives = await getPrimitives();
-            const data = await primitives.screenshot(site);
+            const s = await getPrimitives();
+            const data = await s.guarded.screenshot(site);
             resetErrorStreak();
             return {
               content: [{ type: 'image' as const, data, mimeType: 'image/png' }],
             };
           } catch (err) {
-            return await formatToolError(err, primitives);
+            return await formatToolError(err, stack?.guarded);
           }
         });
       });
@@ -286,9 +247,8 @@ export function createServer(): McpServer {
 // Test seam — allows injecting a mock primitives for contract tests
 // ---------------------------------------------------------------------------
 
-export function _setPrimitivesForTest(p: Primitives | null): void {
-  primitivesInstance = p;
-  throttledInstance = p;
+export function _setPrimitivesForTest(s: PrimitivesStack | null): void {
+  stack = s;
 }
 
 // ---------------------------------------------------------------------------

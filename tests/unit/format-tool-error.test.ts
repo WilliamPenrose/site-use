@@ -55,7 +55,7 @@ describe('formatToolError', () => {
   });
 
   it('clears primitives singleton on BrowserDisconnected', async () => {
-    _setPrimitivesForTest({} as any);
+    _setPrimitivesForTest({ guarded: {} as any, throttled: {} as any });
 
     const err = new BrowserDisconnected('Chrome crashed');
     const result = await formatToolError(err);

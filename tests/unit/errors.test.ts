@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   SiteUseError,
   BrowserDisconnected,
+  BrowserNotRunning,
   SessionExpired,
   ElementNotFound,
   RateLimited,
@@ -106,5 +107,15 @@ describe('existing errors get retryable and hint defaults', () => {
     });
     expect(err.context.retryable).toBe(true);
     expect(err.context.hint).toBe('Custom hint');
+  });
+});
+
+describe('BrowserNotRunning', () => {
+  it('has correct name and type', () => {
+    const err = new BrowserNotRunning('Chrome not running');
+    expect(err.name).toBe('BrowserNotRunning');
+    expect(err.type).toBe('BrowserNotRunning');
+    expect(err.context.retryable).toBe(false);
+    expect(err).toBeInstanceOf(SiteUseError);
   });
 });

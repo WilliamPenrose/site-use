@@ -85,6 +85,31 @@ describe('ThrottledPrimitives', () => {
     expect(inner.getRawPage).toHaveBeenCalledWith('twitter');
   });
 
+  it('does NOT throttle evaluate (exempt)', async () => {
+    const inner = createMockPrimitives();
+    const throttled = createThrottledPrimitives(inner, { minDelay: 200, maxDelay: 200 });
+
+    const start = Date.now();
+    await throttled.evaluate('1+1', 'twitter');
+    const elapsed = Date.now() - start;
+
+    expect(elapsed).toBeLessThan(100);
+    expect(inner.evaluate).toHaveBeenCalledWith('1+1', 'twitter');
+  });
+
+  it('does NOT throttle interceptRequest (exempt)', async () => {
+    const inner = createMockPrimitives();
+    const throttled = createThrottledPrimitives(inner, { minDelay: 200, maxDelay: 200 });
+    const handler: InterceptHandler = () => {};
+
+    const start = Date.now();
+    await throttled.interceptRequest('/api/*', handler, 'twitter');
+    const elapsed = Date.now() - start;
+
+    expect(elapsed).toBeLessThan(100);
+    expect(inner.interceptRequest).toHaveBeenCalledWith('/api/*', handler, 'twitter');
+  });
+
   it('uses default config when none provided', async () => {
     const inner = createMockPrimitives();
     // Should not throw — defaults to { minDelay: 1000, maxDelay: 3000 }

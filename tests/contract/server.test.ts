@@ -29,7 +29,8 @@ describe('MCP Server contract', () => {
   let server: ReturnType<typeof createServer>;
 
   beforeEach(async () => {
-    _setPrimitivesForTest(createMockPrimitives());
+    const mock = createMockPrimitives();
+    _setPrimitivesForTest({ guarded: mock, throttled: mock });
     server = createServer();
     const [clientTransport, serverTransport] =
       InMemoryTransport.createLinkedPair();

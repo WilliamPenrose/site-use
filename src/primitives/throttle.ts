@@ -51,9 +51,9 @@ export function createThrottledPrimitives(
     // Throttled but NOT counted
     takeSnapshot: (site?) => inner.takeSnapshot(site),
     evaluate: <T = unknown>(expression: string, site?: string) =>
-      throttled(() => inner.evaluate<T>(expression, site)),
+      inner.evaluate<T>(expression, site),
     interceptRequest: (pattern, handler, site?) =>
-      throttled(() => inner.interceptRequest(pattern, handler, site)),
+      inner.interceptRequest(pattern, handler, site),
 
     // Fully exempt
     screenshot: (site?) => inner.screenshot(site),

@@ -92,5 +92,6 @@ export class BrowserNotRunning extends SiteUseError {
       hint: "Run 'npx site-use browser launch' to start Chrome first.",
       ...context,
     });
+    this.name = 'BrowserNotRunning';
   }
 }
