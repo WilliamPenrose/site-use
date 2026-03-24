@@ -84,7 +84,7 @@ export function search(db: DatabaseSync, params: SearchParams): SearchResult {
 
   const rows = db.prepare(selectSql).all(...values, limit) as Array<Record<string, unknown>>;
 
-  const items: SearchResultItem[] = rows.map((row) => {
+  let items: SearchResultItem[] = rows.map((row) => {
     const item: SearchResultItem = {
       id: row.id as string,
       site: row.site as string,
@@ -174,6 +174,8 @@ export function search(db: DatabaseSync, params: SearchParams): SearchResult {
       if (!f.has('mentions')) delete item.mentions;
       if (!f.has('media')) delete item.media;
     }
+    // Drop items that have nothing beyond identity fields (id + site)
+    items = items.filter(item => Object.keys(item).length > 2);
   }
 
   return { items };
