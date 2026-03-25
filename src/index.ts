@@ -106,7 +106,7 @@ async function browserClose(): Promise<void> {
   }
 }
 
-async function run(): Promise<void> {
+async function run(): Promise<boolean> {
   const args = process.argv.slice(2);
   const command = args[0];
 
@@ -117,10 +117,10 @@ async function run(): Promise<void> {
 
 The server communicates via stdin/stdout using the MCP protocol.
 `);
-        break;
+        return true;
       }
       await startServer();
-      break;
+      return false; // MCP server stays alive — don't process.exit()
 
     case undefined:
       console.log(HELP);
@@ -196,13 +196,15 @@ Options:
       console.log(HELP);
       process.exit(1);
   }
+  return true;
 }
 
-run().then(() => {
+run().then((shouldExit) => {
   // CLI commands that connect to Chrome (via puppeteer.connect) may leave
   // WebSocket handles that keep the event loop alive.  Explicit exit is the
   // standard pattern for CLI tools that spawn or connect to external processes.
-  process.exit(process.exitCode ?? 0);
+  // MCP server returns false — it must stay alive to serve requests via stdio.
+  if (shouldExit) process.exit(process.exitCode ?? 0);
 }).catch((err) => {
   console.error('site-use failed:', err);
   process.exit(1);
