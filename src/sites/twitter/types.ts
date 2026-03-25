@@ -23,6 +23,15 @@ export const TweetMediaSchema = z.object({
 
 export type TweetMedia = z.infer<typeof TweetMediaSchema>;
 
+// --- Shared enums ---
+
+export const SurfaceReasonSchema = z.enum(['original', 'retweet', 'quote', 'reply']);
+
+export const InReplyToSchema = z.object({
+  handle: z.string(),
+  tweetId: z.string(),
+});
+
 // --- Tweet ---
 
 export const TweetMetricsSchema = z.object({
@@ -34,7 +43,24 @@ export const TweetMetricsSchema = z.object({
   quotes: z.number().optional(),
 });
 
-export const TweetSchema = z.object({
+export interface Tweet {
+  id: string;
+  author: TweetAuthor;
+  text: string;
+  timestamp: string;
+  url: string;
+  metrics: z.infer<typeof TweetMetricsSchema>;
+  media: TweetMedia[];
+  links: string[];
+  isRetweet: boolean;
+  isAd: boolean;
+  surfaceReason: 'original' | 'retweet' | 'quote' | 'reply';
+  surfacedBy?: string;
+  quotedTweet?: Tweet;
+  inReplyTo?: { handle: string; tweetId: string };
+}
+
+export const TweetSchema: z.ZodType<Tweet> = z.object({
   id: z.string(),
   author: TweetAuthorSchema,
   text: z.string(),
@@ -45,9 +71,11 @@ export const TweetSchema = z.object({
   links: z.array(z.string()),
   isRetweet: z.boolean(),
   isAd: z.boolean(),
+  surfaceReason: SurfaceReasonSchema,
+  surfacedBy: z.string().optional(),
+  quotedTweet: z.lazy((): z.ZodType<Tweet> => TweetSchema).optional(),
+  inReplyTo: InReplyToSchema.optional(),
 });
-
-export type Tweet = z.infer<typeof TweetSchema>;
 
 // --- RawTweetData (browser-side extraction output) ---
 
@@ -62,7 +90,30 @@ export const RawTweetMediaSchema = z.object({
 
 export type RawTweetMedia = z.infer<typeof RawTweetMediaSchema>;
 
-export const RawTweetDataSchema = z.object({
+export interface RawTweetData {
+  authorHandle: string;
+  authorName: string;
+  following: boolean;
+  text: string;
+  timestamp: string;
+  url: string;
+  likes: number;
+  retweets: number;
+  replies: number;
+  views?: number;
+  bookmarks?: number;
+  quotes?: number;
+  media: RawTweetMedia[];
+  links: string[];
+  isRetweet: boolean;
+  isAd: boolean;
+  surfaceReason: 'original' | 'retweet' | 'quote' | 'reply';
+  surfacedBy?: string;
+  quotedTweet?: RawTweetData;
+  inReplyTo?: { handle: string; tweetId: string };
+}
+
+export const RawTweetDataSchema: z.ZodType<RawTweetData> = z.object({
   authorHandle: z.string(),
   authorName: z.string(),
   following: z.boolean(),
@@ -79,9 +130,11 @@ export const RawTweetDataSchema = z.object({
   links: z.array(z.string()),
   isRetweet: z.boolean(),
   isAd: z.boolean(),
+  surfaceReason: SurfaceReasonSchema,
+  surfacedBy: z.string().optional(),
+  quotedTweet: z.lazy((): z.ZodType<RawTweetData> => RawTweetDataSchema).optional(),
+  inReplyTo: InReplyToSchema.optional(),
 });
-
-export type RawTweetData = z.infer<typeof RawTweetDataSchema>;
 
 // --- FeedMeta ---
 
@@ -114,6 +167,8 @@ export const FeedResultSchema = z.object({
   meta: FeedMetaSchema,
 });
 
-export type FeedResult = z.infer<typeof FeedResultSchema> & {
+export interface FeedResult {
+  tweets: Tweet[];
+  meta: FeedMeta;
   debug?: FeedDebug;
-};
+}

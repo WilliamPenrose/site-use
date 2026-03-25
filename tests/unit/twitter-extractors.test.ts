@@ -21,6 +21,7 @@ const RAW_TWEET: RawTweetData = {
   links: [],
   isRetweet: false,
   isAd: false,
+  surfaceReason: 'original',
 };
 
 describe('parseTweet', () => {

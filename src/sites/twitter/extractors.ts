@@ -160,6 +160,10 @@ export function parseTweet(raw: RawTweetData): Tweet {
     links: raw.links,
     isRetweet: raw.isRetweet,
     isAd: raw.isAd,
+    surfaceReason: raw.surfaceReason,
+    surfacedBy: raw.surfacedBy,
+    quotedTweet: raw.quotedTweet ? parseTweet(raw.quotedTweet) : undefined,
+    inReplyTo: raw.inReplyTo,
   };
 }
 
@@ -287,6 +291,11 @@ function extractFromTweetResult(
     links,
     isRetweet,
     isAd: false,
+    // Temporary defaults — Task 2 adds real logic
+    surfaceReason: 'original' as const,
+    surfacedBy: undefined,
+    quotedTweet: undefined,
+    inReplyTo: undefined,
   };
 }
 

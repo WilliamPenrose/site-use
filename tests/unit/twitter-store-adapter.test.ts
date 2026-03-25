@@ -13,6 +13,7 @@ const TWEET: Tweet = {
   links: ['https://arxiv.org/abs/2401.00001'],
   isRetweet: false,
   isAd: false,
+  surfaceReason: 'original',
 };
 
 describe('tweetsToIngestItems', () => {
