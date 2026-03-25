@@ -50,8 +50,10 @@ export function formatTweetText(item: SearchResultItem): string {
   }
 
   // Body
-  lines.push('');
-  lines.push(item.text ?? '');
+  if (item.text) {
+    lines.push('');
+    lines.push(item.text);
+  }
 
   // Quoted tweet
   const qt = meta.quotedTweet as Record<string, unknown> | undefined;

@@ -52,7 +52,7 @@ export function search(db: DatabaseSync, params: SearchParams): SearchResult {
   }
   if (params.mention) {
     joins.push('JOIN item_mentions mn ON mn.site = i.site AND mn.item_id = i.id');
-    conditions.push('mn.handle = ?');
+    conditions.push('LOWER(mn.handle) = ?');
     values.push(params.mention.toLowerCase().replace(/^@/, ''));
   }
 
