@@ -6,7 +6,7 @@ let chromeJsonStore: Record<string, string> = {};
 
 // Mock puppeteer-core before importing browser module
 const mockPage = { url: () => 'about:blank', close: vi.fn(), goto: vi.fn(), authenticate: vi.fn() };
-const mockCdpSession = { send: vi.fn(), detach: vi.fn() };
+const mockCdpSession = { send: vi.fn().mockResolvedValue({}), detach: vi.fn().mockResolvedValue(undefined) };
 const mockBrowser = {
   connected: true,
   on: vi.fn(),
@@ -231,6 +231,7 @@ describe('browser', () => {
         process: () => ({ pid: 67890 }),
         wsEndpoint: () => 'ws://127.0.0.1:9222/devtools/browser/new',
         pages: vi.fn().mockResolvedValue([mockPage]),
+        target: () => ({ createCDPSession: vi.fn().mockResolvedValue(mockCdpSession) }),
         disconnect: vi.fn(),
         close: vi.fn(),
       };
