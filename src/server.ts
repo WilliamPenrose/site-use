@@ -3,7 +3,6 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import { checkLogin, getFeed } from './sites/twitter/workflows.js';
 import { twitterSiteConfig } from './sites/twitter/site.js';
-import { formatTweetText } from './sites/twitter/format.js';
 import type { Primitives } from './primitives/types.js';
 import { ensureBrowser, isBrowserConnected } from './browser/browser.js';
 import { buildPrimitivesStack, type PrimitivesStack } from './primitives/factory.js';
@@ -271,11 +270,9 @@ export function createServer(): McpServer {
           .describe('Minimum retweets threshold'),
         fields: z.array(z.enum(SEARCH_FIELDS)).optional()
           .describe('Fields to include in results. Defaults to all fields.'),
-        format: z.enum(['json', 'text']).default('json')
-          .describe('Output format: "json" (structured) or "text" (human-readable)'),
       },
     },
-    async ({ query, author, start_date, end_date, max_results, hashtag, mention, min_likes, min_retweets, fields, format }) => {
+    async ({ query, author, start_date, end_date, max_results, hashtag, mention, min_likes, min_retweets, fields }) => {
       try {
         const store = getOrCreateStore();
         const metricFilters: Array<{ metric: string; op: '>=' | '<=' | '='; numValue?: number }> = [];
@@ -286,15 +283,6 @@ export function createServer(): McpServer {
           metricFilters: metricFilters.length > 0 ? metricFilters : undefined,
           fields,
         });
-
-        if (format === 'text') {
-          const textOutput = result.items
-            .map((item) => item.site === 'twitter' ? formatTweetText(item) : JSON.stringify(item))
-            .join('\n\n---\n\n');
-          return {
-            content: [{ type: 'text' as const, text: textOutput }],
-          };
-        }
 
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result) }],

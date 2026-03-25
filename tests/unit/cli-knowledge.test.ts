@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseSearchArgs, localToUtc, formatHumanReadable, formatJson } from '../../src/cli/knowledge.js';
+import { parseSearchArgs, localToUtc, formatSearchResults, formatJson } from '../../src/cli/knowledge.js';
 import type { SearchResult } from '../../src/storage/types.js';
 
 describe('parseSearchArgs', () => {
@@ -67,17 +67,17 @@ describe('parseSearchArgs', () => {
   });
 });
 
-describe('formatHumanReadable', () => {
+describe('formatSearchResults', () => {
   it('formats search results for terminal', () => {
     const result: SearchResult = {
       items: [{
         id: '1', site: 'twitter', text: 'Hello world',
         author: 'alice', timestamp: '2026-03-20T14:32:00Z',
         url: 'https://x.com/alice/status/1',
-        siteMeta: { likes: 42, retweets: 8, replies: 3 },
+        siteMeta: { likes: 42, retweets: 8, replies: 3, surfaceReason: 'original' },
       }],
     };
-    const output = formatHumanReadable(result);
+    const output = formatSearchResults(result);
     expect(output).toContain('@alice');
     expect(output).toContain('1 result');
   });
