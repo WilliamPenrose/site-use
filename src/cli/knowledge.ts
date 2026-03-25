@@ -28,7 +28,7 @@ export function parseSearchArgs(args: string[]): SearchParams & { json?: boolean
   const params: SearchParams & { json?: boolean } = {};
   let i = 0;
 
-  const needsValue = new Set(['--author', '--start-date', '--end-date', '--max-results', '--hashtag', '--mention', '--link', '--min-likes', '--min-retweets', '--fields']);
+  const needsValue = new Set(['--author', '--start-date', '--end-date', '--max-results', '--hashtag', '--mention', '--min-likes', '--min-retweets', '--fields']);
 
   while (i < args.length) {
     const arg = args[i];
@@ -40,7 +40,6 @@ export function parseSearchArgs(args: string[]): SearchParams & { json?: boolean
         '--max-results': '--max-results 10',
         '--hashtag': '--hashtag AI',
         '--mention': '--mention openai',
-        '--link': '--link github.com',
         '--min-likes': '--min-likes 100',
         '--min-retweets': '--min-retweets 50',
         '--fields': `--fields ${SEARCH_FIELDS.join(',')}`,
@@ -68,15 +67,18 @@ export function parseSearchArgs(args: string[]): SearchParams & { json?: boolean
       case '--mention':
         params.mention = args[++i]?.replace(/^@/, '');
         break;
-      case '--link':
-        params.link = args[++i];
+      case '--min-likes': {
+        const val = parseInt(args[++i], 10);
+        params.metricFilters ??= [];
+        params.metricFilters.push({ metric: 'likes', op: '>=', numValue: val });
         break;
-      case '--min-likes':
-        params.min_likes = parseInt(args[++i], 10);
+      }
+      case '--min-retweets': {
+        const val = parseInt(args[++i], 10);
+        params.metricFilters ??= [];
+        params.metricFilters.push({ metric: 'retweets', op: '>=', numValue: val });
         break;
-      case '--min-retweets':
-        params.min_retweets = parseInt(args[++i], 10);
-        break;
+      }
       case '--fields': {
         const raw = args[++i].split(',');
         const valid = new Set<string>(SEARCH_FIELDS);
@@ -219,7 +221,6 @@ Options:
   --max-results <n>      Max results (default: 20)
   --hashtag <tag>        Filter by hashtag
   --mention <handle>     Filter by mentioned handle (@ prefix optional)
-  --link <substr>        Filter by URL substring in expanded links
   --min-likes <n>        Minimum likes
   --min-retweets <n>     Minimum retweets
   --fields <list>        Comma-separated fields: ${SEARCH_FIELDS.join(',')}

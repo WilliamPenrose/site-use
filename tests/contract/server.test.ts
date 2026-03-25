@@ -73,7 +73,6 @@ describe('MCP Server contract', () => {
     expect(props.author).toBeDefined();
     expect(props.hashtag).toBeDefined();
     expect(props.mention).toBeDefined();
-    expect(props.link).toBeDefined();
     expect(props.min_likes).toBeDefined();
     expect(props.min_retweets).toBeDefined();
     expect(props.fields).toBeDefined();

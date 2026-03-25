@@ -22,11 +22,21 @@ describe('storage integration', () => {
       author: 'testbot',
       timestamp: '2026-03-20T10:00:00Z',
       url: 'https://x.com/testbot/status/42',
-      rawJson: '{"test": true}',
+      rawJson: JSON.stringify({
+        author: { handle: 'testbot', name: 'Test Bot', following: true },
+        text: 'Integration test tweet about AI agents',
+        metrics: { likes: 10, retweets: 2 },
+        media: [],
+        links: ['https://example.com/post'],
+        isRetweet: false,
+        isAd: false,
+      }),
       mentions: ['someone'],
       hashtags: ['ai'],
-      links: ['https://example.com/post'],
-      siteMeta: { likes: 10, retweets: 2, replies: 1, views: 100, bookmarks: 0, quotes: 0, isRetweet: false, isAd: false },
+      metrics: [
+        { metric: 'likes', numValue: 10 },
+        { metric: 'retweets', numValue: 2 },
+      ],
     }]);
     expect(ingestResult.inserted).toBe(1);
 
@@ -40,9 +50,9 @@ describe('storage integration', () => {
     const hashResult = await store.search({ hashtag: 'ai' });
     expect(hashResult.items).toHaveLength(1);
 
-    const linkResult = await store.search({ link: 'example.com' });
-    expect(linkResult.items).toHaveLength(1);
-    expect(linkResult.items[0].links).toEqual(['https://example.com/post']);
+    // links come from raw_json now
+    const item = searchResult.items[0];
+    expect(item.links).toEqual(['https://example.com/post']);
 
     const s = await store.stats();
     expect(s.totalItems).toBe(1);
@@ -56,7 +66,8 @@ describe('storage integration', () => {
     const item = {
       site: 'twitter', id: '99', text: 'Dedup test', author: 'a',
       timestamp: '2026-03-20T10:00:00Z', url: 'https://x.com/a/status/99',
-      rawJson: '{}', mentions: [], hashtags: [],
+      rawJson: JSON.stringify({ author: { handle: 'a', name: 'A', following: true }, text: 'Dedup test', metrics: {}, media: [], links: [] }),
+      mentions: [] as string[], hashtags: [] as string[],
     };
 
     await store.ingest([item]);
@@ -72,7 +83,6 @@ describe('storage integration', () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'site-use-test-'));
     const dbPath = path.join(tmpDir, 'test.db');
 
-    // Reset module-level store so afterEach does not double-close a previous instance.
     store = undefined as unknown as KnowledgeStore;
 
     try {
@@ -82,7 +92,8 @@ describe('storage integration', () => {
       await writer.ingest([{
         site: 'twitter', id: 'wal1', text: 'WAL concurrency test', author: 'tester',
         timestamp: '2026-03-20T10:00:00Z', url: 'https://x.com/tester/status/wal1',
-        rawJson: '{}', mentions: [], hashtags: [],
+        rawJson: JSON.stringify({ author: { handle: 'tester', name: 'Tester', following: true }, text: 'WAL concurrency test', metrics: {}, media: [], links: [] }),
+        mentions: [] as string[], hashtags: [] as string[],
       }]);
 
       const result = await reader.search({ author: 'tester' });

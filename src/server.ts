@@ -262,8 +262,6 @@ export function createServer(): McpServer {
           .describe('Filter by hashtag (without # prefix)'),
         mention: z.string().optional()
           .describe('Filter by mentioned handle (without @ prefix)'),
-        link: z.string().optional()
-          .describe('Filter by URL substring in expanded links (e.g. "github.com")'),
         min_likes: z.number().optional()
           .describe('Minimum likes threshold'),
         min_retweets: z.number().optional()
@@ -272,11 +270,16 @@ export function createServer(): McpServer {
           .describe('Fields to include in results. Defaults to all fields.'),
       },
     },
-    async ({ query, author, start_date, end_date, max_results, hashtag, mention, link, min_likes, min_retweets, fields }) => {
+    async ({ query, author, start_date, end_date, max_results, hashtag, mention, min_likes, min_retweets, fields }) => {
       try {
         const store = getOrCreateStore();
+        const metricFilters: Array<{ metric: string; op: '>=' | '<=' | '='; numValue?: number }> = [];
+        if (min_likes != null) metricFilters.push({ metric: 'likes', op: '>=', numValue: min_likes });
+        if (min_retweets != null) metricFilters.push({ metric: 'retweets', op: '>=', numValue: min_retweets });
         const result = await store.search({
-          query, author, start_date, end_date, max_results, hashtag, mention, link, min_likes, min_retweets, fields,
+          query, author, start_date, end_date, max_results, hashtag, mention,
+          metricFilters: metricFilters.length > 0 ? metricFilters : undefined,
+          fields,
         });
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result) }],

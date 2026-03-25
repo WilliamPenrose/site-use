@@ -34,19 +34,19 @@ describe('parseSearchArgs', () => {
     expect(params.mention).toBe('openai');
   });
 
-  it('parses --link as top-level param', () => {
-    const params = parseSearchArgs(['--link', 'github.com']);
-    expect(params.link).toBe('github.com');
-  });
-
-  it('parses --min-likes as top-level param', () => {
+  it('parses --min-likes into metricFilters', () => {
     const params = parseSearchArgs(['--min-likes', '100']);
-    expect(params.min_likes).toBe(100);
+    expect(params.metricFilters).toEqual([{ metric: 'likes', op: '>=', numValue: 100 }]);
   });
 
-  it('parses --min-retweets as top-level param', () => {
+  it('parses --min-retweets into metricFilters', () => {
     const params = parseSearchArgs(['--min-retweets', '50']);
-    expect(params.min_retweets).toBe(50);
+    expect(params.metricFilters).toEqual([{ metric: 'retweets', op: '>=', numValue: 50 }]);
+  });
+
+  it('combines multiple metric filters', () => {
+    const params = parseSearchArgs(['--min-likes', '100', '--min-retweets', '50']);
+    expect(params.metricFilters).toHaveLength(2);
   });
 
   it('parses --fields as array', () => {
