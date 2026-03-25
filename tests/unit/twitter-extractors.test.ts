@@ -912,4 +912,104 @@ describe('parseGraphQLTimeline', () => {
     expect(rt.quotedTweet).toBeDefined();
     expect(rt.quotedTweet!.authorHandle).toBe('dimillian');
   });
+
+  it('extracts tweets from TimelineTimelineModule (conversation thread)', () => {
+    const body = JSON.stringify({
+      data: { home: { home_timeline_urt: { instructions: [{
+        type: 'TimelineAddEntries',
+        entries: [{
+          entryId: 'conversationthread-123',
+          content: {
+            entryType: 'TimelineTimelineModule',
+            items: [
+              { item: { itemContent: {
+                __typename: 'TimelineTweet',
+                tweet_results: { result: {
+                  __typename: 'Tweet', rest_id: 'mod-1',
+                  legacy: { id_str: 'mod-1', full_text: 'First in thread', created_at: '', favorite_count: 10, retweet_count: 0, reply_count: 2, entities: {} },
+                  core: { user_results: { result: { core: { screen_name: 'threadauthor', name: 'Thread' } } } },
+                } },
+              } } },
+              { item: { itemContent: {
+                __typename: 'TimelineTweet',
+                tweet_results: { result: {
+                  __typename: 'Tweet', rest_id: 'mod-2',
+                  legacy: { id_str: 'mod-2', full_text: 'Reply in thread', created_at: '', favorite_count: 5, retweet_count: 0, reply_count: 0, entities: {} },
+                  core: { user_results: { result: { core: { screen_name: 'replier', name: 'Replier' } } } },
+                } },
+              } } },
+            ],
+          },
+        }],
+      }] } } },
+    });
+
+    const results = parseGraphQLTimeline(body);
+    expect(results).toHaveLength(2);
+    expect(results[0].authorHandle).toBe('threadauthor');
+    expect(results[1].authorHandle).toBe('replier');
+  });
+
+  it('skips non-TimelineTweet items in modules (who-to-follow)', () => {
+    const body = JSON.stringify({
+      data: { home: { home_timeline_urt: { instructions: [{
+        type: 'TimelineAddEntries',
+        entries: [{
+          entryId: 'who-to-follow-123',
+          content: {
+            entryType: 'TimelineTimelineModule',
+            items: [{ item: { itemContent: {
+              __typename: 'TimelineUser',
+              user_results: { result: { legacy: { screen_name: 'suggested' } } },
+            } } }],
+          },
+        }],
+      }] } } },
+    });
+
+    const results = parseGraphQLTimeline(body);
+    expect(results).toHaveLength(0);
+  });
+
+  it('extracts tweets from TimelineAddToModule instruction', () => {
+    const body = JSON.stringify({
+      data: { home: { home_timeline_urt: { instructions: [
+        { type: 'TimelineAddEntries', entries: [] },
+        { type: 'TimelineAddToModule', moduleItems: [{ item: { itemContent: {
+          __typename: 'TimelineTweet',
+          tweet_results: { result: {
+            __typename: 'Tweet', rest_id: 'atm-1',
+            legacy: { id_str: 'atm-1', full_text: 'Added to module', created_at: '', favorite_count: 0, retweet_count: 0, reply_count: 0, entities: {} },
+            core: { user_results: { result: { core: { screen_name: 'moduser', name: 'Mod' } } } },
+          } },
+        } } }] },
+      ] } } },
+    });
+
+    const results = parseGraphQLTimeline(body);
+    expect(results).toHaveLength(1);
+    expect(results[0].authorHandle).toBe('moduser');
+  });
+
+  it('extracts tweet from TimelinePinEntry instruction', () => {
+    const body = JSON.stringify({
+      data: { home: { home_timeline_urt: { instructions: [
+        { type: 'TimelineAddEntries', entries: [] },
+        { type: 'TimelinePinEntry', entry: { content: {
+          entryType: 'TimelineTimelineItem',
+          itemContent: {
+            tweet_results: { result: {
+              __typename: 'Tweet', rest_id: 'pin-1',
+              legacy: { id_str: 'pin-1', full_text: 'Pinned tweet', created_at: '', favorite_count: 0, retweet_count: 0, reply_count: 0, entities: {} },
+              core: { user_results: { result: { core: { screen_name: 'pinner', name: 'Pinner' } } } },
+            } },
+          },
+        } } },
+      ] } } },
+    });
+
+    const results = parseGraphQLTimeline(body);
+    expect(results).toHaveLength(1);
+    expect(results[0].authorHandle).toBe('pinner');
+  });
 });

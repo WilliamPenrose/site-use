@@ -192,6 +192,39 @@ export function buildFeedMeta(tweets: Tweet[]): FeedMeta {
   };
 }
 
+/** Extract a tweet from an itemContent object (shared by Item and Module paths). */
+function extractTweetFromItemContent(
+  itemContent: any,
+  results: RawTweetData[],
+): void {
+  if (itemContent?.promotedMetadata) return;
+
+  const tweetResult = itemContent?.tweet_results?.result;
+  if (!tweetResult) return;
+
+  const raw = extractFromTweetResult(tweetResult);
+  if (raw) results.push(raw);
+}
+
+/** Process entries from a TimelineAddEntries instruction. */
+function processEntries(entries: any[], results: RawTweetData[]): void {
+  for (const entry of entries) {
+    const content = entry.content;
+    if (!content) continue;
+
+    if (content.entryType === 'TimelineTimelineItem') {
+      extractTweetFromItemContent(content.itemContent, results);
+    } else if (content.entryType === 'TimelineTimelineModule') {
+      for (const moduleItem of content.items ?? []) {
+        const itemContent = moduleItem?.item?.itemContent;
+        if (itemContent?.__typename !== 'TimelineTweet') continue;
+        extractTweetFromItemContent(itemContent, results);
+      }
+    }
+    // TimelineTimelineCursor: skip (correct)
+  }
+}
+
 /** Parse GraphQL HomeTimeline response into RawTweetData[]. */
 export function parseGraphQLTimeline(body: string): RawTweetData[] {
   const data = JSON.parse(body);
@@ -201,22 +234,20 @@ export function parseGraphQLTimeline(body: string): RawTweetData[] {
   const results: RawTweetData[] = [];
 
   for (const instruction of instructions) {
-    const entries = instruction.entries ?? [];
-    for (const entry of entries) {
-      const content = entry.content;
-      if (content?.entryType !== 'TimelineTimelineItem') continue;
-
-      const tweetResult =
-        content.itemContent?.tweet_results?.result;
-      if (!tweetResult) continue;
-
-      // Skip promoted tweets
-      if (content.itemContent?.promotedMetadata) {
-        continue;
+    if (instruction.type === 'TimelineAddToModule') {
+      for (const moduleItem of instruction.moduleItems ?? []) {
+        const itemContent = moduleItem?.item?.itemContent;
+        if (itemContent?.__typename !== 'TimelineTweet') continue;
+        extractTweetFromItemContent(itemContent, results);
       }
-
-      const raw = extractFromTweetResult(tweetResult);
-      if (raw) results.push(raw);
+    } else if (instruction.type === 'TimelinePinEntry') {
+      const content = instruction.entry?.content;
+      if (content?.entryType === 'TimelineTimelineItem') {
+        extractTweetFromItemContent(content.itemContent, results);
+      }
+    } else {
+      // TimelineAddEntries (default) — also handles untyped instructions
+      processEntries(instruction.entries ?? [], results);
     }
   }
 
