@@ -1,8 +1,15 @@
 // src/storage/query.ts
 import type { DatabaseSync } from 'node:sqlite';
-import type { MediaItem, SearchParams, SearchResult, SearchResultItem, StoreStats } from './types.js';
+import type { SearchParams, SearchResult, SearchResultItem, StoreStats } from './types.js';
+import { resolveItem } from '../display/resolve.js';
+import { twitterDisplaySchema } from '../sites/twitter/display.js';
+import type { DisplaySchema } from '../display/resolve.js';
 
 type SqlValue = null | number | bigint | string;
+
+const displaySchemas: Record<string, DisplaySchema> = {
+  twitter: twitterDisplaySchema,
+};
 
 export function search(db: DatabaseSync, params: SearchParams): SearchResult {
   const conditions: string[] = [];
@@ -10,7 +17,7 @@ export function search(db: DatabaseSync, params: SearchParams): SearchResult {
   const values: SqlValue[] = [];
   const limit = params.max_results ?? 20;
 
-  // FTS join — id+site columns stored in FTS table (rowids are independent from items)
+  // FTS join
   if (params.query) {
     joins.push('JOIN items_fts fts ON fts.id = i.id AND fts.site = i.site');
     conditions.push('items_fts MATCH ?');
@@ -37,8 +44,7 @@ export function search(db: DatabaseSync, params: SearchParams): SearchResult {
     values.push(params.end_date);
   }
 
-  // Site-specific filters
-  let tmJoined = false;
+  // Multi-value filters
   if (params.hashtag) {
     joins.push('JOIN item_hashtags h ON h.site = i.site AND h.item_id = i.id');
     conditions.push('h.tag = ?');
@@ -49,35 +55,36 @@ export function search(db: DatabaseSync, params: SearchParams): SearchResult {
     conditions.push('mn.handle = ?');
     values.push(params.mention.toLowerCase().replace(/^@/, ''));
   }
-  if (params.link) {
-    joins.push('JOIN item_links lk ON lk.site = i.site AND lk.item_id = i.id');
-    conditions.push('lk.url LIKE ?');
-    values.push(`%${params.link}%`);
-  }
-  if (params.min_likes != null) {
-    joins.push('JOIN twitter_meta tm ON tm.site = i.site AND tm.item_id = i.id');
-    tmJoined = true;
-    conditions.push('tm.likes >= ?');
-    values.push(params.min_likes);
-  }
-  if (params.min_retweets != null) {
-    if (!tmJoined) {
-      joins.push('JOIN twitter_meta tm ON tm.site = i.site AND tm.item_id = i.id');
-      tmJoined = true;
+
+  // Generic metric filters — each filter adds a JOIN to item_metrics
+  if (params.metricFilters) {
+    for (let idx = 0; idx < params.metricFilters.length; idx++) {
+      const mf = params.metricFilters[idx];
+      const alias = `mf${idx}`;
+      joins.push(`JOIN item_metrics ${alias} ON ${alias}.site = i.site AND ${alias}.item_id = i.id`);
+      conditions.push(`${alias}.metric = ?`);
+      values.push(mf.metric);
+
+      if (mf.numValue != null) {
+        conditions.push(`${alias}.num_value ${mf.op} ?`);
+        values.push(mf.numValue);
+      } else if (mf.realValue != null) {
+        conditions.push(`${alias}.real_value ${mf.op} ?`);
+        values.push(mf.realValue);
+      } else if (mf.strValue != null) {
+        conditions.push(`${alias}.str_value ${mf.op} ?`);
+        values.push(mf.strValue);
+      }
     }
-    conditions.push('tm.retweets >= ?');
-    values.push(params.min_retweets);
   }
 
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
   const joinClause = joins.join(' ');
 
-  // Fetch items — LEFT JOIN twitter_meta to populate siteMeta
-  const metaJoin = tmJoined ? '' : 'LEFT JOIN twitter_meta tm ON tm.site = i.site AND tm.item_id = i.id';
+  // Fetch items + raw_json for display resolution
   const selectSql = `
-    SELECT i.id, i.site, i.text, i.author, i.timestamp, i.url,
-           tm.likes, tm.retweets, tm.replies, tm.views, tm.bookmarks, tm.quotes, tm.following
-    FROM items i ${joinClause} ${metaJoin} ${whereClause}
+    SELECT i.id, i.site, i.text, i.author, i.timestamp, i.url, i.raw_json
+    FROM items i ${joinClause} ${whereClause}
     ORDER BY i.timestamp DESC
     LIMIT ?
   `;
@@ -85,45 +92,51 @@ export function search(db: DatabaseSync, params: SearchParams): SearchResult {
   const rows = db.prepare(selectSql).all(...values, limit) as Array<Record<string, unknown>>;
 
   let items: SearchResultItem[] = rows.map((row) => {
+    const site = row.site as string;
+    const rawJson = row.raw_json as string;
+    const doc = JSON.parse(rawJson) as Record<string, unknown>;
+    const schema = displaySchemas[site];
+
     const item: SearchResultItem = {
       id: row.id as string,
-      site: row.site as string,
+      site,
       text: row.text as string,
       author: row.author as string,
       timestamp: row.timestamp as string,
       url: row.url as string,
     };
-    if (row.likes != null || row.retweets != null) {
-      item.siteMeta = {
-        likes: row.likes as number | null,
-        retweets: row.retweets as number | null,
-        replies: row.replies as number | null,
-        views: row.views as number | null,
-        bookmarks: row.bookmarks as number | null,
-        quotes: row.quotes as number | null,
-        following: row.following != null ? (row.following as number) === 1 : null,
-      };
+
+    // Resolve display-only data from raw_json via display schema
+    if (schema) {
+      const display = resolveItem(doc, schema, ['likes', 'retweets', 'replies', 'views', 'bookmarks', 'quotes', 'following']);
+      if (display.likes != null || display.retweets != null) {
+        item.siteMeta = {
+          likes: (display.likes as number | null) ?? null,
+          retweets: (display.retweets as number | null) ?? null,
+          replies: (display.replies as number | null) ?? null,
+          views: (display.views as number | null) ?? null,
+          bookmarks: (display.bookmarks as number | null) ?? null,
+          quotes: (display.quotes as number | null) ?? null,
+          following: (display.following as boolean | null) ?? null,
+        };
+      }
+
+      const links = resolveItem(doc, schema, ['links']).links as string[] | undefined;
+      if (links) item.links = links;
+
+      const media = resolveItem(doc, schema, ['media']).media as SearchResultItem['media'] | undefined;
+      if (media && media.length > 0) item.media = media;
     }
+
     return item;
   });
 
-  // Batch-fetch links and mentions for returned items
+  // Batch-fetch mentions (still in its own table for precise filtering)
   if (items.length > 0) {
     const orClauses = items.map(() => '(site = ? AND item_id = ?)').join(' OR ');
     const bindValues: SqlValue[] = [];
     for (const item of items) {
       bindValues.push(item.site, item.id);
-    }
-
-    const linkRows = db.prepare(
-      `SELECT site, item_id, url FROM item_links WHERE ${orClauses}`,
-    ).all(...bindValues) as Array<{ site: string; item_id: string; url: string }>;
-    const linkMap = new Map<string, string[]>();
-    for (const row of linkRows) {
-      const key = `${row.site}:${row.item_id}`;
-      const arr = linkMap.get(key);
-      if (arr) arr.push(row.url);
-      else linkMap.set(key, [row.url]);
     }
 
     const mentionRows = db.prepare(
@@ -137,41 +150,22 @@ export function search(db: DatabaseSync, params: SearchParams): SearchResult {
       else mentionMap.set(key, [row.handle]);
     }
 
-    const mediaRows = db.prepare(
-      `SELECT site, item_id, type, url, width, height, duration FROM item_media WHERE ${orClauses}`,
-    ).all(...bindValues) as Array<{ site: string; item_id: string; type: string; url: string; width: number; height: number; duration: number | null }>;
-    const mediaMap = new Map<string, MediaItem[]>();
-    for (const row of mediaRows) {
-      const key = `${row.site}:${row.item_id}`;
-      const m: MediaItem = { type: row.type, url: row.url, width: row.width, height: row.height };
-      if (row.duration != null) m.duration = row.duration;
-      const arr = mediaMap.get(key);
-      if (arr) arr.push(m);
-      else mediaMap.set(key, [m]);
-    }
-
     for (const item of items) {
       const key = `${item.site}:${item.id}`;
-      const links = linkMap.get(key);
-      if (links) item.links = links;
       const mentions = mentionMap.get(key);
       if (mentions) item.mentions = mentions;
-      const media = mediaMap.get(key);
-      if (media) item.media = media;
     }
   }
 
-  // Apply fields filter — strip unrequested fields to save tokens for AI consumers.
-  // `id` and `site` are always returned (needed for identity).
-  // Engagement metrics (siteMeta) follow `text` — included when text is present.
+  // Apply fields filter
   if (params.fields && params.fields.length > 0) {
     const f = new Set(params.fields);
     for (const item of items) {
       if (!f.has('text')) {
         delete item.text;
-        // Preserve following (author-level info) even without text
+        // Only preserve following when it's false (shows [not following] tag)
         const following = (item.siteMeta as Record<string, unknown> | undefined)?.following;
-        if (following != null && f.has('author')) {
+        if (following === false && f.has('author')) {
           item.siteMeta = { following };
         } else {
           delete item.siteMeta;
@@ -184,7 +178,6 @@ export function search(db: DatabaseSync, params: SearchParams): SearchResult {
       if (!f.has('mentions')) delete item.mentions;
       if (!f.has('media')) delete item.media;
     }
-    // Drop items that have nothing beyond identity fields (id + site)
     items = items.filter(item => Object.keys(item).length > 2);
   }
 

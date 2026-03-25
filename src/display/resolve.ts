@@ -8,7 +8,7 @@ export interface FieldDef {
 export type DisplaySchema = Record<string, FieldDef>;
 
 function resolve(doc: Record<string, unknown>, path: string): unknown {
-  return path.split('.').reduce((o, k) => (o as Record<string, unknown>)?.[k], doc);
+  return path.split('.').reduce<unknown>((o, k) => (o as Record<string, unknown>)?.[k], doc);
 }
 
 export function resolveItem(
