@@ -12,9 +12,9 @@ export function ingest(db: DatabaseSync, items: IngestItem[]): IngestResult {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
-  const insertTwitterMeta = db.prepare(`
-    INSERT OR IGNORE INTO twitter_meta (item_id, site, likes, retweets, replies, views, bookmarks, quotes, following, is_retweet, is_ad)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  const insertMetric = db.prepare(`
+    INSERT OR IGNORE INTO item_metrics (site, item_id, metric, num_value, real_value, str_value)
+    VALUES (?, ?, ?, ?, ?, ?)
   `);
 
   const insertMention = db.prepare(`
@@ -25,17 +25,8 @@ export function ingest(db: DatabaseSync, items: IngestItem[]): IngestResult {
     INSERT OR IGNORE INTO item_hashtags (site, item_id, tag) VALUES (?, ?, ?)
   `);
 
-  const insertLink = db.prepare(`
-    INSERT OR IGNORE INTO item_links (site, item_id, url) VALUES (?, ?, ?)
-  `);
-
-  const insertMedia = db.prepare(`
-    INSERT OR IGNORE INTO item_media (site, item_id, type, url, width, height, duration)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `);
-
   const insertFts = db.prepare(`
-    INSERT INTO items_fts (text, id, site, author, timestamp) VALUES (?, ?, ?, ?, ?)
+    INSERT INTO items_fts (text, id, site) VALUES (?, ?, ?)
   `);
 
   const beginTx = db.prepare('BEGIN');
@@ -46,58 +37,34 @@ export function ingest(db: DatabaseSync, items: IngestItem[]): IngestResult {
   beginTx.run();
   try {
     for (const item of items) {
-      const result = insertItem.run(item.id, item.site, item.text, item.author, item.timestamp, item.url, item.rawJson, batchTimestamp);
+      const result = insertItem.run(
+        item.id, item.site, item.text, item.author,
+        item.timestamp, item.url, item.rawJson, batchTimestamp,
+      );
 
       if (result.changes > 0) {
         inserted++;
         insertedTimestamps.push(item.timestamp);
 
         // FTS
-        insertFts.run(item.text, item.id, item.site, item.author, item.timestamp);
+        insertFts.run(item.text, item.id, item.site);
 
-        // Site-specific meta (twitter)
-        if (item.site === 'twitter' && item.siteMeta) {
-          const m = item.siteMeta as Record<string, unknown>;
-          insertTwitterMeta.run(
-            item.id, item.site,
-            (m.likes as number | null) ?? null,
-            (m.retweets as number | null) ?? null,
-            (m.replies as number | null) ?? null,
-            (m.views as number | null) ?? null,
-            (m.bookmarks as number | null) ?? null,
-            (m.quotes as number | null) ?? null,
-            m.following != null ? (m.following ? 1 : 0) : null,
-            m.isRetweet ? 1 : 0,
-            m.isAd ? 1 : 0,
+        // Metrics — generic KV, site-agnostic
+        for (const m of item.metrics ?? []) {
+          insertMetric.run(
+            item.site, item.id, m.metric,
+            m.numValue ?? null, m.realValue ?? null, m.strValue ?? null,
           );
         }
 
         // Mentions
-        if (item.mentions) {
-          for (const handle of item.mentions) {
-            insertMention.run(item.site, item.id, handle);
-          }
+        for (const handle of item.mentions ?? []) {
+          insertMention.run(item.site, item.id, handle);
         }
 
         // Hashtags
-        if (item.hashtags) {
-          for (const tag of item.hashtags) {
-            insertHashtag.run(item.site, item.id, tag);
-          }
-        }
-
-        // Links
-        if (item.links) {
-          for (const linkUrl of item.links) {
-            insertLink.run(item.site, item.id, linkUrl);
-          }
-        }
-
-        // Media
-        if (item.media) {
-          for (const m of item.media) {
-            insertMedia.run(item.site, item.id, m.type, m.url, m.width, m.height, m.duration ?? null);
-          }
+        for (const tag of item.hashtags ?? []) {
+          insertHashtag.run(item.site, item.id, tag);
         }
       } else {
         duplicates++;

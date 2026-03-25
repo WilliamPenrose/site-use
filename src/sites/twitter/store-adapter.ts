@@ -1,6 +1,6 @@
 // src/sites/twitter/store-adapter.ts
 import type { Tweet } from './types.js';
-import type { IngestItem } from '../../storage/types.js';
+import type { IngestItem, MetricEntry } from '../../storage/types.js';
 
 export function tweetsToIngestItems(tweets: Tweet[]): IngestItem[] {
   return tweets.map((tweet) => ({
@@ -13,26 +13,22 @@ export function tweetsToIngestItems(tweets: Tweet[]): IngestItem[] {
     rawJson: JSON.stringify(tweet),
     mentions: extractMentions(tweet.text),
     hashtags: extractHashtags(tweet.text),
-    links: tweet.links,
-    media: tweet.media.map((m) => ({
-      type: m.type,
-      url: m.url,
-      width: m.width,
-      height: m.height,
-      ...(m.duration != null ? { duration: m.duration } : {}),
-    })),
-    siteMeta: {
-      following: tweet.author.following,
-      likes: tweet.metrics.likes,
-      retweets: tweet.metrics.retweets,
-      replies: tweet.metrics.replies,
-      views: tweet.metrics.views,
-      bookmarks: tweet.metrics.bookmarks,
-      quotes: tweet.metrics.quotes,
-      isRetweet: tweet.isRetweet,
-      isAd: tweet.isAd,
-    },
+    metrics: extractMetrics(tweet),
   }));
+}
+
+function extractMetrics(tweet: Tweet): MetricEntry[] {
+  const entries: Array<{ metric: string; value: number | undefined }> = [
+    { metric: 'likes', value: tweet.metrics.likes },
+    { metric: 'retweets', value: tweet.metrics.retweets },
+    { metric: 'replies', value: tweet.metrics.replies },
+    { metric: 'views', value: tweet.metrics.views },
+    { metric: 'bookmarks', value: tweet.metrics.bookmarks },
+    { metric: 'quotes', value: tweet.metrics.quotes },
+  ];
+  return entries
+    .filter((e): e is { metric: string; value: number } => e.value != null)
+    .map((e) => ({ metric: e.metric, numValue: e.value }));
 }
 
 function extractMentions(text: string): string[] {

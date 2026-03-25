@@ -1,4 +1,3 @@
-// tests/unit/storage-ingest.test.ts
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { DatabaseSync } from 'node:sqlite';
 import { initializeDatabase } from '../../src/storage/schema.js';
@@ -13,12 +12,21 @@ function makeItem(overrides: Partial<IngestItem> = {}): IngestItem {
     author: 'testuser',
     timestamp: '2026-03-20T10:00:00Z',
     url: 'https://x.com/testuser/status/123456',
-    rawJson: '{"full": "data"}',
+    rawJson: JSON.stringify({
+      author: { handle: 'testuser', name: 'Test User', following: true },
+      text: 'Hello world @someone #testing',
+      metrics: { likes: 42, retweets: 5 },
+      media: [{ type: 'photo', url: 'https://pbs.twimg.com/media/abc.jpg', width: 1920, height: 1080 }],
+      links: ['https://example.com/article'],
+    }),
     mentions: ['someone'],
     hashtags: ['testing'],
-    links: ['https://example.com/article'],
-    media: [{ type: 'photo', url: 'https://pbs.twimg.com/media/abc.jpg', width: 1920, height: 1080 }],
-    siteMeta: { likes: 42, retweets: 5, replies: 3, views: 1000, bookmarks: 1, quotes: 0, isRetweet: false, isAd: false },
+    metrics: [
+      { metric: 'likes', numValue: 42 },
+      { metric: 'retweets', numValue: 5 },
+      { metric: 'replies', numValue: 3 },
+      { metric: 'views', numValue: 1000 },
+    ],
     ...overrides,
   };
 }
@@ -47,12 +55,17 @@ describe('ingest', () => {
     expect(result.duplicates).toBe(1);
   });
 
-  it('writes twitter_meta for new items', () => {
+  it('writes metrics to item_metrics', () => {
     ingest(db, [makeItem()]);
-    const row = db.prepare('SELECT likes, retweets, is_retweet FROM twitter_meta WHERE item_id = ?').get('123456') as any;
-    expect(row.likes).toBe(42);
-    expect(row.retweets).toBe(5);
-    expect(row.is_retweet).toBe(0);
+    const rows = db.prepare(
+      "SELECT metric, num_value FROM item_metrics WHERE item_id = ? ORDER BY metric",
+    ).all('123456') as Array<{ metric: string; num_value: number }>;
+    expect(rows).toEqual([
+      { metric: 'likes', num_value: 42 },
+      { metric: 'replies', num_value: 3 },
+      { metric: 'retweets', num_value: 5 },
+      { metric: 'views', num_value: 1000 },
+    ]);
   });
 
   it('writes mentions to item_mentions', () => {
@@ -65,30 +78,6 @@ describe('ingest', () => {
     ingest(db, [makeItem()]);
     const rows = db.prepare('SELECT tag FROM item_hashtags WHERE item_id = ?').all('123456') as any[];
     expect(rows.map((r: any) => r.tag)).toEqual(['testing']);
-  });
-
-  it('writes links to item_links', () => {
-    ingest(db, [makeItem()]);
-    const rows = db.prepare('SELECT url FROM item_links WHERE item_id = ?').all('123456') as any[];
-    expect(rows.map((r: any) => r.url)).toEqual(['https://example.com/article']);
-  });
-
-  it('writes media to item_media', () => {
-    ingest(db, [makeItem()]);
-    const rows = db.prepare('SELECT type, url, width, height, duration FROM item_media WHERE item_id = ?').all('123456') as any[];
-    expect(rows).toHaveLength(1);
-    expect(rows[0].type).toBe('photo');
-    expect(rows[0].url).toBe('https://pbs.twimg.com/media/abc.jpg');
-    expect(rows[0].width).toBe(1920);
-    expect(rows[0].height).toBe(1080);
-    expect(rows[0].duration).toBeNull();
-  });
-
-  it('writes video media with duration', () => {
-    ingest(db, [makeItem({ media: [{ type: 'video', url: 'https://video.twimg.com/v.mp4', width: 1280, height: 720, duration: 15000 }] })]);
-    const rows = db.prepare('SELECT type, duration FROM item_media WHERE item_id = ?').all('123456') as any[];
-    expect(rows[0].type).toBe('video');
-    expect(rows[0].duration).toBe(15000);
   });
 
   it('does not create duplicate FTS rows on re-ingest', () => {
@@ -114,5 +103,23 @@ describe('ingest', () => {
     ingest(db, [makeItem()]);
     const result = ingest(db, [makeItem()]);
     expect(result.timeRange).toBeUndefined();
+  });
+
+  it('handles items with no metrics', () => {
+    const result = ingest(db, [makeItem({ metrics: undefined })]);
+    expect(result.inserted).toBe(1);
+    const rows = db.prepare('SELECT COUNT(*) as cnt FROM item_metrics WHERE item_id = ?').get('123456') as any;
+    expect(rows.cnt).toBe(0);
+  });
+
+  it('handles string-valued metrics', () => {
+    ingest(db, [makeItem({
+      id: 'str1',
+      metrics: [{ metric: 'subreddit', strValue: 'programming' }],
+    })]);
+    const row = db.prepare(
+      "SELECT str_value FROM item_metrics WHERE item_id = ? AND metric = 'subreddit'",
+    ).get('str1') as any;
+    expect(row.str_value).toBe('programming');
   });
 });

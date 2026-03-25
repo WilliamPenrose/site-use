@@ -1,4 +1,3 @@
-// tests/unit/twitter-store-adapter.test.ts
 import { describe, it, expect } from 'vitest';
 import { tweetsToIngestItems } from '../../src/sites/twitter/store-adapter.js';
 import type { Tweet } from '../../src/sites/twitter/types.js';
@@ -27,11 +26,13 @@ describe('tweetsToIngestItems', () => {
     expect(item.url).toBe(TWEET.url);
   });
 
-  it('stores full tweet as rawJson', () => {
+  it('stores full tweet as rawJson (includes media, links, following)', () => {
     const [item] = tweetsToIngestItems([TWEET]);
     const parsed = JSON.parse(item.rawJson);
     expect(parsed.media).toHaveLength(1);
     expect(parsed.author.name).toBe('Andrej Karpathy');
+    expect(parsed.author.following).toBe(true);
+    expect(parsed.links).toEqual(['https://arxiv.org/abs/2401.00001']);
   });
 
   it('extracts @mentions from text', () => {
@@ -44,24 +45,23 @@ describe('tweetsToIngestItems', () => {
     expect(item.hashtags).toEqual(['ai', 'ml']);
   });
 
-  it('maps metrics to siteMeta', () => {
+  it('produces metrics array for filterable numeric fields', () => {
     const [item] = tweetsToIngestItems([TWEET]);
-    expect(item.siteMeta).toEqual({
-      following: true,
-      likes: 1500, retweets: 83, replies: 42,
-      views: 50000, bookmarks: 10, quotes: 5,
-      isRetweet: false, isAd: false,
-    });
+    expect(item.metrics).toEqual(expect.arrayContaining([
+      { metric: 'likes', numValue: 1500 },
+      { metric: 'retweets', numValue: 83 },
+      { metric: 'replies', numValue: 42 },
+      { metric: 'views', numValue: 50000 },
+    ]));
   });
 
-  it('excludes media from siteMeta (media URLs are ephemeral)', () => {
-    const [item] = tweetsToIngestItems([TWEET]);
-    expect(item.siteMeta).not.toHaveProperty('media');
-  });
-
-  it('maps links from tweet to IngestItem', () => {
-    const [item] = tweetsToIngestItems([TWEET]);
-    expect(item.links).toEqual(['https://arxiv.org/abs/2401.00001']);
+  it('omits metrics with undefined values', () => {
+    const sparse: Tweet = { ...TWEET, metrics: { likes: 10 } };
+    const [item] = tweetsToIngestItems([sparse]);
+    const metricNames = item.metrics!.map(m => m.metric);
+    expect(metricNames).toContain('likes');
+    expect(metricNames).not.toContain('retweets');
+    expect(metricNames).not.toContain('views');
   });
 
   it('handles tweet with no mentions, hashtags, or links', () => {
@@ -69,6 +69,12 @@ describe('tweetsToIngestItems', () => {
     const [item] = tweetsToIngestItems([plain]);
     expect(item.mentions).toEqual([]);
     expect(item.hashtags).toEqual([]);
-    expect(item.links).toEqual([]);
+  });
+
+  it('does not have siteMeta, links, or media properties', () => {
+    const [item] = tweetsToIngestItems([TWEET]);
+    expect(item).not.toHaveProperty('siteMeta');
+    expect(item).not.toHaveProperty('links');
+    expect(item).not.toHaveProperty('media');
   });
 });
