@@ -14,6 +14,7 @@ import fs from 'node:fs';
 import { SiteUseError, BrowserDisconnected, RateLimited } from './errors.js';
 import { createStore, type KnowledgeStore } from './storage/index.js';
 import { SEARCH_FIELDS } from './storage/types.js';
+import { getAllTimestamps } from './fetch-timestamps.js';
 
 // ---------------------------------------------------------------------------
 // Primitives singleton + lazy Chrome + disconnect recovery
@@ -286,6 +287,63 @@ export function createServer(): McpServer {
           metricFilters: metricFilters.length > 0 ? metricFilters : undefined,
           fields,
         });
+
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+        };
+      } catch (err) {
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify({ error: String(err) }) }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // -- stats ----------------------------------------------------------------
+
+  server.registerTool(
+    'stats',
+    {
+      description:
+        'Show knowledge base statistics per site: post counts, content time range, ' +
+        'and when each feed tab was last collected. ' +
+        'Use this to decide whether to fetch fresh data or query existing data with search.',
+      inputSchema: {
+        site: z.string().optional()
+          .describe('Only return stats for this site (e.g. "twitter"). Omit for all sites.'),
+      },
+    },
+    async ({ site }) => {
+      try {
+        const store = getOrCreateStore();
+        const dbStats = await store.statsBySite(site);
+
+        // Merge collection timestamps from fetch-timestamps.json
+        const cfg = getConfig();
+        const tsPath = path.join(cfg.dataDir, 'fetch-timestamps.json');
+        const allTimestamps = getAllTimestamps(tsPath);
+
+        const result: Record<string, unknown> = {};
+        for (const [siteName, siteStats] of Object.entries(dbStats)) {
+          result[siteName] = {
+            ...siteStats,
+            lastCollected: allTimestamps[siteName] ?? {},
+          };
+        }
+
+        // Include sites that have timestamps but no DB data yet
+        for (const [siteName, variants] of Object.entries(allTimestamps)) {
+          if (!result[siteName] && (!site || siteName === site)) {
+            result[siteName] = {
+              totalPosts: 0,
+              uniqueAuthors: 0,
+              oldestPost: null,
+              newestPost: null,
+              lastCollected: variants,
+            };
+          }
+        }
 
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result) }],

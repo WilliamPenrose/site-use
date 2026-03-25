@@ -4,6 +4,40 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import type { Primitives } from '../../src/primitives/types.js';
 import { createServer, _setPrimitivesForTest } from '../../src/server.js';
 
+vi.mock('../../src/storage/index.js', () => ({
+  createStore: vi.fn(() => ({
+    search: vi.fn().mockResolvedValue([]),
+    ingest: vi.fn().mockResolvedValue(undefined),
+    stats: vi.fn().mockResolvedValue({}),
+    countItems: vi.fn().mockResolvedValue(0),
+    statsBySite: vi.fn().mockImplementation(async (site?: string) => {
+      const all = {
+        twitter: {
+          totalPosts: 42,
+          uniqueAuthors: 10,
+          oldestPost: '2026-01-01T00:00:00.000Z',
+          newestPost: '2026-03-25T00:00:00.000Z',
+        },
+      };
+      if (site) {
+        return site in all ? { [site]: (all as Record<string, unknown>)[site] } : {};
+      }
+      return all;
+    }),
+  })),
+}));
+
+vi.mock('../../src/fetch-timestamps.js', () => ({
+  getAllTimestamps: vi.fn().mockImplementation((_path: string) => ({
+    twitter: {
+      following: '2026-03-25T10:00:00.000Z',
+      for_you: '2026-03-24T08:00:00.000Z',
+    },
+  })),
+  getLastFetchTime: vi.fn().mockReturnValue(null),
+  setLastFetchTime: vi.fn(),
+}));
+
 vi.mock('../../src/browser/browser.js', () => ({
   ensureBrowser: vi.fn(),
   isBrowserConnected: vi.fn().mockReturnValue(true),
@@ -51,14 +85,15 @@ describe('MCP Server contract', () => {
     expect(serverInfo!.name).toBe('site-use');
   });
 
-  it('lists all four tools', async () => {
+  it('lists all five tools', async () => {
     const { tools } = await client.listTools();
-    expect(tools).toHaveLength(4);
+    expect(tools).toHaveLength(5);
     const toolNames = tools.map((t) => t.name);
     expect(toolNames).toContain('twitter_check_login');
     expect(toolNames).toContain('twitter_feed');
     expect(toolNames).toContain('screenshot');
     expect(toolNames).toContain('search');
+    expect(toolNames).toContain('stats');
   });
 
   it('search tool has correct schema', async () => {
@@ -88,5 +123,33 @@ describe('MCP Server contract', () => {
     expect(content[0].type).toBe('image');
     expect(content[0].mimeType).toBe('image/png');
     expect(typeof content[0].data).toBe('string');
+  });
+
+  it('stats tool returns all sites when called with no params', async () => {
+    const result = await client.callTool({ name: 'stats', arguments: {} });
+    expect(result.isError).toBeFalsy();
+    const content = result.content as any[];
+    expect(content).toHaveLength(1);
+    expect(content[0].type).toBe('text');
+    const data = JSON.parse(content[0].text);
+    expect(data).toHaveProperty('twitter');
+    const tw = data.twitter;
+    expect(tw).toHaveProperty('totalPosts', 42);
+    expect(tw).toHaveProperty('uniqueAuthors', 10);
+    expect(tw).toHaveProperty('oldestPost');
+    expect(tw).toHaveProperty('newestPost');
+    expect(tw).toHaveProperty('lastCollected');
+    expect(tw.lastCollected).toHaveProperty('following');
+    expect(tw.lastCollected).toHaveProperty('for_you');
+  });
+
+  it('stats tool returns only specified site when called with site param', async () => {
+    const result = await client.callTool({ name: 'stats', arguments: { site: 'twitter' } });
+    expect(result.isError).toBeFalsy();
+    const content = result.content as any[];
+    const data = JSON.parse(content[0].text);
+    expect(Object.keys(data)).toEqual(['twitter']);
+    expect(data.twitter.totalPosts).toBe(42);
+    expect(data.twitter.lastCollected).toHaveProperty('following');
   });
 });
