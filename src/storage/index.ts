@@ -4,7 +4,7 @@ import { ingest as ingestImpl } from './ingest.js';
 import { search as searchImpl, stats as statsImpl } from './query.js';
 import type { KnowledgeStore, IngestItem, IngestResult, SearchParams, SearchResult, StoreStats, RebuildResult } from './types.js';
 
-export type { KnowledgeStore, IngestItem, IngestResult, SearchParams, SearchResult, SearchResultItem, StoreStats, RebuildResult } from './types.js';
+export type { KnowledgeStore, IngestItem, IngestResult, SearchParams, SearchResult, SearchResultItem, StoreStats, RebuildResult, MetricEntry, MetricFilter } from './types.js';
 
 export function createStore(dbPath: string): KnowledgeStore {
   const db = initializeDatabase(dbPath);

@@ -1,11 +1,18 @@
 // src/storage/types.ts
 
-export interface MediaItem {
-  type: string;
-  url: string;
-  width: number;
-  height: number;
-  duration?: number;
+export interface MetricEntry {
+  metric: string;
+  numValue?: number;
+  realValue?: number;
+  strValue?: string;
+}
+
+export interface MetricFilter {
+  metric: string;
+  op: '>=' | '<=' | '=';
+  numValue?: number;
+  realValue?: number;
+  strValue?: string;
 }
 
 export interface IngestItem {
@@ -16,11 +23,9 @@ export interface IngestItem {
   timestamp: string;
   url: string;
   rawJson: string;
-  siteMeta?: Record<string, unknown>;
+  metrics?: MetricEntry[];
   mentions?: string[];
   hashtags?: string[];
-  links?: string[];
-  media?: MediaItem[];
 }
 
 export interface IngestResult {
@@ -38,9 +43,7 @@ export interface SearchParams {
   max_results?: number;
   hashtag?: string;
   mention?: string;
-  link?: string;
-  min_likes?: number;
-  min_retweets?: number;
+  metricFilters?: MetricFilter[];
   fields?: SearchField[];
 }
 
@@ -56,7 +59,7 @@ export interface SearchResultItem {
   url?: string;
   links?: string[];
   mentions?: string[];
-  media?: MediaItem[];
+  media?: Array<{ type: string; url: string; width: number; height: number; duration?: number }>;
   snippet?: string;
   siteMeta?: Record<string, unknown>;
 }
@@ -70,8 +73,8 @@ export interface StoreStats {
   bySite: Record<string, number>;
   uniqueAuthors: number;
   timeRange: { from: string; to: string } | null;
-  embeddingModel: string | null;         // Phase 2, returns null in Phase 1
-  embeddingCoverage: number;             // Phase 2, returns 0 in Phase 1
+  embeddingModel: string | null;
+  embeddingCoverage: number;
 }
 
 export interface RebuildResult {
@@ -83,6 +86,6 @@ export interface KnowledgeStore {
   ingest(items: IngestItem[]): Promise<IngestResult>;
   search(params: SearchParams): Promise<SearchResult>;
   stats(): Promise<StoreStats>;
-  rebuild(opts?: { model?: string }): Promise<RebuildResult>;  // Phase 2
+  rebuild(opts?: { model?: string }): Promise<RebuildResult>;
   close(): void;
 }

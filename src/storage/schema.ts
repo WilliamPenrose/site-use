@@ -27,22 +27,20 @@ export function initializeDatabase(dbPath: string): DatabaseSync {
   db.exec('CREATE INDEX IF NOT EXISTS idx_items_timestamp ON items(site, timestamp)');
 
   db.exec(`
-    CREATE TABLE IF NOT EXISTS twitter_meta (
-      item_id     TEXT NOT NULL,
-      site        TEXT NOT NULL DEFAULT 'twitter',
-      likes       INTEGER,
-      retweets    INTEGER,
-      replies     INTEGER,
-      views       INTEGER,
-      bookmarks   INTEGER,
-      quotes      INTEGER,
-      following   INTEGER,
-      is_retweet  INTEGER NOT NULL DEFAULT 0,
-      is_ad       INTEGER NOT NULL DEFAULT 0,
-      PRIMARY KEY (site, item_id),
+    CREATE TABLE IF NOT EXISTS item_metrics (
+      site       TEXT NOT NULL,
+      item_id    TEXT NOT NULL,
+      metric     TEXT NOT NULL,
+      num_value  INTEGER,
+      real_value REAL,
+      str_value  TEXT,
+      PRIMARY KEY (site, item_id, metric),
       FOREIGN KEY (site, item_id) REFERENCES items(site, id)
     )
   `);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_metrics_num ON item_metrics(site, metric, num_value)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_metrics_real ON item_metrics(site, metric, real_value)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_metrics_str ON item_metrics(site, metric, str_value)');
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS item_mentions (
@@ -67,43 +65,10 @@ export function initializeDatabase(dbPath: string): DatabaseSync {
   db.exec('CREATE INDEX IF NOT EXISTS idx_hashtags_tag ON item_hashtags(tag)');
 
   db.exec(`
-    CREATE TABLE IF NOT EXISTS item_links (
-      site    TEXT NOT NULL,
-      item_id TEXT NOT NULL,
-      url     TEXT NOT NULL,
-      PRIMARY KEY (site, item_id, url),
-      FOREIGN KEY (site, item_id) REFERENCES items(site, id)
-    )
-  `);
-  db.exec('CREATE INDEX IF NOT EXISTS idx_links_url ON item_links(url)');
-
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS item_media (
-      site     TEXT    NOT NULL,
-      item_id  TEXT    NOT NULL,
-      type     TEXT    NOT NULL,
-      url      TEXT    NOT NULL,
-      width    INTEGER NOT NULL DEFAULT 0,
-      height   INTEGER NOT NULL DEFAULT 0,
-      duration INTEGER,
-      PRIMARY KEY (site, item_id, url),
-      FOREIGN KEY (site, item_id) REFERENCES items(site, id)
-    )
-  `);
-
-  // Migration: add following column to existing databases
-  const cols = db.prepare("PRAGMA table_info('twitter_meta')").all() as Array<{ name: string }>;
-  if (cols.length > 0 && !cols.some((c) => c.name === 'following')) {
-    db.exec('ALTER TABLE twitter_meta ADD COLUMN following INTEGER');
-  }
-
-  db.exec(`
     CREATE VIRTUAL TABLE IF NOT EXISTS items_fts USING fts5(
       text,
       id UNINDEXED,
-      site UNINDEXED,
-      author UNINDEXED,
-      timestamp UNINDEXED
+      site UNINDEXED
     )
   `);
 
