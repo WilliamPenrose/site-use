@@ -14,7 +14,7 @@ import fs from 'node:fs';
 import { SiteUseError, BrowserDisconnected, RateLimited } from './errors.js';
 import { createStore, type KnowledgeStore } from './storage/index.js';
 import { SEARCH_FIELDS } from './storage/types.js';
-import { getAllTimestamps } from './fetch-timestamps.js';
+import { getAllTimestamps, setLastFetchTime } from './fetch-timestamps.js';
 
 // ---------------------------------------------------------------------------
 // Primitives singleton + lazy Chrome + disconnect recovery
@@ -204,6 +204,8 @@ export function createServer(): McpServer {
             const store = getOrCreateStore();
             const result = await getFeed(s.guarded, { count, tab, debug, store, dumpRaw: dump_raw });
             resetErrorStreak();
+            const cfg = getConfig();
+            setLastFetchTime(path.join(cfg.dataDir, 'fetch-timestamps.json'), 'twitter', tab);
             return {
               content: [{ type: 'text' as const, text: JSON.stringify(result) }],
             };
