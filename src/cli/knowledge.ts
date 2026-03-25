@@ -2,7 +2,8 @@ import path from 'node:path';
 import os from 'node:os';
 import { createStore } from '../storage/index.js';
 import { SEARCH_FIELDS } from '../storage/types.js';
-import type { SearchParams, SearchResult, StoreStats } from '../storage/types.js';
+import type { SearchParams, SearchResult, SiteStats } from '../storage/types.js';
+import { getAllTimestamps } from '../fetch-timestamps.js';
 import { formatTweetText } from '../sites/twitter/format.js';
 
 function getDbPath(): string {
@@ -139,15 +140,26 @@ export function formatSearchResults(result: SearchResult): string {
   return `${body}\n\nFound ${result.items.length} ${noun}`;
 }
 
-export function formatStatsHumanReadable(s: StoreStats): string {
+export function formatStatsHumanReadable(
+  stats: Record<string, SiteStats & { lastCollected?: Record<string, string> }>,
+): string {
   const lines: string[] = [];
-  lines.push(`Total items: ${s.totalItems.toLocaleString()}`);
-  for (const [site, count] of Object.entries(s.bySite)) {
-    lines.push(`  ${site}: ${count.toLocaleString()}`);
+  for (const [site, s] of Object.entries(stats)) {
+    lines.push(`${site}:`);
+    lines.push(`  Posts: ${s.totalPosts.toLocaleString()}`);
+    lines.push(`  Authors: ${s.uniqueAuthors.toLocaleString()}`);
+    if (s.oldestPost) {
+      lines.push(`  Content: ${s.oldestPost} — ${s.newestPost}`);
+    }
+    if (s.lastCollected && Object.keys(s.lastCollected).length > 0) {
+      lines.push('  Last collected:');
+      for (const [variant, ts] of Object.entries(s.lastCollected)) {
+        lines.push(`    ${variant}: ${ts}`);
+      }
+    }
   }
-  lines.push(`Unique authors: ${s.uniqueAuthors.toLocaleString()}`);
-  if (s.timeRange) {
-    lines.push(`Time range: ${s.timeRange.from} — ${s.timeRange.to}`);
+  if (lines.length === 0) {
+    lines.push('No data collected yet.');
   }
   return lines.join('\n');
 }
@@ -237,11 +249,31 @@ Options:
         return;
       }
       const isJson = args.includes('--json');
-      const s = await store.stats();
+      const dbStats = await store.statsBySite();
+      const tsPath = path.join(
+        process.env.SITE_USE_DATA_DIR || path.join(os.homedir(), '.site-use'),
+        'fetch-timestamps.json',
+      );
+      const allTimestamps = getAllTimestamps(tsPath);
+
+      const merged: Record<string, SiteStats & { lastCollected: Record<string, string> }> = {};
+      for (const [site, s] of Object.entries(dbStats)) {
+        merged[site] = { ...s, lastCollected: allTimestamps[site] ?? {} };
+      }
+      for (const [site, variants] of Object.entries(allTimestamps)) {
+        if (!merged[site]) {
+          merged[site] = {
+            totalPosts: 0, uniqueAuthors: 0,
+            oldestPost: '', newestPost: '',
+            lastCollected: variants,
+          };
+        }
+      }
+
       if (isJson) {
-        console.log(formatJson(s));
+        console.log(formatJson(merged));
       } else {
-        console.log(formatStatsHumanReadable(s));
+        console.log(formatStatsHumanReadable(merged));
       }
     } else if (command === 'rebuild') {
       if (args.includes('--help') || args.includes('-h')) {
