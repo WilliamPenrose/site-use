@@ -36,7 +36,10 @@ export function formatTweetText(item: SearchResultItem): string {
   const lines: string[] = [];
 
   // Header: @author · date
-  lines.push(`@${item.author ?? 'unknown'} · ${formatDate(item.timestamp ?? '')}`);
+  const headerParts: string[] = [];
+  if (item.author) headerParts.push(`@${item.author}`);
+  if (item.timestamp) headerParts.push(formatDate(item.timestamp));
+  if (headerParts.length > 0) lines.push(headerParts.join(' · '));
 
   // Surface context
   if (reason === 'retweet' && meta.surfacedBy) {
