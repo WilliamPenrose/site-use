@@ -8,6 +8,8 @@ import { getFeed, type TimelineFeed } from '../sites/twitter/workflows.js';
 import { getConfig } from '../config.js';
 import { withLock } from '../lock.js';
 import { createStore, type KnowledgeStore } from '../storage/index.js';
+import { tweetToSearchResultItem } from '../sites/twitter/store-adapter.js';
+import { formatTweetText } from '../sites/twitter/format.js';
 import path from 'node:path';
 import fs from 'node:fs';
 
@@ -71,59 +73,20 @@ export function buildPrimitives(browser: Browser): Primitives {
 }
 
 // ---------------------------------------------------------------------------
-// Timestamp formatting
+// Feed output formatting
 // ---------------------------------------------------------------------------
 
-export function formatTimestamp(iso: string): string {
-  const date = new Date(iso);
-  return new Intl.DateTimeFormat('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-    timeZoneName: 'short',
-  }).format(date);
-}
-
-// ---------------------------------------------------------------------------
-// Human-readable tweet output
-// ---------------------------------------------------------------------------
-
-export function formatHumanReadable(result: FeedResult): string {
-  const lines: string[] = [];
-
-  for (let i = 0; i < result.tweets.length; i++) {
-    const tweet = result.tweets[i];
-    const time = formatTimestamp(tweet.timestamp);
-
-    const followTag = tweet.author.following ? '' : ' [not following]';
-    lines.push(`@${tweet.author.handle}${followTag} · ${time}`);
-    lines.push(tweet.text);
-
-    const parts: string[] = [];
-    if (tweet.metrics.likes != null) parts.push(`likes: ${tweet.metrics.likes.toLocaleString()}`);
-    if (tweet.metrics.retweets != null) parts.push(`retweets: ${tweet.metrics.retweets.toLocaleString()}`);
-    if (tweet.metrics.replies != null) parts.push(`replies: ${tweet.metrics.replies.toLocaleString()}`);
-    if (parts.length > 0) lines.push(parts.join('  '));
-
-    lines.push(tweet.url);
-
-    if (i < result.tweets.length - 1) {
-      lines.push('───────────────────────────────────');
-    }
-  }
-
-  lines.push('');
+function formatFeedOutput(result: FeedResult): string {
+  const items = result.tweets.map(tweetToSearchResultItem);
+  const parts = items.map(formatTweetText);
+  const body = parts.join('\n\n---\n\n');
   const noun = result.tweets.length === 1 ? 'tweet' : 'tweets';
-  lines.push(`Collected ${result.tweets.length} ${noun}`);
+  const lines = [body, '', `Collected ${result.tweets.length} ${noun}`];
 
   if (result.debug) {
-    lines.push('');
-    lines.push(`[debug] tab=${result.debug.tabRequested} nav=${result.debug.navAction} tabAction=${result.debug.tabAction} reload=${result.debug.reloadFallback} graphql=${result.debug.graphqlResponseCount} raw=${result.debug.rawBeforeFilter} elapsed=${result.debug.elapsedMs}ms`);
+    const d = result.debug;
+    lines.push('', `[debug] tab=${d.tabRequested} nav=${d.navAction} tabAction=${d.tabAction} reload=${d.reloadFallback} graphql=${d.graphqlResponseCount} raw=${d.rawBeforeFilter} elapsed=${d.elapsedMs}ms`);
   }
-
   return lines.join('\n');
 }
 
@@ -160,7 +123,7 @@ async function runTwitterFeed(args: string[]): Promise<void> {
 
   try {
     await withLock(async () => {
-      const browser = await ensureBrowser();
+      const browser = await ensureBrowser({ autoLaunch: true });
       const primitives = buildPrimitives(browser);
 
       // Open store for auto-ingest
@@ -180,9 +143,10 @@ async function runTwitterFeed(args: string[]): Promise<void> {
       browser.disconnect();
 
       if (parsed.json) {
-        console.log(JSON.stringify(result, null, 2));
+        const items = result.tweets.map(tweetToSearchResultItem);
+        console.log(JSON.stringify(items, null, 2));
       } else {
-        console.log(formatHumanReadable(result));
+        console.log(formatFeedOutput(result));
       }
     });
   } catch (err) {
