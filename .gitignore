@@ -15,6 +15,7 @@ chrome-profile/
 
 # Claude Code local settings (contains machine-specific paths)
 .claude/
+.claude.local.md
 
 # Superpowers intermediate process docs
 docs/superpowers/
