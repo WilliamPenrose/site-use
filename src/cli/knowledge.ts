@@ -184,17 +184,20 @@ export async function runKnowledgeCli(command: string, args: string[]): Promise<
         console.log(`Usage: site-use search <query> [options]
 
 Options:
-  --author <name>        Filter by author (@ prefix optional)
-  --start-date <date>    Start date (local time, flexible format)
-  --end-date <date>      End date (local time, flexible format)
-  --max-results <n>      Max results (default: 20)
-  --hashtag <tag>        Filter by hashtag
-  --mention <handle>     Filter by mentioned handle (@ prefix optional)
-  --min-likes <n>        Minimum likes
-  --min-retweets <n>     Minimum retweets
-  --surface-reason <r>   Filter by type: original | retweet | quote | reply
-  --fields <list>        Comma-separated fields: ${SEARCH_FIELDS.join(',')}
-  --json                 Output as JSON
+  Filters:
+    --author <name>        Filter by author (@ prefix optional)
+    --start-date <date>    Start date (local time, flexible format)
+    --end-date <date>      End date (local time, flexible format)
+    --hashtag <tag>        Filter by hashtag
+    --mention <handle>     Filter by mentioned handle (@ prefix optional)
+    --surface-reason <r>   Filter by type: original | retweet | quote | reply
+    --min-likes <n>        Minimum likes
+    --min-retweets <n>     Minimum retweets
+
+  Output:
+    --max-results <n>      Max results (default: 20)
+    --fields <list>        Comma-separated fields: ${SEARCH_FIELDS.join(',')}
+    --json                 Output as JSON
 
 Examples:
   site-use search "bitcoin"
