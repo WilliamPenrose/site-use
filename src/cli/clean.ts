@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import readline from 'node:readline/promises';
 import { createStore } from '../storage/index.js';
 import { localToUtc } from './knowledge.js';
+import { utcToLocalDisplay } from '../format-date.js';
 import type { DeleteParams, DeletePreview } from '../storage/types.js';
 
 const CLEAN_HELP = `\
@@ -106,25 +107,6 @@ export function parseCleanArgs(args: string[]): ParseResult {
   return { params: { site, before, after, ingestedBefore, ingestedAfter, author }, noBackup };
 }
 
-/** Convert a UTC ISO string to local time display with timezone label. */
-export function utcToLocalDisplay(utcIso: string): string {
-  const d = new Date(utcIso);
-  const offsetMin = d.getTimezoneOffset(); // positive for west of UTC
-  const sign = offsetMin <= 0 ? '+' : '-';
-  const absHours = Math.floor(Math.abs(offsetMin) / 60);
-  const absMinutes = Math.abs(offsetMin) % 60;
-  const tz = absMinutes === 0
-    ? `UTC${sign}${absHours}`
-    : `UTC${sign}${absHours}:${String(absMinutes).padStart(2, '0')}`;
-
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  const hours = String(d.getHours()).padStart(2, '0');
-  const minutes = String(d.getMinutes()).padStart(2, '0');
-
-  return `${year}-${month}-${day} ${hours}:${minutes} (${tz})`;
-}
 
 export function formatPreview(site: string, preview: DeletePreview): string {
   const maxAuthorsShown = 10;

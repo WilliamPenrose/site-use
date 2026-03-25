@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { parseCleanArgs, formatPreview, formatProgress, utcToLocalDisplay } from '../../src/cli/clean.js';
+import { parseCleanArgs, formatPreview, formatProgress } from '../../src/cli/clean.js';
+import { utcToLocalDisplay } from '../../src/format-date.js';
 import type { DeletePreview } from '../../src/storage/types.js';
 
 describe('parseCleanArgs', () => {

@@ -1,18 +1,12 @@
 // src/sites/twitter/format.ts
 import type { SearchResultItem } from '../../storage/types.js';
+import { utcToLocalDisplay } from '../../format-date.js';
 
 function formatNumber(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 10_000) return `${(n / 1_000).toFixed(0)}k`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
   return String(n);
-}
-
-function formatDate(iso: string): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
 }
 
 function metricsLine(meta: Record<string, unknown>): string {
@@ -38,7 +32,7 @@ export function formatTweetText(item: SearchResultItem): string {
   // Header: @author · date
   const headerParts: string[] = [];
   if (item.author) headerParts.push(`@${item.author}`);
-  if (item.timestamp) headerParts.push(formatDate(item.timestamp));
+  if (item.timestamp) headerParts.push(utcToLocalDisplay(item.timestamp));
   if (headerParts.length > 0) lines.push(headerParts.join(' · '));
 
   // Surface context

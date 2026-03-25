@@ -87,6 +87,25 @@ describe('formatTweetText', () => {
     expect(output).toContain('Totally agree');
   });
 
+  it('displays local time with timezone annotation', () => {
+    const item: SearchResultItem = {
+      id: '100', site: 'twitter',
+      author: 'test',
+      text: 'timezone check',
+      timestamp: '2026-03-20T14:09:00.000Z',
+      url: 'https://x.com/test/status/100',
+      siteMeta: { likes: 0, surfaceReason: 'original' },
+    };
+    const output = formatTweetText(item);
+    // Must contain timezone annotation like (UTC+8) or (UTC-5)
+    expect(output).toMatch(/\(UTC[+-]\d{1,2}(:\d{2})?\)/);
+    // Must use local time, not UTC — verify by computing expected local values
+    const d = new Date('2026-03-20T14:09:00.000Z');
+    const localHours = String(d.getHours()).padStart(2, '0');
+    const localMinutes = String(d.getMinutes()).padStart(2, '0');
+    expect(output).toContain(`${localHours}:${localMinutes}`);
+  });
+
   it('formats large view counts with k suffix', () => {
     const item: SearchResultItem = {
       id: '1', site: 'twitter',
