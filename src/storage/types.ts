@@ -67,15 +67,6 @@ export interface SearchResult {
   items: SearchResultItem[];
 }
 
-export interface StoreStats {
-  totalItems: number;
-  bySite: Record<string, number>;
-  uniqueAuthors: number;
-  timeRange: { from: string; to: string } | null;
-  embeddingModel: string | null;
-  embeddingCoverage: number;
-}
-
 export interface SiteStats {
   totalPosts: number;
   uniqueAuthors: number;
@@ -97,7 +88,6 @@ export interface KnowledgeStore {
   ingest(items: IngestItem[]): Promise<IngestResult>;
   search(params: SearchParams): Promise<SearchResult>;
   countItems(params: CountItemsParams): Promise<number>;
-  stats(): Promise<StoreStats>;
   statsBySite(site?: string): Promise<Record<string, SiteStats>>;
   rebuild(opts?: { model?: string }): Promise<RebuildResult>;
   close(): void;

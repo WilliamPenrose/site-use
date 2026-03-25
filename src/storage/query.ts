@@ -1,6 +1,6 @@
 // src/storage/query.ts
 import type { DatabaseSync } from 'node:sqlite';
-import type { SearchParams, SearchResult, SearchResultItem, StoreStats, CountItemsParams, SiteStats } from './types.js';
+import type { SearchParams, SearchResult, SearchResultItem, CountItemsParams, SiteStats } from './types.js';
 import { resolveItem } from '../display/resolve.js';
 import { twitterDisplaySchema } from '../sites/twitter/display.js';
 import type { DisplaySchema } from '../display/resolve.js';
@@ -221,27 +221,6 @@ export function countItems(db: DatabaseSync, params: CountItemsParams): number {
   const sql = `SELECT COUNT(*) as cnt FROM items i ${joins.join(' ')} WHERE ${conditions.join(' AND ')}`;
   const row = db.prepare(sql).get(...values) as { cnt: number };
   return row.cnt;
-}
-
-export function stats(db: DatabaseSync): StoreStats {
-  const totalRow = db.prepare('SELECT COUNT(*) as cnt FROM items').get() as { cnt: number };
-  const totalItems = totalRow.cnt;
-
-  const siteRows = db.prepare('SELECT site, COUNT(*) as cnt FROM items GROUP BY site').all() as Array<{ site: string; cnt: number }>;
-  const bySite: Record<string, number> = {};
-  for (const row of siteRows) {
-    bySite[row.site] = row.cnt;
-  }
-
-  const authorsRow = db.prepare('SELECT COUNT(DISTINCT author) as cnt FROM items').get() as { cnt: number };
-  const uniqueAuthors = authorsRow.cnt;
-
-  const rangeRow = db.prepare('SELECT MIN(timestamp) as min_ts, MAX(timestamp) as max_ts FROM items').get() as { min_ts: string | null; max_ts: string | null };
-  const timeRange = rangeRow.min_ts
-    ? { from: rangeRow.min_ts, to: rangeRow.max_ts as string }
-    : null;
-
-  return { totalItems, bySite, uniqueAuthors, timeRange, embeddingModel: null, embeddingCoverage: 0 };
 }
 
 export function statsBySite(db: DatabaseSync, site?: string): Record<string, SiteStats> {

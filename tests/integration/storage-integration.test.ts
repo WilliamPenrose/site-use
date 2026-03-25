@@ -56,10 +56,9 @@ describe('storage integration', () => {
     const item = searchResult.items[0];
     expect(item.links).toEqual(['https://example.com/post']);
 
-    const s = await store.stats();
-    expect(s.totalItems).toBe(1);
-    expect(s.bySite).toEqual({ twitter: 1 });
-    expect(s.uniqueAuthors).toBe(1);
+    const s = await store.statsBySite();
+    expect(s.twitter.totalPosts).toBe(1);
+    expect(s.twitter.uniqueAuthors).toBe(1);
   });
 
   it('dedup across multiple ingest calls', async () => {
@@ -77,8 +76,8 @@ describe('storage integration', () => {
     expect(result.inserted).toBe(0);
     expect(result.duplicates).toBe(1);
 
-    const s = await store.stats();
-    expect(s.totalItems).toBe(1);
+    const s = await store.statsBySite();
+    expect(s.twitter.totalPosts).toBe(1);
   });
 
   it('ingests following metric', async () => {

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { DatabaseSync } from 'node:sqlite';
 import { initializeDatabase } from '../../src/storage/schema.js';
 import { ingest } from '../../src/storage/ingest.js';
-import { search, stats, statsBySite } from '../../src/storage/query.js';
+import { search, statsBySite } from '../../src/storage/query.js';
 import type { IngestItem } from '../../src/storage/types.js';
 
 function tweetJson(overrides: Record<string, unknown> = {}): string {
@@ -310,23 +310,3 @@ describe('statsBySite', () => {
   });
 });
 
-describe('stats', () => {
-  it('returns correct totals', () => {
-    const s = stats(db);
-    expect(s.totalItems).toBe(3);
-    expect(s.bySite).toEqual({ twitter: 3 });
-    expect(s.uniqueAuthors).toBe(2);
-    expect(s.timeRange).toEqual({
-      from: '2026-03-19T08:00:00Z',
-      to: '2026-03-21T12:00:00Z',
-    });
-  });
-
-  it('returns null timeRange on empty db', () => {
-    const emptyDb = initializeDatabase(':memory:');
-    const s = stats(emptyDb);
-    expect(s.totalItems).toBe(0);
-    expect(s.timeRange).toBeNull();
-    emptyDb.close();
-  });
-});
