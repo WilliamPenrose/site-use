@@ -204,29 +204,39 @@ export async function runCleanCli(args: string[]): Promise<void> {
     console.log(formatPreview(params.site, preview));
 
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-    const answer = await rl.question(`\nDelete these ${preview.totalCount} items? (y/N) `);
-    rl.close();
+    let answer: string;
+    try {
+      answer = await rl.question(`\nDelete these ${preview.totalCount} items? (y/N) `);
+    } finally {
+      rl.close();
+    }
 
-    if (answer.trim().toLowerCase() !== 'y') {
+    if (answer!.trim().toLowerCase() !== 'y') {
       console.log('Cancelled.');
       return;
     }
 
     // Backup before deletion (unless --no-backup)
     if (!noBackup) {
-      const backupDir = path.join(dataDir, 'backups');
-      fs.mkdirSync(backupDir, { recursive: true });
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const backupPath = path.join(backupDir, `clean-${timestamp}.jsonl`);
-      const fd = fs.openSync(backupPath, 'w');
       try {
-        store.exportItems(params, (line) => {
-          fs.writeSync(fd, line + '\n');
-        });
-      } finally {
-        fs.closeSync(fd);
+        const backupDir = path.join(dataDir, 'backups');
+        fs.mkdirSync(backupDir, { recursive: true });
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const backupPath = path.join(backupDir, `clean-${timestamp}.jsonl`);
+        const fd = fs.openSync(backupPath, 'w');
+        try {
+          store.exportItems(params, (line) => {
+            fs.writeSync(fd, line + '\n');
+          });
+        } finally {
+          fs.closeSync(fd);
+        }
+        console.log(`Backed up to ${backupPath}`);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        process.stderr.write(`Error: Failed to create backup: ${msg}\n`);
+        return;
       }
-      console.log(`Backed up to ${backupPath}`);
     }
 
     const startTime = Date.now();
