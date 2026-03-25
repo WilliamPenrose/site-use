@@ -129,24 +129,99 @@ Error: --fetch and --local are mutually exclusive.
 
 ## MCP 侧变更
 
+### 设计原则
+
 MCP 的 `twitter_feed` 工具**不做** smart default。调用即 fetch，语义保持不变。
 
-唯一变更：优化 tool description，加上成本提示引导 AI 优先使用 `search`：
+理由：AI agent 有能力自己判断数据新鲜度，不需要工具内部隐式决策。显式语义更可预测。但 agent 需要足够的环境信息才能做出好的判断——单靠 search 结果里的推文时间戳不够直观，也浪费 token。
+
+### 新增 `stats` 工具
+
+将现有 CLI 的 `stats` 功能增强后暴露为 MCP 工具，让 agent 一次调用拿到完整的数据环境信息。
+
+#### 参数
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `site` | string | 否 | 只返回指定 site 的统计，不传则返回所有 site |
+
+#### 响应格式
+
+按 site 分组，每个 site 包含存量统计和采集新鲜度：
+
+```json
+{
+  "twitter": {
+    "totalPosts": 1100,
+    "uniqueAuthors": 72,
+    "oldestPost": "2026-03-20T08:15:00Z",
+    "newestPost": "2026-03-25T14:23:00Z",
+    "lastCollected": {
+      "following": "2026-03-25T13:41:00Z",
+      "for_you": "2026-03-25T12:10:00Z"
+    }
+  },
+  "xhs": {
+    "totalPosts": 134,
+    "uniqueAuthors": 15,
+    "oldestPost": "2026-03-22T10:30:00Z",
+    "newestPost": "2026-03-25T10:00:00Z",
+    "lastCollected": {
+      "discover": "2026-03-25T10:00:00Z"
+    }
+  }
+}
+```
+
+字段说明：
+
+| 字段 | 来源 | 含义 |
+|------|------|------|
+| `totalPosts` | `SELECT COUNT(*) FROM items WHERE site = ?` | 该 site 的总存量 |
+| `uniqueAuthors` | `SELECT COUNT(DISTINCT author) FROM items WHERE site = ?` | 内容多样性 |
+| `oldestPost` / `newestPost` | `SELECT MIN/MAX(timestamp) FROM items WHERE site = ?` | 内容时间跨度（发布时间） |
+| `lastCollected` | `fetch-timestamps.json` 中对应 site 的各 variant | 上次采集的时间（按 tab） |
+
+#### agent 决策示例
+
+agent 拿到 stats 后可以自主判断：
+
+- `lastCollected.following` 是 42 分钟前 → 数据新鲜，直接用 `search` 查内容
+- `lastCollected.for_you` 是 133 分钟前 → 可以提示用户"for_you 数据有点旧，是否需要刷新？"
+- `totalPosts` 为 0 → 该 site 从未采集过，必须先 `twitter_feed`
+- 用户问"最近关注的人发了什么" → 看 `lastCollected.following` 判断是否需要刷新，再看 `newestPost` 了解数据覆盖到什么时候
+
+#### 与现有 stats 的关系
+
+现有 `stats()` 函数（`src/storage/query.ts`）返回全局聚合数据。增强方案：
+
+1. **按 site 分组**：将现有 `bySite` 展开为完整的 per-site 统计（authors、time range）
+2. **合并 freshness 数据**：读取 `fetch-timestamps.json`，按 site 挂到 `lastCollected` 字段
+3. **字段重命名**：使用 agent 友好的命名（`totalPosts` 而非 `totalItems`，`oldestPost`/`newestPost` 而非嵌套的 `timeRange`）
+
+#### tool description
+
+```
+stats:
+  Show knowledge base statistics per site: post counts, content time range, and when each feed tab was last collected. Use this to decide whether to fetch fresh data or query existing data with search.
+```
+
+### 更新 `twitter_feed` description
 
 ```
 Collect tweets from the Twitter/X home feed.
 This launches a browser and takes 10-30s.
-Use the search tool first to check if recently collected data meets your needs.
+Call the stats tool first to check when data was last collected — if recent enough, use search instead.
 ```
-
-理由：AI agent 有能力自己先调 `search` 判断数据新鲜度，不需要工具内部隐式决策。显式语义更可预测。
 
 ## 实现范围
 
 1. **fetch-timestamps 模块**：读写 `{dataDir}/fetch-timestamps.json` 的工具函数（`getLastFetchTime(site, variant)` / `setLastFetchTime(site, variant)`）
-2. **storage 层**：KnowledgeStore 新增 `countItems(site, metricFilters?)` 方法（提示信息用）
-3. **workflow.ts**：新增 `shouldFetch()` 判断函数，读 fetch-timestamps 文件
-4. **workflow.ts**：`parseFeedArgs()` 新增 `--fetch`、`--max-age` 参数解析及互斥校验
-5. **workflow.ts**：主流程根据判断结果走 fetch 或 local 分支，输出 stderr 提示；fetch 成功后写入时间戳
-6. **server.ts**：更新 `twitter_feed` tool description
-7. **测试**：`shouldFetch()` unit test + fetch-timestamps 读写 unit test
+2. **storage 层**：KnowledgeStore 新增 `countItems(site, metricFilters?)` 方法（CLI 提示信息用）
+3. **storage 层**：`stats()` 增强为按 site 分组，合并 fetch-timestamps 数据，返回新格式
+4. **server.ts**：新增 `stats` MCP 工具，调用增强后的 `stats()`
+5. **server.ts**：更新 `twitter_feed` tool description
+6. **workflow.ts**：新增 `shouldFetch()` 判断函数，读 fetch-timestamps 文件
+7. **workflow.ts**：`parseFeedArgs()` 新增 `--fetch`、`--max-age` 参数解析及互斥校验
+8. **workflow.ts**：主流程根据判断结果走 fetch 或 local 分支，输出 stderr 提示；fetch 成功后写入时间戳
+9. **测试**：`shouldFetch()` unit test + fetch-timestamps 读写 unit test + stats 增强 unit test
