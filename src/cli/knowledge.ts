@@ -29,7 +29,7 @@ export function parseSearchArgs(args: string[]): SearchParams & { json?: boolean
   const params: SearchParams & { json?: boolean } = {};
   let i = 0;
 
-  const needsValue = new Set(['--author', '--start-date', '--end-date', '--max-results', '--hashtag', '--mention', '--min-likes', '--min-retweets', '--fields']);
+  const needsValue = new Set(['--author', '--start-date', '--end-date', '--max-results', '--hashtag', '--mention', '--min-likes', '--min-retweets', '--surface-reason', '--fields']);
 
   while (i < args.length) {
     const arg = args[i];
@@ -43,6 +43,7 @@ export function parseSearchArgs(args: string[]): SearchParams & { json?: boolean
         '--mention': '--mention openai',
         '--min-likes': '--min-likes 100',
         '--min-retweets': '--min-retweets 50',
+        '--surface-reason': '--surface-reason retweet',
         '--fields': `--fields ${SEARCH_FIELDS.join(',')}`,
       };
       process.stderr.write(`Missing value for ${arg}\nUsage: ${examples[arg] ?? arg + ' <value>'}\n`);
@@ -78,6 +79,17 @@ export function parseSearchArgs(args: string[]): SearchParams & { json?: boolean
         const val = parseInt(args[++i], 10);
         params.metricFilters ??= [];
         params.metricFilters.push({ metric: 'retweets', op: '>=', numValue: val });
+        break;
+      }
+      case '--surface-reason': {
+        const val = args[++i];
+        if (!['original', 'retweet', 'quote', 'reply'].includes(val)) {
+          process.stderr.write(`Invalid --surface-reason: expected original|retweet|quote|reply, got "${val}"\n`);
+          process.exitCode = 1;
+          return params;
+        }
+        params.metricFilters ??= [];
+        params.metricFilters.push({ metric: 'surface_reason', op: '=', strValue: val });
         break;
       }
       case '--fields': {
@@ -180,6 +192,7 @@ Options:
   --mention <handle>     Filter by mentioned handle (@ prefix optional)
   --min-likes <n>        Minimum likes
   --min-retweets <n>     Minimum retweets
+  --surface-reason <r>   Filter by type: original | retweet | quote | reply
   --fields <list>        Comma-separated fields: ${SEARCH_FIELDS.join(',')}
   --json                 Output as JSON
 

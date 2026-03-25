@@ -268,16 +268,19 @@ export function createServer(): McpServer {
           .describe('Minimum likes threshold'),
         min_retweets: z.number().optional()
           .describe('Minimum retweets threshold'),
+        surface_reason: z.enum(['original', 'retweet', 'quote', 'reply']).optional()
+          .describe('Filter by how the tweet appeared in the feed: original, retweet, quote, or reply'),
         fields: z.array(z.enum(SEARCH_FIELDS)).optional()
           .describe('Fields to include in results. Defaults to all fields.'),
       },
     },
-    async ({ query, author, start_date, end_date, max_results, hashtag, mention, min_likes, min_retweets, fields }) => {
+    async ({ query, author, start_date, end_date, max_results, hashtag, mention, min_likes, min_retweets, surface_reason, fields }) => {
       try {
         const store = getOrCreateStore();
-        const metricFilters: Array<{ metric: string; op: '>=' | '<=' | '='; numValue?: number }> = [];
+        const metricFilters: Array<{ metric: string; op: '>=' | '<=' | '='; numValue?: number; strValue?: string }> = [];
         if (min_likes != null) metricFilters.push({ metric: 'likes', op: '>=', numValue: min_likes });
         if (min_retweets != null) metricFilters.push({ metric: 'retweets', op: '>=', numValue: min_retweets });
+        if (surface_reason != null) metricFilters.push({ metric: 'surface_reason', op: '=', strValue: surface_reason });
         const result = await store.search({
           query, author, start_date, end_date, max_results, hashtag, mention,
           metricFilters: metricFilters.length > 0 ? metricFilters : undefined,
