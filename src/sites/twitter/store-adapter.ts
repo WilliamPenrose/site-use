@@ -12,6 +12,7 @@ export function tweetsToIngestItems(tweets: Tweet[]): IngestItem[] {
 
     const metrics = extractMetrics(tweet);
     metrics.push({ metric: 'surface_reason', strValue: tweet.surfaceReason });
+    metrics.push({ metric: 'following', numValue: tweet.author.following ? 1 : 0 });
 
     return {
       site: 'twitter',

@@ -1,6 +1,8 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { createStore } from '../../src/storage/index.js';
 import type { KnowledgeStore } from '../../src/storage/types.js';
+import { tweetsToIngestItems } from '../../src/sites/twitter/store-adapter.js';
+import type { Tweet } from '../../src/sites/twitter/types.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -77,6 +79,30 @@ describe('storage integration', () => {
 
     const s = await store.stats();
     expect(s.totalItems).toBe(1);
+  });
+
+  it('ingests following metric', async () => {
+    store = createStore(':memory:');
+    const tweet: Tweet = {
+      id: 'follow-test',
+      author: { handle: 'alice', name: 'Alice', following: true },
+      text: 'test tweet',
+      timestamp: '2026-03-25T12:00:00Z',
+      url: 'https://x.com/alice/status/follow-test',
+      metrics: { likes: 1 },
+      media: [],
+      links: [],
+      isRetweet: false,
+      isAd: false,
+      surfaceReason: 'original',
+    };
+    const items = tweetsToIngestItems([tweet]);
+    await store.ingest(items);
+    const result = await store.search({
+      site: 'twitter',
+      metricFilters: [{ metric: 'following', op: '=', numValue: 1 }],
+    });
+    expect(result.items).toHaveLength(1);
   });
 
   it('concurrent read/write via WAL mode (file-based db)', async () => {
