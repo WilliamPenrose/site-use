@@ -183,7 +183,7 @@ export function createServer(): McpServer {
   server.registerTool(
     'twitter_feed',
     {
-      description: 'Collect tweets from the Twitter/X home feed',
+      description: 'Collect tweets from the Twitter/X home feed. This launches a browser and takes 10-30s. Use the search tool first to check if recently collected data meets your needs.',
       inputSchema: {
         count: z.number().min(1).max(100).default(20)
           .describe('Number of tweets to collect'),

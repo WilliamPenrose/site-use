@@ -32,6 +32,36 @@ describe('CLI workflow', () => {
     }
   });
 
+  it('twitter feed --local shows hint on stderr', () => {
+    try {
+      execFileSync('node', [bin, 'twitter', 'feed', '--local'], {
+        env: { ...process.env, SITE_USE_DATA_DIR: tmpDir },
+        encoding: 'utf-8',
+        timeout: 15_000,
+      });
+      expect.unreachable('Expected process to exit with code 1');
+    } catch (err: unknown) {
+      const e = err as { status: number; stderr: string };
+      expect(e.stderr).toContain('Using local data (--local)');
+    }
+  });
+
+  it('twitter feed --fetch --local exits 1 with mutually exclusive error', () => {
+    try {
+      execFileSync('node', [bin, 'twitter', 'feed', '--fetch', '--local'], {
+        env: { ...process.env, SITE_USE_DATA_DIR: tmpDir },
+        encoding: 'utf-8',
+        timeout: 15_000,
+      });
+      expect.unreachable('Expected process to exit with code 1');
+    } catch (err: unknown) {
+      const e = err as { status: number; stderr: string };
+      expect(e.status).toBe(1);
+      expect(e.stderr).toContain('mutually exclusive');
+    }
+  });
+
+
   it('twitter unknown action exits 1 with UnknownAction', () => {
     try {
       execFileSync('node', [bin, 'twitter', 'unknown'], {

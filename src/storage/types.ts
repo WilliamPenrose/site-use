@@ -81,9 +81,15 @@ export interface RebuildResult {
   elapsed: number;
 }
 
+export interface CountItemsParams {
+  site: string;
+  metricFilters?: MetricFilter[];
+}
+
 export interface KnowledgeStore {
   ingest(items: IngestItem[]): Promise<IngestResult>;
   search(params: SearchParams): Promise<SearchResult>;
+  countItems(params: CountItemsParams): Promise<number>;
   stats(): Promise<StoreStats>;
   rebuild(opts?: { model?: string }): Promise<RebuildResult>;
   close(): void;

@@ -1,10 +1,10 @@
 // src/storage/index.ts
 import { initializeDatabase } from './schema.js';
 import { ingest as ingestImpl } from './ingest.js';
-import { search as searchImpl, stats as statsImpl } from './query.js';
-import type { KnowledgeStore, IngestItem, IngestResult, SearchParams, SearchResult, StoreStats, RebuildResult } from './types.js';
+import { search as searchImpl, stats as statsImpl, countItems as countItemsImpl } from './query.js';
+import type { KnowledgeStore, IngestItem, IngestResult, SearchParams, SearchResult, StoreStats, RebuildResult, CountItemsParams } from './types.js';
 
-export type { KnowledgeStore, IngestItem, IngestResult, SearchParams, SearchResult, SearchResultItem, StoreStats, RebuildResult, MetricEntry, MetricFilter } from './types.js';
+export type { KnowledgeStore, IngestItem, IngestResult, SearchParams, SearchResult, SearchResultItem, StoreStats, RebuildResult, MetricEntry, MetricFilter, CountItemsParams } from './types.js';
 
 export function createStore(dbPath: string): KnowledgeStore {
   const db = initializeDatabase(dbPath);
@@ -15,6 +15,9 @@ export function createStore(dbPath: string): KnowledgeStore {
     },
     async search(params: SearchParams): Promise<SearchResult> {
       return searchImpl(db, params);
+    },
+    async countItems(params: CountItemsParams): Promise<number> {
+      return countItemsImpl(db, params);
     },
     async stats(): Promise<StoreStats> {
       return statsImpl(db);

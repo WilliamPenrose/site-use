@@ -1,6 +1,6 @@
 // src/storage/query.ts
 import type { DatabaseSync } from 'node:sqlite';
-import type { SearchParams, SearchResult, SearchResultItem, StoreStats } from './types.js';
+import type { SearchParams, SearchResult, SearchResultItem, StoreStats, CountItemsParams } from './types.js';
 import { resolveItem } from '../display/resolve.js';
 import { twitterDisplaySchema } from '../sites/twitter/display.js';
 import type { DisplaySchema } from '../display/resolve.js';
@@ -190,6 +190,37 @@ export function search(db: DatabaseSync, params: SearchParams): SearchResult {
   }
 
   return { items };
+}
+
+export function countItems(db: DatabaseSync, params: CountItemsParams): number {
+  const conditions: string[] = ['i.site = ?'];
+  const joins: string[] = [];
+  const values: SqlValue[] = [params.site];
+
+  if (params.metricFilters) {
+    for (let idx = 0; idx < params.metricFilters.length; idx++) {
+      const mf = params.metricFilters[idx];
+      const alias = `mf${idx}`;
+      joins.push(`JOIN item_metrics ${alias} ON ${alias}.site = i.site AND ${alias}.item_id = i.id`);
+      conditions.push(`${alias}.metric = ?`);
+      values.push(mf.metric);
+
+      if (mf.numValue != null) {
+        conditions.push(`${alias}.num_value ${mf.op} ?`);
+        values.push(mf.numValue);
+      } else if (mf.realValue != null) {
+        conditions.push(`${alias}.real_value ${mf.op} ?`);
+        values.push(mf.realValue);
+      } else if (mf.strValue != null) {
+        conditions.push(`${alias}.str_value ${mf.op} ?`);
+        values.push(mf.strValue);
+      }
+    }
+  }
+
+  const sql = `SELECT COUNT(*) as cnt FROM items i ${joins.join(' ')} WHERE ${conditions.join(' AND ')}`;
+  const row = db.prepare(sql).get(...values) as { cnt: number };
+  return row.cnt;
 }
 
 export function stats(db: DatabaseSync): StoreStats {
