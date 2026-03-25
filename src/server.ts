@@ -15,6 +15,7 @@ import { SiteUseError, BrowserDisconnected, RateLimited } from './errors.js';
 import { createStore, type KnowledgeStore } from './storage/index.js';
 import { SEARCH_FIELDS } from './storage/types.js';
 import { getAllTimestamps, setLastFetchTime } from './fetch-timestamps.js';
+import { BUILD_HASH } from './build-info.js';
 
 // ---------------------------------------------------------------------------
 // Primitives singleton + lazy Chrome + disconnect recovery
@@ -150,10 +151,15 @@ export async function formatToolError(err: unknown, primitives?: Primitives): Pr
 
 const mutex = new Mutex();
 
+function getVersion(): string {
+  const base = '0.1.0';
+  return BUILD_HASH === 'dev' ? base : `${base}+${BUILD_HASH}`;
+}
+
 export function createServer(): McpServer {
   const server = new McpServer({
     name: 'site-use',
-    version: '0.1.0',
+    version: getVersion(),
   });
 
   // -- twitter_check_login --------------------------------------------------

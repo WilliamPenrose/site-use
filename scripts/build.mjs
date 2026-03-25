@@ -26,6 +26,18 @@ function run(cmd, label) {
 // Step 1: Main TypeScript compilation
 run('npx tsc', 'tsc (main)');
 
+// Step 1.5: Stamp BUILD_HASH into compiled output
+try {
+  const hash = execSync('git rev-parse --short HEAD', { cwd: ROOT, encoding: 'utf-8' }).trim();
+  fs.writeFileSync(
+    path.join(ROOT, 'dist', 'build-info.js'),
+    `export const BUILD_HASH = '${hash}';\n`,
+  );
+  console.log(`[build] BUILD_HASH: ${hash}`);
+} catch {
+  console.log('[build] BUILD_HASH: dev (not in git repo)');
+}
+
 // Step 2: Generate browser barrel (must happen before type-check since page.ts imports it)
 console.log('[build] Generating browser barrel...');
 const checksDir = path.join(ROOT, 'src', 'diagnose', 'checks');
