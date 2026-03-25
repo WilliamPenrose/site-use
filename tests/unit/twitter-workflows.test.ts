@@ -138,7 +138,7 @@ describe('getFeed', () => {
       ),
     });
 
-    const result = await getFeed(primitives, 0);
+    const result = await getFeed(primitives, { count: 0 });
     expect(primitives.navigate).toHaveBeenCalledWith('https://x.com/home', 'twitter');
     expect(result.tweets).toBeDefined();
   });
@@ -228,7 +228,7 @@ describe('getFeed', () => {
       }),
     });
 
-    const result = await getFeed(primitives, 1);
+    const result = await getFeed(primitives, { count: 1 });
     expect(result.tweets).toHaveLength(1);
     expect(result.tweets[0].text).toBe('Test tweet');
     expect(result.tweets[0].author.handle).toBe('testuser');

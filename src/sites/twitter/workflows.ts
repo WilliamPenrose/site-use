@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import type { Primitives } from '../../primitives/types.js';
 import { SessionExpired } from '../../errors.js';
 import { matchByRule, rules } from './matchers.js';
@@ -82,23 +84,35 @@ export async function requireLogin(primitives: Primitives): Promise<void> {
  */
 export type TimelineFeed = 'following' | 'for_you';
 
+export interface GetFeedOptions {
+  count?: number;
+  tab?: TimelineFeed;
+  debug?: boolean;
+  store?: KnowledgeStore;
+  dumpRaw?: string;
+}
+
 export async function getFeed(
   primitives: Primitives,
-  count: number = 20,
-  tab: TimelineFeed = 'following',
-  debug: boolean = false,
-  store?: KnowledgeStore,
+  opts: GetFeedOptions = {},
 ): Promise<FeedResult> {
+  const { count = 20, tab = 'following', debug = false, store, dumpRaw } = opts;
   const startTime = Date.now();
   let graphqlResponseCount = 0;
   let reloadFallback = false;
 
   // Set up interception BEFORE navigation so initial GraphQL response is captured
   const interceptedRaw: RawTweetData[] = [];
+  let dumpIndex = 0;
   const cleanup = await primitives.interceptRequest(
     GRAPHQL_TIMELINE_PATTERN,
     (response) => {
       try {
+        if (dumpRaw) {
+          fs.mkdirSync(dumpRaw, { recursive: true });
+          const outPath = path.join(dumpRaw, `graphql-${dumpIndex++}.json`);
+          fs.writeFileSync(outPath, response.body);
+        }
         const parsed = parseGraphQLTimeline(response.body);
         interceptedRaw.push(...parsed);
         graphqlResponseCount++;

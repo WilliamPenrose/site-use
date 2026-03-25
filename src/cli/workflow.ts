@@ -166,7 +166,7 @@ async function runTwitterFeed(args: string[]): Promise<void> {
 
       let result: FeedResult;
       try {
-        result = await getFeed(primitives, parsed.count, parsed.tab, parsed.debug, store);
+        result = await getFeed(primitives, { count: parsed.count, tab: parsed.tab, debug: parsed.debug, store });
       } finally {
         store.close();
       }

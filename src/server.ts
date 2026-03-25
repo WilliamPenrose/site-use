@@ -191,15 +191,17 @@ export function createServer(): McpServer {
           .describe('Which feed tab to read: "following" (chronological) or "for_you" (algorithmic)'),
         debug: z.boolean().default(false)
           .describe('Include diagnostic info (tab action, reload fallback, GraphQL counts, timing)'),
+        dump_raw: z.string().optional()
+          .describe('Directory path to dump raw GraphQL responses for debugging'),
       },
     },
-    async ({ count, tab, debug }) => {
+    async ({ count, tab, debug, dump_raw }) => {
       return withLock(async () => {
         return mutex.run(async () => {
           try {
             const s = await getPrimitives();
             const store = getOrCreateStore();
-            const result = await getFeed(s.guarded, count, tab, debug, store);
+            const result = await getFeed(s.guarded, { count, tab, debug, store, dumpRaw: dump_raw });
             resetErrorStreak();
             return {
               content: [{ type: 'text' as const, text: JSON.stringify(result) }],
