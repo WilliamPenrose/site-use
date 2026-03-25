@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { getLastFetchTime, setLastFetchTime } from '../../src/fetch-timestamps.js';
+import { getLastFetchTime, setLastFetchTime, getAllTimestamps } from '../../src/fetch-timestamps.js';
 
 describe('fetch-timestamps', () => {
   let tmpDir: string;
@@ -54,5 +54,37 @@ describe('fetch-timestamps', () => {
     expect(data.twitter.for_you).toBe('2026-01-01T00:00:00Z');
     expect(data.xiaohongshu.discover).toBe('2026-02-01T00:00:00Z');
     expect(data.twitter.following).toBeDefined();
+  });
+});
+
+describe('getAllTimestamps', () => {
+  let tmpDir: string;
+  let filePath: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fetch-ts-'));
+    filePath = path.join(tmpDir, 'fetch-timestamps.json');
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('returns empty object when file does not exist', () => {
+    const result = getAllTimestamps(filePath);
+    expect(result).toEqual({});
+  });
+
+  it('returns all site/variant timestamps', () => {
+    setLastFetchTime(filePath, 'twitter', 'following');
+    setLastFetchTime(filePath, 'twitter', 'for_you');
+    setLastFetchTime(filePath, 'xhs', 'discover');
+
+    const result = getAllTimestamps(filePath);
+    expect(Object.keys(result)).toEqual(['twitter', 'xhs']);
+    expect(Object.keys(result.twitter)).toEqual(['following', 'for_you']);
+    expect(Object.keys(result.xhs)).toEqual(['discover']);
+    // Values are ISO strings
+    expect(new Date(result.twitter.following).getTime()).toBeGreaterThan(0);
   });
 });

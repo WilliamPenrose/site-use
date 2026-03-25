@@ -21,3 +21,7 @@ export function setLastFetchTime(filePath: string, site: string, variant: string
   data[site][variant] = new Date().toISOString();
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
 }
+
+export function getAllTimestamps(filePath: string): TimestampData {
+  return readFile(filePath);
+}
