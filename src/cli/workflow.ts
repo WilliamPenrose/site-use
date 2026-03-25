@@ -144,10 +144,11 @@ const FEED_HELP = `\
 site-use twitter feed — Collect tweets from the home timeline
 
 Options:
-  --count <n>     Number of tweets (1-100, default: 20)
-  --tab <name>    Feed tab: following | for_you (default: following)
-  --debug         Include diagnostic info
-  --json          Output as JSON
+  --count <n>        Number of tweets (1-100, default: 20)
+  --tab <name>       Feed tab: following | for_you (default: following)
+  --debug            Include diagnostic info
+  --json             Output as JSON
+  --dump-raw <dir>   Dump raw GraphQL responses to directory for debugging
 `;
 
 async function runTwitterFeed(args: string[]): Promise<void> {
