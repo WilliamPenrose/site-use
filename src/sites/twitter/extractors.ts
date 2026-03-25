@@ -65,10 +65,10 @@ export function processFullText(
 }
 
 /** Extract expanded URLs from tweet entities (external links the author included). */
-function extractLinks(entities: { urls?: any[] }): string[] {
+function extractLinks(entities: { urls?: any[] }, excludePattern?: RegExp): string[] {
   return (entities.urls ?? [])
     .map((u: any) => u.expanded_url as string | undefined)
-    .filter((url): url is string => url != null);
+    .filter((url): url is string => url != null && (!excludePattern || !excludePattern.test(url)));
 }
 
 /** Extract media items from GraphQL extended_entities or entities. */
@@ -282,7 +282,7 @@ function extractFromTweetResult(
   const retweetedResult = legacy.retweeted_status_result?.result;
   if (retweetedResult) {
     const outerUserResult = (core as any)?.core?.user_results?.result;
-    const outerUserInfo = outerUserResult?.core ?? outerUserResult?.legacy;
+    const outerUserInfo = outerUserResult?.core;
     const surfacedBy = outerUserInfo?.screen_name ?? '';
 
     const inner = extractFromTweetResult(retweetedResult);
@@ -296,12 +296,12 @@ function extractFromTweetResult(
 
   // --- Normal tweet extraction ---
   const userResult = (core as any)?.core?.user_results?.result;
-  const userInfo = userResult?.core ?? userResult?.legacy;
+  const userInfo = userResult?.core;
   if (!userInfo) return null;
 
   const handle: string = userInfo.screen_name ?? '';
   const name: string = userInfo.name ?? '';
-  const following: boolean = userResult?.following === true;
+  const following: boolean = userResult?.relationship_perspectives?.following === true;
   const createdAt: string = legacy.created_at ?? '';
   const idStr: string = legacy.id_str ?? (core as any).rest_id ?? '';
 
@@ -320,17 +320,20 @@ function extractFromTweetResult(
   let text: string;
   if (noteTweet?.text) {
     const noteEntities = noteTweet.entity_set ?? {};
-    text = processFullText(noteTweet.text, { urls: noteEntities.urls });
+    text = processFullText(noteTweet.text, { urls: noteEntities.urls, media: noteEntities.media });
   } else {
     text = processFullText(legacy.full_text ?? '', entities);
   }
 
   const media = extractMedia(legacy);
-  const links = extractLinks(entities);
 
   // Determine surfaceReason (priority: quote > reply > original)
   const quotedResult = (core as any).quoted_status_result?.result;
   const isQuote = legacy.is_quote_status === true && quotedResult;
+
+  // Extract links — exclude the quoted tweet's embed URL if this is a quote tweet
+  const excludeQuoteUrl = isQuote ? /^https:\/\/(twitter\.com|x\.com)\/\w+\/status\// : undefined;
+  const links = extractLinks(entities, excludeQuoteUrl);
   const isReply = legacy.in_reply_to_status_id_str != null;
 
   let surfaceReason: RawTweetData['surfaceReason'] = 'original';

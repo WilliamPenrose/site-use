@@ -23,6 +23,10 @@ MCP Server (server.ts)
 
 - **Always rebuild after code changes.** Run `pnpm run build` after modifying any `.ts` file, before testing CLI commands or telling the user it's ready. Don't wait for the user to build.
 
+## Known Approximations
+
+- **Local mode `--tab following`**: The DB has no `source_tab` field tracking which tab a tweet was fetched from. Instead, `--tab following` is approximated by filtering on the `following` metric (`author.following = true`). This works because the Following tab only shows tweets from authors you follow. `--tab for_you` applies no filter and returns all cached tweets. See `runLocalQuery` in `src/cli/workflow.ts`.
+
 ## Design Documents
 
 - `docs/site-use-design.md` — Overall design

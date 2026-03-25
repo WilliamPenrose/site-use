@@ -168,7 +168,7 @@ describe('getFeed', () => {
                         core: {
                           user_results: {
                             result: {
-                              legacy: {
+                              core: {
                                 screen_name: 'testuser',
                                 name: 'Test User',
                               },

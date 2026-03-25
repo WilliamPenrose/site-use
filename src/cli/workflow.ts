@@ -155,6 +155,9 @@ async function runLocalQuery(parsed: FeedArgs, dbPath: string): Promise<void> {
     const searchParams: SearchParams = {
       site: 'twitter',
       max_results: parsed.count,
+      ...(parsed.tab === 'following' && {
+        metricFilters: [{ metric: 'following', op: '=' as const, numValue: 1 }],
+      }),
     };
     const result = await store.search(searchParams);
     if (result.items.length === 0) {
