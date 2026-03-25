@@ -4,6 +4,7 @@ import { launchAndDetach, readChromeJson, closeBrowser, recoverOrphanChrome } fr
 import { getConfig } from './config.js';
 import { runKnowledgeCli } from './cli/knowledge.js';
 import { runWorkflowCli } from './cli/workflow.js';
+import { runCleanCli } from './cli/clean.js';
 import { ensureBrowser } from './browser/browser.js';
 import { runDiagnose } from './diagnose/runner.js';
 
@@ -21,6 +22,7 @@ Commands:
   search             Search stored tweets (FTS + structured filters)
   stats              Show storage statistics
   rebuild            Rebuild search index (Phase 2)
+  clean              Delete stored items by filter (interactive)
   diagnose           Run anti-detection diagnostic checks
   help               Show this help message
 
@@ -160,6 +162,10 @@ The server communicates via stdin/stdout using the MCP protocol.
     case 'stats':
     case 'rebuild':
       await runKnowledgeCli(command, args.slice(1));
+      break;
+
+    case 'clean':
+      await runCleanCli(args.slice(1));
       break;
 
     case 'diagnose': {
