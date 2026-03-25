@@ -551,4 +551,365 @@ describe('parseGraphQLTimeline', () => {
     expect(results).toHaveLength(1);
     expect(results[0].text).toBe('Normal tweet');
   });
+
+  it('extracts inner tweet from retweet with surfacedBy', () => {
+    const body = wrapTimeline([{
+      content: {
+        entryType: 'TimelineTimelineItem',
+        itemContent: {
+          tweet_results: {
+            result: {
+              __typename: 'Tweet',
+              rest_id: 'outer-999',
+              legacy: {
+                id_str: 'outer-999',
+                full_text: 'RT @pushmeet: Our AlphaProof paper...',
+                created_at: 'Fri Mar 20 14:15:28 +0000 2026',
+                favorite_count: 0, retweet_count: 89, reply_count: 0,
+                retweeted_status_result: {
+                  result: {
+                    __typename: 'Tweet',
+                    rest_id: 'inner-777',
+                    legacy: {
+                      id_str: 'inner-777',
+                      full_text: 'Our AlphaProof paper is in this week issue of @Nature!',
+                      created_at: 'Fri Mar 20 14:09:30 +0000 2026',
+                      favorite_count: 663, retweet_count: 89, reply_count: 17,
+                      bookmark_count: 196, quote_count: 5,
+                      entities: { urls: [] },
+                    },
+                    core: { user_results: { result: { core: { screen_name: 'pushmeet', name: 'Pushmeet Kohli' } } } },
+                    views: { count: '66004', state: 'EnabledWithCount' },
+                  },
+                },
+              },
+              core: { user_results: { result: { core: { screen_name: 'GoogleDeepMind', name: 'Google DeepMind' } } } },
+            },
+          },
+        },
+      },
+    }]);
+
+    const results = parseGraphQLTimeline(body);
+    expect(results).toHaveLength(1);
+    const rt = results[0];
+    expect(rt.authorHandle).toBe('pushmeet');
+    expect(rt.text).toBe('Our AlphaProof paper is in this week issue of @Nature!');
+    expect(rt.likes).toBe(663);
+    expect(rt.views).toBe(66004);
+    expect(rt.bookmarks).toBe(196);
+    expect(rt.surfaceReason).toBe('retweet');
+    expect(rt.surfacedBy).toBe('GoogleDeepMind');
+    expect(rt.url).toBe('https://x.com/pushmeet/status/inner-777');
+  });
+
+  it('prefers note_tweet text over legacy full_text', () => {
+    const body = wrapTimeline([makeTweetEntry({
+      id_str: '800',
+      full_text: 'Truncated version of the tweet...',
+      created_at: 'Mon Mar 18 23:49:31 +0000 2026',
+      favorite_count: 100, retweet_count: 10, reply_count: 5,
+      entities: { urls: [] },
+    }, undefined, {
+      note_tweet: {
+        note_tweet_results: {
+          result: {
+            text: 'Full long version of the tweet that exceeds 280 characters and contains the complete content',
+            entity_set: { urls: [], user_mentions: [], hashtags: [] },
+          },
+        },
+      },
+    })]);
+
+    const results = parseGraphQLTimeline(body);
+    expect(results).toHaveLength(1);
+    expect(results[0].text).toBe('Full long version of the tweet that exceeds 280 characters and contains the complete content');
+  });
+
+  it('expands URLs using note_tweet entity_set when note_tweet is present', () => {
+    const body = wrapTimeline([makeTweetEntry({
+      id_str: '801',
+      full_text: 'Short https://t.co/abc',
+      created_at: '', favorite_count: 0, retweet_count: 0, reply_count: 0,
+      entities: {
+        urls: [{ url: 'https://t.co/abc', expanded_url: 'https://wrong.com', indices: [6, 22] }],
+      },
+    }, undefined, {
+      note_tweet: {
+        note_tweet_results: {
+          result: {
+            text: 'Long form text with link https://t.co/xyz here',
+            entity_set: {
+              urls: [{ url: 'https://t.co/xyz', expanded_url: 'https://correct.com/article', indices: [25, 41] }],
+            },
+          },
+        },
+      },
+    })]);
+
+    const results = parseGraphQLTimeline(body);
+    expect(results[0].text).toBe('Long form text with link https://correct.com/article here');
+  });
+
+  it('falls back to legacy.full_text when note_tweet is absent', () => {
+    const body = wrapTimeline([makeTweetEntry({
+      id_str: '802',
+      full_text: 'Regular short tweet',
+      created_at: '', favorite_count: 0, retweet_count: 0, reply_count: 0,
+    })]);
+
+    const results = parseGraphQLTimeline(body);
+    expect(results[0].text).toBe('Regular short tweet');
+  });
+
+  it('extracts note_tweet from inner tweet of a retweet', () => {
+    const body = wrapTimeline([{
+      content: {
+        entryType: 'TimelineTimelineItem',
+        itemContent: {
+          tweet_results: {
+            result: {
+              __typename: 'Tweet',
+              rest_id: 'rt-outer-nt',
+              legacy: {
+                id_str: 'rt-outer-nt',
+                full_text: 'RT @author: Short version...',
+                created_at: '', favorite_count: 0, retweet_count: 5, reply_count: 0,
+                retweeted_status_result: {
+                  result: {
+                    __typename: 'Tweet',
+                    rest_id: 'inner-nt',
+                    legacy: {
+                      id_str: 'inner-nt',
+                      full_text: 'Short version...',
+                      created_at: '', favorite_count: 100, retweet_count: 5, reply_count: 2,
+                      entities: { urls: [] },
+                    },
+                    core: { user_results: { result: { core: { screen_name: 'author', name: 'Author' } } } },
+                    note_tweet: {
+                      note_tweet_results: {
+                        result: {
+                          text: 'This is the full long-form text that exceeds 280 characters and should be used instead of the truncated legacy.full_text',
+                          entity_set: { urls: [], user_mentions: [], hashtags: [] },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+              core: { user_results: { result: { core: { screen_name: 'retweeter', name: 'RT' } } } },
+            },
+          },
+        },
+      },
+    }]);
+
+    const results = parseGraphQLTimeline(body);
+    expect(results).toHaveLength(1);
+    expect(results[0].surfaceReason).toBe('retweet');
+    expect(results[0].surfacedBy).toBe('retweeter');
+    expect(results[0].text).toBe('This is the full long-form text that exceeds 280 characters and should be used instead of the truncated legacy.full_text');
+  });
+
+  it('extracts quotedTweet for quote tweets', () => {
+    const body = wrapTimeline([{
+      content: {
+        entryType: 'TimelineTimelineItem',
+        itemContent: {
+          tweet_results: {
+            result: {
+              __typename: 'Tweet',
+              rest_id: 'qt-100',
+              legacy: {
+                id_str: 'qt-100',
+                full_text: 'This is my commentary',
+                created_at: 'Mon Mar 18 23:49:31 +0000 2026',
+                favorite_count: 45, retweet_count: 12, reply_count: 3,
+                is_quote_status: true,
+                entities: {},
+              },
+              core: { user_results: { result: { core: { screen_name: 'peter', name: 'Peter' } } } },
+              quoted_status_result: {
+                result: {
+                  __typename: 'Tweet',
+                  rest_id: 'orig-200',
+                  legacy: {
+                    id_str: 'orig-200',
+                    full_text: 'Original insightful tweet',
+                    created_at: 'Sun Mar 17 10:00:00 +0000 2026',
+                    favorite_count: 1200, retweet_count: 230, reply_count: 50,
+                    entities: {},
+                  },
+                  core: { user_results: { result: { core: { screen_name: 'dimillian', name: 'Dimillian' } } } },
+                  views: { count: '45000' },
+                },
+              },
+            },
+          },
+        },
+      },
+    }]);
+
+    const results = parseGraphQLTimeline(body);
+    expect(results).toHaveLength(1);
+    const qt = results[0];
+    expect(qt.authorHandle).toBe('peter');
+    expect(qt.text).toBe('This is my commentary');
+    expect(qt.surfaceReason).toBe('quote');
+    expect(qt.quotedTweet).toBeDefined();
+    expect(qt.quotedTweet!.authorHandle).toBe('dimillian');
+    expect(qt.quotedTweet!.text).toBe('Original insightful tweet');
+    expect(qt.quotedTweet!.likes).toBe(1200);
+  });
+
+  it('sets quotedTweet to undefined when quoted tweet is TweetTombstone', () => {
+    const body = wrapTimeline([{
+      content: {
+        entryType: 'TimelineTimelineItem',
+        itemContent: {
+          tweet_results: {
+            result: {
+              __typename: 'Tweet',
+              rest_id: 'qt-300',
+              legacy: {
+                id_str: 'qt-300',
+                full_text: 'Quoting a deleted tweet',
+                created_at: '', favorite_count: 0, retweet_count: 0, reply_count: 0,
+                is_quote_status: true,
+                entities: {},
+              },
+              core: { user_results: { result: { core: { screen_name: 'user1', name: 'User' } } } },
+              quoted_status_result: {
+                result: { __typename: 'TweetTombstone' },
+              },
+            },
+          },
+        },
+      },
+    }]);
+
+    const results = parseGraphQLTimeline(body);
+    expect(results).toHaveLength(1);
+    expect(results[0].surfaceReason).toBe('quote');
+    expect(results[0].quotedTweet).toBeUndefined();
+  });
+
+  it('extracts inReplyTo for replies', () => {
+    const body = wrapTimeline([makeTweetEntry({
+      id_str: 'reply-400',
+      full_text: 'Totally agree with this take',
+      created_at: 'Mon Mar 18 23:49:31 +0000 2026',
+      favorite_count: 8, retweet_count: 1, reply_count: 0,
+      in_reply_to_status_id_str: 'orig-500',
+      in_reply_to_screen_name: 'dimillian',
+      entities: {},
+    })]);
+
+    const results = parseGraphQLTimeline(body);
+    expect(results).toHaveLength(1);
+    expect(results[0].surfaceReason).toBe('reply');
+    expect(results[0].inReplyTo).toEqual({ handle: 'dimillian', tweetId: 'orig-500' });
+  });
+
+  it('assigns surfaceReason quote when tweet is both reply and quote', () => {
+    const body = wrapTimeline([{
+      content: {
+        entryType: 'TimelineTimelineItem',
+        itemContent: {
+          tweet_results: {
+            result: {
+              __typename: 'Tweet',
+              rest_id: 'both-600',
+              legacy: {
+                id_str: 'both-600',
+                full_text: 'Replying with a quote',
+                created_at: '', favorite_count: 0, retweet_count: 0, reply_count: 0,
+                is_quote_status: true,
+                in_reply_to_status_id_str: 'other-700',
+                in_reply_to_screen_name: 'someone',
+                entities: {},
+              },
+              core: { user_results: { result: { core: { screen_name: 'user2', name: 'User2' } } } },
+              quoted_status_result: {
+                result: {
+                  __typename: 'Tweet',
+                  rest_id: 'quoted-800',
+                  legacy: {
+                    id_str: 'quoted-800', full_text: 'Quoted content',
+                    created_at: '', favorite_count: 0, retweet_count: 0, reply_count: 0,
+                    entities: {},
+                  },
+                  core: { user_results: { result: { core: { screen_name: 'author3', name: 'A3' } } } },
+                },
+              },
+            },
+          },
+        },
+      },
+    }]);
+
+    const results = parseGraphQLTimeline(body);
+    expect(results[0].surfaceReason).toBe('quote');
+    expect(results[0].inReplyTo).toEqual({ handle: 'someone', tweetId: 'other-700' });
+    expect(results[0].quotedTweet).toBeDefined();
+  });
+
+  it('handles retweet of quote tweet (recursive)', () => {
+    const body = wrapTimeline([{
+      content: {
+        entryType: 'TimelineTimelineItem',
+        itemContent: {
+          tweet_results: {
+            result: {
+              __typename: 'Tweet',
+              rest_id: 'rt-outer',
+              legacy: {
+                id_str: 'rt-outer',
+                full_text: 'RT @peter: My commentary on this...',
+                created_at: '', favorite_count: 0, retweet_count: 5, reply_count: 0,
+                retweeted_status_result: {
+                  result: {
+                    __typename: 'Tweet',
+                    rest_id: 'qt-inner',
+                    legacy: {
+                      id_str: 'qt-inner',
+                      full_text: 'My commentary on this',
+                      created_at: '', favorite_count: 50, retweet_count: 5, reply_count: 2,
+                      is_quote_status: true,
+                      entities: {},
+                    },
+                    core: { user_results: { result: { core: { screen_name: 'peter', name: 'Peter' } } } },
+                    quoted_status_result: {
+                      result: {
+                        __typename: 'Tweet',
+                        rest_id: 'orig-deep',
+                        legacy: {
+                          id_str: 'orig-deep',
+                          full_text: 'Deep original content',
+                          created_at: '', favorite_count: 1000, retweet_count: 100, reply_count: 50,
+                          entities: {},
+                        },
+                        core: { user_results: { result: { core: { screen_name: 'dimillian', name: 'Dimillian' } } } },
+                      },
+                    },
+                  },
+                },
+              },
+              core: { user_results: { result: { core: { screen_name: 'alice', name: 'Alice' } } } },
+            },
+          },
+        },
+      },
+    }]);
+
+    const results = parseGraphQLTimeline(body);
+    expect(results).toHaveLength(1);
+    const rt = results[0];
+    expect(rt.surfaceReason).toBe('retweet');
+    expect(rt.surfacedBy).toBe('alice');
+    expect(rt.authorHandle).toBe('peter');
+    expect(rt.text).toBe('My commentary on this');
+    expect(rt.quotedTweet).toBeDefined();
+    expect(rt.quotedTweet!.authorHandle).toBe('dimillian');
+  });
 });

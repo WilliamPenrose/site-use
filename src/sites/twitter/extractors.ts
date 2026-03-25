@@ -240,19 +240,35 @@ function extractFromTweetResult(
       : tweetResult;
 
   const legacy = (core as any)?.legacy;
+  if (!legacy) return null;
+
+  // --- Retweet: extract inner tweet as main content ---
+  const retweetedResult = legacy.retweeted_status_result?.result;
+  if (retweetedResult) {
+    const outerUserResult = (core as any)?.core?.user_results?.result;
+    const outerUserInfo = outerUserResult?.core ?? outerUserResult?.legacy;
+    const surfacedBy = outerUserInfo?.screen_name ?? '';
+
+    const inner = extractFromTweetResult(retweetedResult);
+    if (!inner) return null;
+
+    inner.surfaceReason = 'retweet';
+    inner.surfacedBy = surfacedBy;
+    inner.isRetweet = true;
+    return inner;
+  }
+
+  // --- Normal tweet extraction ---
   const userResult = (core as any)?.core?.user_results?.result;
-  // User info may be under .core (current) or .legacy (older schema)
   const userInfo = userResult?.core ?? userResult?.legacy;
-  if (!legacy || !userInfo) return null;
+  if (!userInfo) return null;
 
   const handle: string = userInfo.screen_name ?? '';
   const name: string = userInfo.name ?? '';
   const following: boolean = userResult?.following === true;
-  const fullText: string = legacy.full_text ?? '';
   const createdAt: string = legacy.created_at ?? '';
   const idStr: string = legacy.id_str ?? (core as any).rest_id ?? '';
 
-  // Convert Twitter date to ISO 8601
   const timestamp = createdAt
     ? new Date(createdAt).toISOString()
     : '';
@@ -261,18 +277,44 @@ function extractFromTweetResult(
     ? `https://x.com/${handle}/status/${idStr}`
     : '';
 
-  const isRetweet = legacy.retweeted_status_result != null;
-
   const entities = legacy.entities ?? {};
 
-  // Process text: expand external URLs, strip media URLs, decode HTML entities
-  const text = processFullText(fullText, entities);
+  // note_tweet: prefer long-form text over legacy.full_text
+  const noteTweet = (core as any).note_tweet?.note_tweet_results?.result;
+  let text: string;
+  if (noteTweet?.text) {
+    const noteEntities = noteTweet.entity_set ?? {};
+    text = processFullText(noteTweet.text, { urls: noteEntities.urls });
+  } else {
+    text = processFullText(legacy.full_text ?? '', entities);
+  }
 
-  // Extract media from extended_entities (preferred) or entities
   const media = extractMedia(legacy);
-
-  // Extract expanded URLs from entities (external links the author included)
   const links = extractLinks(entities);
+
+  // Determine surfaceReason (priority: quote > reply > original)
+  const quotedResult = (core as any).quoted_status_result?.result;
+  const isQuote = legacy.is_quote_status === true && quotedResult;
+  const isReply = legacy.in_reply_to_status_id_str != null;
+
+  let surfaceReason: RawTweetData['surfaceReason'] = 'original';
+  if (isQuote) surfaceReason = 'quote';
+  else if (isReply) surfaceReason = 'reply';
+
+  // Extract quotedTweet if present
+  let quotedTweet: RawTweetData | undefined;
+  if (isQuote) {
+    quotedTweet = extractFromTweetResult(quotedResult) ?? undefined;
+  }
+
+  // Extract reply metadata
+  let inReplyTo: RawTweetData['inReplyTo'];
+  if (isReply) {
+    inReplyTo = {
+      handle: legacy.in_reply_to_screen_name ?? '',
+      tweetId: legacy.in_reply_to_status_id_str,
+    };
+  }
 
   return {
     authorHandle: handle,
@@ -289,13 +331,12 @@ function extractFromTweetResult(
     quotes: legacy.quote_count ?? undefined,
     media,
     links,
-    isRetweet,
+    isRetweet: false,
     isAd: false,
-    // Temporary defaults — Task 2 adds real logic
-    surfaceReason: 'original' as const,
+    surfaceReason,
     surfacedBy: undefined,
-    quotedTweet: undefined,
-    inReplyTo: undefined,
+    quotedTweet,
+    inReplyTo,
   };
 }
 
