@@ -17,19 +17,18 @@ describe('CLI workflow', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('twitter feed with no Chrome exits 1 with BrowserNotRunning', () => {
+  it('twitter feed --local with no database exits 1 with DatabaseNotFound', () => {
     try {
-      execFileSync('node', [bin, 'twitter', 'feed'], {
+      execFileSync('node', [bin, 'twitter', 'feed', '--local'], {
         env: { ...process.env, SITE_USE_DATA_DIR: tmpDir },
         encoding: 'utf-8',
         timeout: 15_000,
       });
-      // Should not reach here
       expect.unreachable('Expected process to exit with code 1');
     } catch (err: unknown) {
       const e = err as { status: number; stderr: string };
       expect(e.status).toBe(1);
-      expect(e.stderr).toContain('BrowserNotRunning');
+      expect(e.stderr).toContain('DatabaseNotFound');
     }
   });
 
