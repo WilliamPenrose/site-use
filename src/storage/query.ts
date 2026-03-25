@@ -108,9 +108,12 @@ export function search(db: DatabaseSync, params: SearchParams): SearchResult {
 
     // Resolve display-only data from raw_json via display schema
     if (schema) {
-      const display = resolveItem(doc, schema, ['likes', 'retweets', 'replies', 'views', 'bookmarks', 'quotes', 'following']);
-      if (display.likes != null || display.retweets != null) {
-        item.siteMeta = {
+      const display = resolveItem(doc, schema, [
+        'likes', 'retweets', 'replies', 'views', 'bookmarks', 'quotes', 'following',
+        'surfaceReason', 'surfacedBy', 'quotedTweet', 'inReplyTo',
+      ]);
+      if (display.likes != null || display.retweets != null || display.surfaceReason != null) {
+        const meta: Record<string, unknown> = {
           likes: (display.likes as number | null) ?? null,
           retweets: (display.retweets as number | null) ?? null,
           replies: (display.replies as number | null) ?? null,
@@ -119,6 +122,11 @@ export function search(db: DatabaseSync, params: SearchParams): SearchResult {
           quotes: (display.quotes as number | null) ?? null,
           following: (display.following as boolean | null) ?? null,
         };
+        if (display.surfaceReason != null) meta.surfaceReason = display.surfaceReason;
+        if (display.surfacedBy != null) meta.surfacedBy = display.surfacedBy;
+        if (display.quotedTweet != null) meta.quotedTweet = display.quotedTweet;
+        if (display.inReplyTo != null) meta.inReplyTo = display.inReplyTo;
+        item.siteMeta = meta;
       }
 
       const links = resolveItem(doc, schema, ['links']).links as string[] | undefined;
