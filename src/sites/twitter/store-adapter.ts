@@ -1,6 +1,6 @@
 // src/sites/twitter/store-adapter.ts
 import type { Tweet } from './types.js';
-import type { IngestItem, MetricEntry } from '../../storage/types.js';
+import type { IngestItem, MetricEntry, SearchResultItem } from '../../storage/types.js';
 
 export function tweetsToIngestItems(tweets: Tweet[]): IngestItem[] {
   return tweets.map((tweet) => {
@@ -27,6 +27,32 @@ export function tweetsToIngestItems(tweets: Tweet[]): IngestItem[] {
       metrics,
     };
   });
+}
+
+export function tweetToSearchResultItem(tweet: Tweet): SearchResultItem {
+  return {
+    id: tweet.id,
+    site: 'twitter',
+    text: tweet.text,
+    author: tweet.author.handle,
+    timestamp: tweet.timestamp,
+    url: tweet.url,
+    links: tweet.links,
+    media: tweet.media,
+    siteMeta: {
+      likes: tweet.metrics.likes,
+      retweets: tweet.metrics.retweets,
+      replies: tweet.metrics.replies,
+      views: tweet.metrics.views,
+      bookmarks: tweet.metrics.bookmarks,
+      quotes: tweet.metrics.quotes,
+      following: tweet.author.following,
+      surfaceReason: tweet.surfaceReason,
+      surfacedBy: tweet.surfacedBy,
+      quotedTweet: tweet.quotedTweet,
+      inReplyTo: tweet.inReplyTo,
+    },
+  };
 }
 
 function extractMetrics(tweet: Tweet): MetricEntry[] {
