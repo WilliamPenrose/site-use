@@ -22,11 +22,12 @@ interface FeedArgs {
   tab: TimelineFeed;
   debug: boolean;
   json: boolean;
+  local: boolean;
   dumpRaw?: string;
 }
 
 export function parseFeedArgs(args: string[]): FeedArgs {
-  const result: FeedArgs = { count: 20, tab: 'following', debug: false, json: false };
+  const result: FeedArgs = { count: 20, tab: 'following', debug: false, json: false, local: false };
   let i = 0;
 
   while (i < args.length) {
@@ -53,6 +54,9 @@ export function parseFeedArgs(args: string[]): FeedArgs {
         break;
       case '--json':
         result.json = true;
+        break;
+      case '--local':
+        result.local = true;
         break;
       case '--dump-raw':
         result.dumpRaw = args[++i];
@@ -109,6 +113,7 @@ site-use twitter feed — Collect tweets from the home timeline
 Options:
   --count <n>        Number of tweets (1-100, default: 20)
   --tab <name>       Feed tab: following | for_you (default: following)
+  --local            Query local cache instead of fetching from browser
   --debug            Include diagnostic info
   --json             Output as JSON
   --dump-raw <dir>   Dump raw GraphQL responses to directory for debugging
@@ -182,6 +187,7 @@ Subcommands:
 Options (feed):
   --count <n>     Number of tweets (default: 20)
   --tab <name>    Feed tab: following | for_you (default: following)
+  --local         Query local cache instead of fetching from browser
   --debug         Include diagnostic info
   --json          Output as JSON
 `);
