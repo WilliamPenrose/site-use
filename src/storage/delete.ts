@@ -100,10 +100,15 @@ export function deleteItems(
 
   let deletedSoFar = 0;
 
+  const beginTx = db.prepare('BEGIN');
+  const commitTx = db.prepare('COMMIT');
+  const ftsFindRowid = db.prepare('SELECT rowid FROM items_fts WHERE id = ? AND site = ?');
+  const ftsDelete = db.prepare('DELETE FROM items_fts WHERE rowid = ?');
+
   while (true) {
     const batch = db.prepare(
-      `SELECT id, text FROM items WHERE ${where} LIMIT ?`,
-    ).all(...values, batchSize) as Array<{ id: string; text: string }>;
+      `SELECT id FROM items WHERE ${where} LIMIT ?`,
+    ).all(...values, batchSize) as Array<{ id: string }>;
 
     if (batch.length === 0) break;
 
@@ -111,25 +116,22 @@ export function deleteItems(
     const placeholders = ids.map(() => '?').join(', ');
     const site = params.site;
 
-    db.exec('BEGIN');
+    beginTx.run();
     try {
       db.prepare(`DELETE FROM item_metrics WHERE site = ? AND item_id IN (${placeholders})`).run(site, ...ids);
       db.prepare(`DELETE FROM item_mentions WHERE site = ? AND item_id IN (${placeholders})`).run(site, ...ids);
       db.prepare(`DELETE FROM item_hashtags WHERE site = ? AND item_id IN (${placeholders})`).run(site, ...ids);
 
       // For standalone FTS5 tables, delete by rowid
-      const ftsFindRowid = db.prepare(
-        'SELECT rowid FROM items_fts WHERE id = ? AND site = ?',
-      );
       for (const row of batch) {
         const ftsRow = ftsFindRowid.get(row.id, site) as { rowid: number } | undefined;
         if (ftsRow) {
-          db.prepare('DELETE FROM items_fts WHERE rowid = ?').run(ftsRow.rowid);
+          ftsDelete.run(ftsRow.rowid);
         }
       }
 
       db.prepare(`DELETE FROM items WHERE site = ? AND id IN (${placeholders})`).run(site, ...ids);
-      db.exec('COMMIT');
+      commitTx.run();
     } catch (err) {
       db.exec('ROLLBACK');
       throw err;
