@@ -26,14 +26,16 @@ function run(cmd, label) {
 // Step 1: Main TypeScript compilation
 run('npx tsc', 'tsc (main)');
 
-// Step 1.5: Stamp BUILD_HASH into compiled output
+// Step 1.5: Stamp BUILD_HASH and BUILD_DATE into compiled output
 try {
   const hash = execSync('git rev-parse --short HEAD', { cwd: ROOT, encoding: 'utf-8' }).trim();
+  const today = new Date().toISOString().slice(0, 10).replace(/-/g, '.');
   fs.writeFileSync(
     path.join(ROOT, 'dist', 'build-info.js'),
-    `export const BUILD_HASH = '${hash}';\n`,
+    `export const BUILD_HASH = '${hash}';\nexport const BUILD_DATE = '${today}';\n`,
   );
   console.log(`[build] BUILD_HASH: ${hash}`);
+  console.log(`[build] BUILD_DATE: ${today}`);
 } catch {
   console.log('[build] BUILD_HASH: dev (not in git repo)');
 }
