@@ -1,6 +1,6 @@
 // src/storage/query.ts
 import type { DatabaseSync } from 'node:sqlite';
-import type { SearchParams, SearchResult, SearchResultItem, StoreStats, CountItemsParams } from './types.js';
+import type { SearchParams, SearchResult, SearchResultItem, StoreStats, CountItemsParams, SiteStats } from './types.js';
 import { resolveItem } from '../display/resolve.js';
 import { twitterDisplaySchema } from '../sites/twitter/display.js';
 import type { DisplaySchema } from '../display/resolve.js';
@@ -242,4 +242,33 @@ export function stats(db: DatabaseSync): StoreStats {
     : null;
 
   return { totalItems, bySite, uniqueAuthors, timeRange, embeddingModel: null, embeddingCoverage: 0 };
+}
+
+export function statsBySite(db: DatabaseSync, site?: string): Record<string, SiteStats> {
+  const condition = site ? 'WHERE site = ?' : '';
+  const values: SqlValue[] = site ? [site] : [];
+
+  const rows = db.prepare(`
+    SELECT site,
+           COUNT(*) as total,
+           COUNT(DISTINCT author) as authors,
+           MIN(timestamp) as oldest,
+           MAX(timestamp) as newest
+    FROM items
+    ${condition}
+    GROUP BY site
+  `).all(...values) as Array<{
+    site: string; total: number; authors: number; oldest: string; newest: string;
+  }>;
+
+  const result: Record<string, SiteStats> = {};
+  for (const row of rows) {
+    result[row.site] = {
+      totalPosts: row.total,
+      uniqueAuthors: row.authors,
+      oldestPost: row.oldest,
+      newestPost: row.newest,
+    };
+  }
+  return result;
 }

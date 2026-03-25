@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { DatabaseSync } from 'node:sqlite';
 import { initializeDatabase } from '../../src/storage/schema.js';
 import { ingest } from '../../src/storage/ingest.js';
-import { search, stats } from '../../src/storage/query.js';
+import { search, stats, statsBySite } from '../../src/storage/query.js';
 import type { IngestItem } from '../../src/storage/types.js';
 
 function tweetJson(overrides: Record<string, unknown> = {}): string {
@@ -268,6 +268,45 @@ describe('search', () => {
     const result = search(db, { fields: ['author'], author: 'bob' });
     const bobItem = result.items.find(i => i.author === 'bob');
     expect(bobItem?.siteMeta).toEqual({ following: false });
+  });
+});
+
+describe('statsBySite', () => {
+  it('returns per-site breakdown', () => {
+    const result = statsBySite(db);
+    expect(result).toEqual({
+      twitter: {
+        totalPosts: 3,
+        uniqueAuthors: 2,
+        oldestPost: '2026-03-19T08:00:00Z',
+        newestPost: '2026-03-21T12:00:00Z',
+      },
+    });
+  });
+
+  it('returns empty object on empty db', () => {
+    const emptyDb = initializeDatabase(':memory:');
+    const result = statsBySite(emptyDb);
+    expect(result).toEqual({});
+    emptyDb.close();
+  });
+
+  it('filters by site parameter', () => {
+    ingest(db, [{
+      site: 'xhs',
+      id: 'xhs-1',
+      text: 'Test post',
+      author: 'bob',
+      timestamp: '2026-03-21T10:00:00Z',
+      url: 'https://xhs.com/1',
+      rawJson: '{}',
+    }]);
+
+    const all = statsBySite(db);
+    expect(Object.keys(all)).toEqual(['twitter', 'xhs']);
+
+    const filtered = statsBySite(db, 'twitter');
+    expect(Object.keys(filtered)).toEqual(['twitter']);
   });
 });
 

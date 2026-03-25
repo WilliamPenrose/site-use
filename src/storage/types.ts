@@ -76,6 +76,13 @@ export interface StoreStats {
   embeddingCoverage: number;
 }
 
+export interface SiteStats {
+  totalPosts: number;
+  uniqueAuthors: number;
+  oldestPost: string;
+  newestPost: string;
+}
+
 export interface RebuildResult {
   processed: number;
   elapsed: number;
@@ -91,6 +98,7 @@ export interface KnowledgeStore {
   search(params: SearchParams): Promise<SearchResult>;
   countItems(params: CountItemsParams): Promise<number>;
   stats(): Promise<StoreStats>;
+  statsBySite(site?: string): Promise<Record<string, SiteStats>>;
   rebuild(opts?: { model?: string }): Promise<RebuildResult>;
   close(): void;
 }
