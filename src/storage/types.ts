@@ -84,11 +84,43 @@ export interface CountItemsParams {
   metricFilters?: MetricFilter[];
 }
 
+export interface DeleteParams {
+  site: string;
+  before?: string;
+  after?: string;
+  ingestedBefore?: string;
+  ingestedAfter?: string;
+  author?: string;
+}
+
+export interface DeletePreview {
+  totalCount: number;
+  authors: Array<{ handle: string; count: number }>;
+  timeRange: { from: string; to: string } | null;
+}
+
+export interface DeleteProgress {
+  deletedSoFar: number;
+  totalCount: number;
+}
+
+export interface DeleteResult {
+  deleted: number;
+}
+
+export interface DeleteOptions {
+  batchSize?: number;
+  onProgress?: (progress: DeleteProgress) => void;
+}
+
 export interface KnowledgeStore {
   ingest(items: IngestItem[]): Promise<IngestResult>;
   search(params: SearchParams): Promise<SearchResult>;
   countItems(params: CountItemsParams): Promise<number>;
   statsBySite(site?: string): Promise<Record<string, SiteStats>>;
   rebuild(opts?: { model?: string }): Promise<RebuildResult>;
+  deleteItems(params: DeleteParams, opts?: DeleteOptions): Promise<DeleteResult>;
+  previewDelete(params: DeleteParams): Promise<DeletePreview>;
+  exportItems(params: DeleteParams, onLine: (line: string) => void): void;
   close(): void;
 }
