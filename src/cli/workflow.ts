@@ -20,6 +20,7 @@ interface FeedArgs {
   tab: TimelineFeed;
   debug: boolean;
   json: boolean;
+  dumpRaw?: string;
 }
 
 export function parseFeedArgs(args: string[]): FeedArgs {
@@ -50,6 +51,9 @@ export function parseFeedArgs(args: string[]): FeedArgs {
         break;
       case '--json':
         result.json = true;
+        break;
+      case '--dump-raw':
+        result.dumpRaw = args[++i];
         break;
     }
     i++;
@@ -166,7 +170,7 @@ async function runTwitterFeed(args: string[]): Promise<void> {
 
       let result: FeedResult;
       try {
-        result = await getFeed(primitives, { count: parsed.count, tab: parsed.tab, debug: parsed.debug, store });
+        result = await getFeed(primitives, { count: parsed.count, tab: parsed.tab, debug: parsed.debug, store, dumpRaw: parsed.dumpRaw });
       } finally {
         store.close();
       }
