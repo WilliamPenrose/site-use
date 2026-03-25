@@ -179,9 +179,17 @@ Options:
 
     case 'help':
     case '--help':
-    case '-h':
-      console.log(HELP);
+    case '-h': {
+      const helpTarget = args[1];
+      if (helpTarget) {
+        // "help search" → re-dispatch as "search --help"
+        process.argv = [process.argv[0], process.argv[1], helpTarget, '--help'];
+        await run();
+      } else {
+        console.log(HELP);
+      }
       break;
+    }
 
     default:
       console.error(`Unknown command: ${command}\n`);

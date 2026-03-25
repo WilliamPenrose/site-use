@@ -10,6 +10,48 @@ import { buildWelcomeHTML } from './welcome.js';
 
 let browserInstance: Browser | null = null;
 
+const HEALTH_CHECK_TIMEOUT_MS = 5_000;
+
+/**
+ * Lightweight CDP health check. Sends Browser.getVersion (fast, no page needed).
+ * If Chrome is unresponsive (e.g. long-running, memory pressure), this times out
+ * and throws with a clear restart hint.
+ */
+async function checkBrowserHealth(browser: Browser): Promise<void> {
+  try {
+    const target = browser.target();
+    const client = await target.createCDPSession();
+    try {
+      await Promise.race([
+        client.send('Browser.getVersion'),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('timeout')), HEALTH_CHECK_TIMEOUT_MS),
+        ),
+      ]);
+    } finally {
+      await client.detach().catch(() => {});
+    }
+  } catch {
+    browser.disconnect();
+    browserInstance = null;
+    throw new BrowserDisconnected(
+      'Chrome is unresponsive (health check timed out). Restart it with: npx site-use browser close && npx site-use browser launch',
+      { step: 'healthCheck' },
+    );
+  }
+}
+
+const PROTOCOL_TIMEOUT_MS = 30_000;
+
+/** Connect to Chrome with consistent defaults. */
+function connectBrowser(wsEndpoint: string): Promise<Browser> {
+  return puppeteer.connect({
+    browserWSEndpoint: wsEndpoint,
+    defaultViewport: null,
+    protocolTimeout: PROTOCOL_TIMEOUT_MS,
+  });
+}
+
 // ---------------------------------------------------------------------------
 // ChromeInfo — shared type for chrome.json persistence
 // ---------------------------------------------------------------------------
@@ -72,10 +114,7 @@ export async function recoverOrphanChrome(
     if (!wsEndpoint) return null;
 
     // Connect briefly to get the PID
-    const browser = await puppeteer.connect({
-      browserWSEndpoint: wsEndpoint,
-      defaultViewport: null,
-    });
+    const browser = await connectBrowser(wsEndpoint);
     const pid = browser.process()?.pid;
     // Puppeteer doesn't expose PID on connect — use /json/version port to find it
     browser.disconnect();
@@ -381,10 +420,7 @@ export async function launchAndDetach(extraArgs?: string[]): Promise<ChromeInfo>
   // Connect briefly to handle welcome page / blank tab
   let browser: Browser;
   try {
-    browser = await puppeteer.connect({
-      browserWSEndpoint: wsEndpoint,
-      defaultViewport: null,
-    });
+    browser = await connectBrowser(wsEndpoint);
   } catch (err) {
     // Chrome is running but connect failed — still return info
     return info;
@@ -433,10 +469,7 @@ export async function ensureBrowser(opts?: { autoLaunch?: boolean; extraArgs?: s
 
   // Try to connect
   try {
-    browserInstance = await puppeteer.connect({
-      browserWSEndpoint: info.wsEndpoint,
-      defaultViewport: null,
-    });
+    browserInstance = await connectBrowser(info.wsEndpoint);
   } catch {
     // Connection failed — chrome.json is stale
     try { unlinkSync(config.chromeJsonPath); } catch {}
@@ -447,15 +480,15 @@ export async function ensureBrowser(opts?: { autoLaunch?: boolean; extraArgs?: s
 
     // Relaunch and connect
     info = await launchAndDetach(opts?.extraArgs);
-    browserInstance = await puppeteer.connect({
-      browserWSEndpoint: info.wsEndpoint,
-      defaultViewport: null,
-    });
+    browserInstance = await connectBrowser(info.wsEndpoint);
   }
 
   browserInstance.on('disconnected', () => {
     browserInstance = null;
   });
+
+  // Health check — lightweight CDP ping to detect unresponsive Chrome
+  await checkBrowserHealth(browserInstance);
 
   // Apply per-connection setup on EVERY connect
   await applyConnectionSetup(browserInstance);

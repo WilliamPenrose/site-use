@@ -60,7 +60,6 @@ export interface SearchResultItem {
   links?: string[];
   mentions?: string[];
   media?: Array<{ type: string; url: string; width: number; height: number; duration?: number }>;
-  snippet?: string;
   siteMeta?: Record<string, unknown>;
 }
 
