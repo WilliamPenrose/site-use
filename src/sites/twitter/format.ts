@@ -60,7 +60,8 @@ export function formatTweetText(item: SearchResultItem): string {
     const qtText = qt.text as string ?? '';
     const qtMetrics = qt.metrics as Record<string, unknown> | undefined;
     lines.push('');
-    lines.push(`  ┃ @${qtAuthor}: ${qtText}`);
+    const qtLines = `@${qtAuthor}: ${qtText}`.split('\n');
+    for (const ql of qtLines) lines.push(`  ┃ ${ql}`);
     if (qtMetrics) {
       const qtParts: string[] = [];
       if (qtMetrics.likes != null) qtParts.push(`♡ ${formatNumber(qtMetrics.likes as number)}`);
