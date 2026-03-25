@@ -8,6 +8,7 @@ import { getFeed, type TimelineFeed } from '../sites/twitter/workflows.js';
 import { getConfig } from '../config.js';
 import { withLock } from '../lock.js';
 import { createStore, type KnowledgeStore } from '../storage/index.js';
+import type { SearchParams } from '../storage/types.js';
 import { tweetToSearchResultItem } from '../sites/twitter/store-adapter.js';
 import { formatTweetText } from '../sites/twitter/format.js';
 import path from 'node:path';
@@ -125,6 +126,41 @@ async function runTwitterFeed(args: string[]): Promise<void> {
     return;
   }
   const parsed = parseFeedArgs(args);
+
+  if (parsed.local) {
+    const config = getConfig();
+    const dbPath = path.join(config.dataDir, 'data', 'knowledge.db');
+    if (!fs.existsSync(dbPath)) {
+      writeError('DatabaseNotFound', 'No local data found', 'Run twitter feed without --local first to populate the cache');
+      return;
+    }
+    const store = createStore(dbPath);
+    try {
+      const searchParams: SearchParams = {
+        site: 'twitter',
+        max_results: parsed.count,
+      };
+      if (parsed.tab === 'following') {
+        searchParams.metricFilters = [{ metric: 'following', op: '=', numValue: 1 }];
+      }
+      const result = await store.search(searchParams);
+      if (result.items.length === 0) {
+        writeError('NoResults', 'No cached tweets found', 'Run twitter feed without --local first');
+        return;
+      }
+      if (parsed.json) {
+        console.log(JSON.stringify(result.items, null, 2));
+      } else {
+        const parts = result.items.map(formatTweetText);
+        const body = parts.join('\n\n---\n\n');
+        const noun = result.items.length === 1 ? 'tweet' : 'tweets';
+        console.log(`${body}\n\nFound ${result.items.length} cached ${noun}`);
+      }
+    } finally {
+      store.close();
+    }
+    return;
+  }
 
   try {
     await withLock(async () => {
