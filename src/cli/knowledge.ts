@@ -3,6 +3,7 @@ import os from 'node:os';
 import { createStore } from '../storage/index.js';
 import { SEARCH_FIELDS } from '../storage/types.js';
 import type { SearchParams, SearchResult, StoreStats } from '../storage/types.js';
+import { formatTweetText } from '../sites/twitter/format.js';
 
 function getDbPath(): string {
   const dataDir = process.env.SITE_USE_DATA_DIR || path.join(os.homedir(), '.site-use');
@@ -24,11 +25,11 @@ export function localToUtc(input: string): string {
   return d.toISOString();
 }
 
-export function parseSearchArgs(args: string[]): SearchParams & { json?: boolean } {
-  const params: SearchParams & { json?: boolean } = {};
+export function parseSearchArgs(args: string[]): SearchParams & { json?: boolean; format?: 'json' | 'text' } {
+  const params: SearchParams & { json?: boolean; format?: 'json' | 'text' } = {};
   let i = 0;
 
-  const needsValue = new Set(['--author', '--start-date', '--end-date', '--max-results', '--hashtag', '--mention', '--min-likes', '--min-retweets', '--fields']);
+  const needsValue = new Set(['--author', '--start-date', '--end-date', '--max-results', '--hashtag', '--mention', '--min-likes', '--min-retweets', '--fields', '--format']);
 
   while (i < args.length) {
     const arg = args[i];
@@ -43,6 +44,7 @@ export function parseSearchArgs(args: string[]): SearchParams & { json?: boolean
         '--min-likes': '--min-likes 100',
         '--min-retweets': '--min-retweets 50',
         '--fields': `--fields ${SEARCH_FIELDS.join(',')}`,
+        '--format': '--format json|text',
       };
       process.stderr.write(`Missing value for ${arg}\nUsage: ${examples[arg] ?? arg + ' <value>'}\n`);
       process.exitCode = 1;
@@ -89,6 +91,16 @@ export function parseSearchArgs(args: string[]): SearchParams & { json?: boolean
           return params;
         }
         params.fields = raw as SearchParams['fields'];
+        break;
+      }
+      case '--format': {
+        const fmt = args[++i];
+        if (fmt !== 'json' && fmt !== 'text') {
+          process.stderr.write(`Invalid --format: expected "json" or "text", got "${fmt}"\n`);
+          process.exitCode = 1;
+          return params;
+        }
+        params.format = fmt;
         break;
       }
       case '--json':
@@ -224,7 +236,8 @@ Options:
   --min-likes <n>        Minimum likes
   --min-retweets <n>     Minimum retweets
   --fields <list>        Comma-separated fields: ${SEARCH_FIELDS.join(',')}
-  --json                 Output as JSON
+  --format <fmt>         Output format: json | text (human-readable tweet display)
+  --json                 Output as JSON (shorthand for --format json)
 
 Examples:
   site-use search "bitcoin"
@@ -237,7 +250,9 @@ Examples:
       const parsed = parseSearchArgs(args);
       if (process.exitCode) return;
       const isJson = parsed.json;
+      const outputFormat = parsed.format;
       delete parsed.json;
+      delete parsed.format;
       const result = await store.search(parsed);
 
       if (result.items.length === 0) {
@@ -249,7 +264,12 @@ Examples:
         return;
       }
 
-      if (isJson) {
+      if (outputFormat === 'text') {
+        const textOutput = result.items
+          .map((item) => item.site === 'twitter' ? formatTweetText(item) : JSON.stringify(item))
+          .join('\n\n---\n\n');
+        console.log(textOutput);
+      } else if (isJson) {
         console.log(formatJson(result));
       } else {
         console.log(formatHumanReadable(result));
