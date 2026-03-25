@@ -78,4 +78,53 @@ describe('tweetsToIngestItems', () => {
     expect(item).not.toHaveProperty('links');
     expect(item).not.toHaveProperty('media');
   });
+
+  it('includes surfacedBy in mentions for retweets', () => {
+    const rt: Tweet = { ...TWEET, surfaceReason: 'retweet', surfacedBy: 'GoogleDeepMind' };
+    const [item] = tweetsToIngestItems([rt]);
+    expect(item.mentions).toContain('GoogleDeepMind');
+  });
+
+  it('includes quotedTweet author in mentions', () => {
+    const qt: Tweet = {
+      ...TWEET,
+      surfaceReason: 'quote',
+      quotedTweet: {
+        ...TWEET, id: '999',
+        author: { handle: 'dimillian', name: 'Dimillian', following: false },
+        surfaceReason: 'original',
+      },
+    };
+    const [item] = tweetsToIngestItems([qt]);
+    expect(item.mentions).toContain('dimillian');
+  });
+
+  it('includes inReplyTo handle in mentions', () => {
+    const reply: Tweet = {
+      ...TWEET, text: 'Just a plain reply',
+      surfaceReason: 'reply',
+      inReplyTo: { handle: 'someone', tweetId: '888' },
+    };
+    const [item] = tweetsToIngestItems([reply]);
+    expect(item.mentions).toContain('someone');
+  });
+
+  it('stores surface_reason as strValue metric', () => {
+    const rt: Tweet = { ...TWEET, surfaceReason: 'retweet', surfacedBy: 'x' };
+    const [item] = tweetsToIngestItems([rt]);
+    const srMetric = item.metrics!.find(m => m.metric === 'surface_reason');
+    expect(srMetric).toEqual({ metric: 'surface_reason', strValue: 'retweet' });
+  });
+
+  it('deduplicates mentions', () => {
+    const rt: Tweet = {
+      ...TWEET,
+      text: 'Mentioning @GoogleDeepMind here',
+      surfaceReason: 'retweet',
+      surfacedBy: 'GoogleDeepMind',
+    };
+    const [item] = tweetsToIngestItems([rt]);
+    const count = item.mentions!.filter(m => m === 'GoogleDeepMind').length;
+    expect(count).toBe(1);
+  });
 });

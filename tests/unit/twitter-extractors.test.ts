@@ -139,6 +139,21 @@ describe('buildFeedMeta', () => {
     expect(meta.timeRange.to).toBe('');
   });
 
+  it('includes surfacedBy handles in coveredUsers', () => {
+    const tweets = [
+      parseTweet({
+        ...RAW_TWEET,
+        authorHandle: 'pushmeet',
+        surfaceReason: 'retweet',
+        surfacedBy: 'GoogleDeepMind',
+        url: 'https://x.com/pushmeet/status/111',
+      }),
+    ];
+    const meta = buildFeedMeta(tweets);
+    expect(meta.coveredUsers).toContain('pushmeet');
+    expect(meta.coveredUsers).toContain('GoogleDeepMind');
+  });
+
   it('deduplicates covered users', () => {
     const tweets = [
       parseTweet(RAW_TWEET),

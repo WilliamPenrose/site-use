@@ -3,18 +3,29 @@ import type { Tweet } from './types.js';
 import type { IngestItem, MetricEntry } from '../../storage/types.js';
 
 export function tweetsToIngestItems(tweets: Tweet[]): IngestItem[] {
-  return tweets.map((tweet) => ({
-    site: 'twitter',
-    id: tweet.id,
-    text: tweet.text,
-    author: tweet.author.handle,
-    timestamp: tweet.timestamp,
-    url: tweet.url,
-    rawJson: JSON.stringify(tweet),
-    mentions: extractMentions(tweet.text),
-    hashtags: extractHashtags(tweet.text),
-    metrics: extractMetrics(tweet),
-  }));
+  return tweets.map((tweet) => {
+    const mentions = extractMentions(tweet.text);
+    if (tweet.surfacedBy) mentions.push(tweet.surfacedBy);
+    if (tweet.quotedTweet?.author.handle) mentions.push(tweet.quotedTweet.author.handle);
+    if (tweet.inReplyTo?.handle) mentions.push(tweet.inReplyTo.handle);
+    const uniqueMentions = [...new Set(mentions)];
+
+    const metrics = extractMetrics(tweet);
+    metrics.push({ metric: 'surface_reason', strValue: tweet.surfaceReason });
+
+    return {
+      site: 'twitter',
+      id: tweet.id,
+      text: tweet.text,
+      author: tweet.author.handle,
+      timestamp: tweet.timestamp,
+      url: tweet.url,
+      rawJson: JSON.stringify(tweet),
+      mentions: uniqueMentions,
+      hashtags: extractHashtags(tweet.text),
+      metrics,
+    };
+  });
 }
 
 function extractMetrics(tweet: Tweet): MetricEntry[] {

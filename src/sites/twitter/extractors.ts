@@ -176,7 +176,12 @@ export function buildFeedMeta(tweets: Tweet[]): FeedMeta {
     };
   }
 
-  const uniqueHandles = [...new Set(tweets.map((t) => t.author.handle))];
+  const handles = tweets.flatMap((t) => {
+    const h = [t.author.handle];
+    if (t.surfacedBy) h.push(t.surfacedBy);
+    return h;
+  });
+  const uniqueHandles = [...new Set(handles)];
 
   const timestamps = tweets
     .map((t) => t.timestamp)
