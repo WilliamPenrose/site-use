@@ -3,6 +3,7 @@ dist/
 
 # Private environment variables
 .env
+.npmrc
 
 # Chrome user data (contains cookies, login state)
 chrome-profile/
