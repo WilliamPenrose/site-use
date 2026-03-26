@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import type { Snapshot, SnapshotNode } from '../../src/primitives/types.js';
+import type { Snapshot, SnapshotNode } from '../../../primitives/types.js';
 import {
   matchByRule,
   matchAllByRule,
   rules,
-} from '../../src/sites/twitter/matchers.js';
+} from '../matchers.js';
 
 function buildSnapshot(nodes: SnapshotNode[]): Snapshot {
   const idToNode = new Map<string, SnapshotNode>();

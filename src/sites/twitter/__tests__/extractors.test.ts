@@ -6,8 +6,8 @@ import {
   buildFeedMeta,
   parseGraphQLTimeline,
   processFullText,
-} from '../../src/sites/twitter/extractors.js';
-import type { RawTweetData } from '../../src/sites/twitter/types.js';
+} from '../extractors.js';
+import type { RawTweetData } from '../types.js';
 
 const RAW_TWEET: RawTweetData = {
   authorHandle: 'karpathy',
