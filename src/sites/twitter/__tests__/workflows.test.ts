@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Primitives, SnapshotNode, Snapshot } from '../../../primitives/types.js';
 import { SessionExpired } from '../../../errors.js';
+import { TwitterFeedParamsSchema } from '../types.js';
 
 function createMockPrimitives(overrides: Partial<Primitives> = {}): Primitives {
   return {
@@ -233,5 +234,56 @@ describe('getFeed', () => {
     expect(result.items[0].text).toBe('Test tweet');
     expect(result.items[0].author.handle).toBe('testuser');
     expect(result.meta.coveredUsers).toContain('testuser');
+  });
+
+  it('MCP schema param names match GetFeedOptions (dumpRaw passthrough)', async () => {
+    // Simulate the exact data flow: MCP schema parse → plugin.collect → getFeed
+    const mcpInput = { count: 1, tab: 'following' as const, dumpRaw: '/tmp/test-dump' };
+    const parsed = TwitterFeedParamsSchema.parse(mcpInput);
+
+    // getFeed receives the parsed object — dumpRaw must be accessible
+    const opts = parsed as NonNullable<Parameters<typeof getFeed>[1]>;
+    expect(opts.dumpRaw).toBe('/tmp/test-dump');
+  });
+
+  it('debug: true produces debug field in result', { timeout: 15000 }, async () => {
+    const GRAPHQL_BODY = JSON.stringify({
+      data: {
+        home: {
+          home_timeline_urt: {
+            instructions: [{ entries: [] }],
+          },
+        },
+      },
+    });
+
+    const primitives = createMockPrimitives({
+      evaluate: vi.fn().mockResolvedValue('https://x.com/home'),
+      takeSnapshot: vi.fn().mockResolvedValue(
+        buildSnapshot([
+          { uid: '1', role: 'link', name: 'Home' },
+          { uid: '10', role: 'tab', name: 'Following', selected: true },
+        ]),
+      ),
+      interceptRequest: vi.fn().mockImplementation(
+        async (_pattern: any, handler: any) => {
+          handler({
+            url: '/i/api/graphql/abc/HomeLatestTimeline',
+            status: 200,
+            body: GRAPHQL_BODY,
+          });
+          return () => {};
+        },
+      ),
+    });
+
+    const result = await getFeed(primitives, { debug: true, count: 0 });
+    expect(result).toHaveProperty('debug');
+    expect(result.debug).toMatchObject({
+      tabRequested: expect.any(String),
+      reloadFallback: expect.any(Boolean),
+      graphqlResponseCount: expect.any(Number),
+      elapsedMs: expect.any(Number),
+    });
   });
 });

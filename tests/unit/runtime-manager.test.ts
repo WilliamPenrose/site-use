@@ -6,6 +6,14 @@ function fakePlugin(name: string): SitePlugin {
   return { apiVersion: 1, name, domains: [`${name}.com`] };
 }
 
+function fakePage(url: string) {
+  return { url: () => url, isClosed: () => false, close: vi.fn(async () => {}) };
+}
+
+// Default mock: browser with no existing tabs (pages() returns only about:blank)
+let mockPages: ReturnType<typeof fakePage>[] = [];
+const mockNewPage = vi.fn(async () => fakePage('about:blank'));
+
 vi.mock('../../src/runtime/build-site-stack.js', () => ({
   buildSiteStack: vi.fn((_page: unknown, _plugin: SitePlugin) => ({
     primitives: { navigate: vi.fn(), takeSnapshot: vi.fn() } as never,
@@ -13,10 +21,15 @@ vi.mock('../../src/runtime/build-site-stack.js', () => ({
   })),
 }));
 
+vi.mock('../../src/primitives/click-enhanced.js', () => ({
+  injectCoordFix: vi.fn(async () => {}),
+}));
+
 vi.mock('../../src/browser/browser.js', () => ({
   ensureBrowser: vi.fn(async () => ({
     connected: true,
-    newPage: vi.fn(async () => ({ isClosed: () => false, close: vi.fn(async () => {}) })),
+    newPage: mockNewPage,
+    pages: vi.fn(async () => mockPages),
     disconnect: vi.fn(),
   })),
 }));
@@ -95,5 +108,58 @@ describe('SiteRuntimeManager', () => {
       manager.get('twitter'),
     ]);
     expect(a).toBe(b);
+  });
+
+  describe('tab reuse', () => {
+    it('reuses existing browser tab matching site domain instead of newPage()', async () => {
+      const existingTwitterTab = fakePage('https://twitter.com/home');
+      mockPages = [existingTwitterTab];
+      mockNewPage.mockClear();
+
+      const runtime = await manager.get('twitter');
+      expect(runtime.page).toBe(existingTwitterTab);
+      expect(mockNewPage).not.toHaveBeenCalled();
+    });
+
+    it('falls back to newPage() when no matching tab exists', async () => {
+      mockPages = [fakePage('https://reddit.com')];
+      mockNewPage.mockClear();
+
+      const runtime = await manager.get('twitter');
+      expect(mockNewPage).toHaveBeenCalled();
+      expect(runtime.page).not.toBe(mockPages[0]);
+    });
+
+    it('does not close reused tab on clear()', async () => {
+      const existingTab = fakePage('https://twitter.com/home');
+      mockPages = [existingTab];
+
+      await manager.get('twitter');
+      manager.clear('twitter');
+      expect(existingTab.close).not.toHaveBeenCalled();
+    });
+
+    it('closes newPage() tab on clear()', async () => {
+      mockPages = [];
+      const createdPage = fakePage('about:blank');
+      mockNewPage.mockResolvedValueOnce(createdPage);
+
+      await manager.get('twitter');
+      manager.clear('twitter');
+      expect(createdPage.close).toHaveBeenCalled();
+    });
+
+    it('skips tabs already claimed by another site', async () => {
+      const twitterTab = fakePage('https://twitter.com/home');
+      mockPages = [twitterTab];
+
+      // twitter claims the tab first
+      await manager.get('twitter');
+      mockNewPage.mockClear();
+
+      // reddit should NOT get the twitter tab, should call newPage()
+      await manager.get('reddit');
+      expect(mockNewPage).toHaveBeenCalled();
+    });
   });
 });

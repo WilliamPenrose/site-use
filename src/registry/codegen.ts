@@ -24,6 +24,7 @@ const FeedResultSchema = z.object({
     coveredUsers: z.array(z.string()),
     timeRange: z.object({ from: z.string(), to: z.string() }),
   }),
+  debug: z.record(z.unknown()).optional(),
 });
 
 // ── MCP Tool generation ────────────────────────────────────────

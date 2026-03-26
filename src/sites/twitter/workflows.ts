@@ -93,7 +93,9 @@ export async function getFeed(
   primitives: Primitives,
   opts: GetFeedOptions = {},
 ): Promise<FrameworkFeedResult> {
-  const { count = 20, tab = 'following', dumpRaw } = opts;
+  const { count = 20, tab = 'following', debug = false, dumpRaw } = opts;
+  const startTime = Date.now();
+  let graphqlResponseCount = 0;
   let reloadFallback = false;
 
   // Set up interception BEFORE navigation so initial GraphQL response is captured
@@ -110,6 +112,7 @@ export async function getFeed(
         }
         const parsed = parseGraphQLTimeline(response.body);
         interceptedRaw.push(...parsed);
+        graphqlResponseCount++;
       } catch {
         // GraphQL parse failed — ignore this response
       }
@@ -162,6 +165,18 @@ export async function getFeed(
         timeRange: { from: meta.timeRange.from, to: meta.timeRange.to },
       },
     };
+
+    if (debug) {
+      frameworkResult.debug = {
+        tabRequested: tab,
+        navAction: action,
+        tabAction,
+        reloadFallback,
+        graphqlResponseCount,
+        rawBeforeFilter: rawTweets.length,
+        elapsedMs: Date.now() - startTime,
+      };
+    }
 
     return frameworkResult;
   } finally {

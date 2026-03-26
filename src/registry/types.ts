@@ -62,6 +62,7 @@ export interface FeedMeta {
 export interface FeedResult {
   items: FeedItem[];
   meta: FeedMeta;
+  debug?: Record<string, unknown>;
 }
 
 // ── Auth types ─────────────────────────────────────────────────

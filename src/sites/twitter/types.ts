@@ -182,6 +182,6 @@ export const TwitterFeedParamsSchema = z.object({
     .describe('Which feed tab to read: "following" (chronological) or "for_you" (algorithmic)'),
   debug: z.boolean().default(false)
     .describe('Include diagnostic info (tab action, reload fallback, GraphQL counts, timing)'),
-  dump_raw: z.string().optional()
+  dumpRaw: z.string().optional()
     .describe('Directory path to dump raw GraphQL responses for debugging'),
 });

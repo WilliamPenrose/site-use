@@ -28,4 +28,6 @@ export interface SiteRuntime {
   rateLimitDetector: RateLimitDetector;
   /** Per-site auth state — cached login status. */
   authState: AuthState;
+  /** True if the page was created by us (newPage); false if reused from user. */
+  ownPage: boolean;
 }

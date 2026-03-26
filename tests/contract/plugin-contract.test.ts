@@ -242,7 +242,7 @@ describe('Error Scenario Tests', () => {
             count: z.number().min(1).max(100).default(20),
             tab: z.enum(['following', 'for_you']).default('following'),
             debug: z.boolean().default(false),
-            dump_raw: z.string().optional(),
+            dumpRaw: z.string().optional(),
           }),
         },
       },
@@ -251,7 +251,7 @@ describe('Error Scenario Tests', () => {
     const feedTool = tools.find(t => t.name === 'twitter_feed')!;
     const schema = feedTool.config.inputSchema!;
     // Verify the Zod raw shape has the expected keys
-    expect(Object.keys(schema).sort()).toEqual(['count', 'debug', 'dump_raw', 'tab']);
+    expect(Object.keys(schema).sort()).toEqual(['count', 'debug', 'dumpRaw', 'tab']);
   });
 });
 
