@@ -16,7 +16,47 @@
               "legacy": {
                 "followers_count": 15815,
                 "friends_count": 5167,
-                "default_profile_image": false
+                "default_profile_image": false,
+                "default_profile": true,
+                "description": "Blockchain & Smart Contract Security Specialists - Contact us to request a Web3 Security Audit.",
+                "entities": {
+                  "description": {
+                    "urls": []
+                  },
+                  "url": {
+                    "urls": [
+                      {
+                        "display_url": "hashlock.com",
+                        "expanded_url": "https://hashlock.com/",
+                        "indices": [
+                          0,
+                          23
+                        ],
+                        "url": "https://t.co/Kyf1U7ghEx"
+                      }
+                    ]
+                  }
+                },
+                "fast_followers_count": 0,
+                "favourites_count": 6841,
+                "follow_request_sent": false,
+                "has_custom_timelines": false,
+                "is_translator": false,
+                "listed_count": 62,
+                "media_count": 294,
+                "normal_followers_count": 15815,
+                "notifications": false,
+                "pinned_tweet_ids_str": [
+                  "2034798693409259534"
+                ],
+                "possibly_sensitive": false,
+                "profile_banner_url": "https://pbs.twimg.com/profile_banners/1541936518134374400/1716289233",
+                "profile_interstitial_type": "",
+                "statuses_count": 1633,
+                "translator_type": "none",
+                "url": "https://t.co/Kyf1U7ghEx",
+                "want_retweets": false,
+                "withheld_in_countries": []
               },
               "relationship_perspectives": {
                 "blocked_by": false,
@@ -51,11 +91,33 @@
             "urls": [],
             "user_mentions": []
           },
-          "is_quote_status": false
+          "is_quote_status": false,
+          "bookmarked": false,
+          "favorited": false,
+          "retweeted": false,
+          "conversation_id_str": "1993178834255200382",
+          "display_text_range": [
+            0,
+            222
+          ],
+          "user_id_str": "1541936518134374400",
+          "lang": "en"
         },
         "views": {
           "count": "3679211",
           "state": "EnabledWithCount"
+        },
+        "rest_id": "1993178834255200382",
+        "source": "<a href=\"https://help.twitter.com/en/using-twitter/how-to-tweet#source-labels\" rel=\"nofollow\">advertiser-interface</a>",
+        "is_translatable": false,
+        "unmention_data": {},
+        "edit_control": {
+          "edit_tweet_ids": [
+            "1993178834255200382"
+          ],
+          "editable_until_msecs": "1764049440000",
+          "edits_remaining": "5",
+          "is_edit_eligible": false
         }
       }
     }
@@ -77,7 +139,47 @@
               "legacy": {
                 "followers_count": 39200,
                 "friends_count": 679,
-                "default_profile_image": false
+                "default_profile_image": false,
+                "default_profile": true,
+                "description": "Exploring active Wisdom\n\nby reflecting on Knowledge, Creativity, Culture,& Work (Markets & Innovation)..\n\n(+ digressions 😑)\n\n/Builder, Academic*, Storyteller/",
+                "entities": {
+                  "description": {
+                    "urls": []
+                  },
+                  "url": {
+                    "urls": [
+                      {
+                        "display_url": "linktr.ee/drhijazi",
+                        "expanded_url": "https://linktr.ee/drhijazi",
+                        "indices": [
+                          0,
+                          23
+                        ],
+                        "url": "https://t.co/A1FAIlVruN"
+                      }
+                    ]
+                  }
+                },
+                "fast_followers_count": 0,
+                "favourites_count": 4684,
+                "follow_request_sent": false,
+                "has_custom_timelines": true,
+                "is_translator": false,
+                "listed_count": 75,
+                "media_count": 2398,
+                "normal_followers_count": 39200,
+                "notifications": false,
+                "pinned_tweet_ids_str": [
+                  "2021585127738921186"
+                ],
+                "possibly_sensitive": false,
+                "profile_banner_url": "https://pbs.twimg.com/profile_banners/271039040/1679233100",
+                "profile_interstitial_type": "",
+                "statuses_count": 8564,
+                "translator_type": "none",
+                "url": "https://t.co/A1FAIlVruN",
+                "want_retweets": false,
+                "withheld_in_countries": []
               },
               "relationship_perspectives": {
                 "blocked_by": false,
@@ -121,11 +223,35 @@
             ],
             "user_mentions": []
           },
-          "is_quote_status": false
+          "is_quote_status": false,
+          "bookmarked": false,
+          "favorited": false,
+          "retweeted": false,
+          "conversation_id_str": "1839239244864172502",
+          "display_text_range": [
+            0,
+            221
+          ],
+          "user_id_str": "271039040",
+          "lang": "en",
+          "possibly_sensitive": false,
+          "possibly_sensitive_editable": true
         },
         "views": {
           "count": "58022464",
           "state": "EnabledWithCount"
+        },
+        "rest_id": "1839239244864172502",
+        "source": "<a href=\"https://mobile.twitter.com\" rel=\"nofollow\">Twitter Web App</a>",
+        "is_translatable": false,
+        "unmention_data": {},
+        "edit_control": {
+          "edit_tweet_ids": [
+            "1839239244864172502"
+          ],
+          "editable_until_msecs": "1727347382000",
+          "edits_remaining": "5",
+          "is_edit_eligible": false
         }
       }
     }
@@ -147,7 +273,46 @@
               "legacy": {
                 "followers_count": 984,
                 "friends_count": 764,
-                "default_profile_image": false
+                "default_profile_image": false,
+                "default_profile": true,
+                "description": "JD-PhD candidate in computer science @Stanford",
+                "entities": {
+                  "description": {
+                    "urls": []
+                  },
+                  "url": {
+                    "urls": [
+                      {
+                        "display_url": "neelguha.com",
+                        "expanded_url": "http://www.neelguha.com",
+                        "indices": [
+                          0,
+                          23
+                        ],
+                        "url": "https://t.co/umsxbFzCon"
+                      }
+                    ]
+                  }
+                },
+                "fast_followers_count": 0,
+                "favourites_count": 2698,
+                "follow_request_sent": false,
+                "has_custom_timelines": true,
+                "is_translator": false,
+                "listed_count": 12,
+                "media_count": 16,
+                "normal_followers_count": 984,
+                "notifications": false,
+                "pinned_tweet_ids_str": [
+                  "1694375959334670643"
+                ],
+                "possibly_sensitive": false,
+                "profile_interstitial_type": "",
+                "statuses_count": 447,
+                "translator_type": "none",
+                "url": "https://t.co/umsxbFzCon",
+                "want_retweets": false,
+                "withheld_in_countries": []
               },
               "relationship_perspectives": {
                 "blocked_by": false,
@@ -379,11 +544,35 @@
               }
             ]
           },
-          "is_quote_status": false
+          "is_quote_status": false,
+          "bookmarked": false,
+          "favorited": false,
+          "retweeted": false,
+          "conversation_id_str": "2036555590642835620",
+          "display_text_range": [
+            0,
+            264
+          ],
+          "user_id_str": "1062741167371141123",
+          "lang": "en",
+          "possibly_sensitive": false,
+          "possibly_sensitive_editable": true
         },
         "views": {
           "count": "7558",
           "state": "EnabledWithCount"
+        },
+        "rest_id": "2036555590642835620",
+        "source": "<a href=\"https://mobile.twitter.com\" rel=\"nofollow\">Twitter Web App</a>",
+        "is_translatable": false,
+        "unmention_data": {},
+        "edit_control": {
+          "edit_tweet_ids": [
+            "2036555590642835620"
+          ],
+          "editable_until_msecs": "1774391264000",
+          "edits_remaining": "5",
+          "is_edit_eligible": false
         }
       }
     }
@@ -405,7 +594,55 @@
               "legacy": {
                 "followers_count": 53356,
                 "friends_count": 551,
-                "default_profile_image": false
+                "default_profile_image": false,
+                "default_profile": false,
+                "description": "@cursor_ai & tinkering. https://t.co/KFkkR5CJVl",
+                "entities": {
+                  "description": {
+                    "urls": [
+                      {
+                        "display_url": "colf.dev",
+                        "expanded_url": "http://colf.dev",
+                        "indices": [
+                          24,
+                          47
+                        ],
+                        "url": "https://t.co/KFkkR5CJVl"
+                      }
+                    ]
+                  },
+                  "url": {
+                    "urls": [
+                      {
+                        "display_url": "anyblockers.com",
+                        "expanded_url": "https://anyblockers.com",
+                        "indices": [
+                          0,
+                          23
+                        ],
+                        "url": "https://t.co/R4Ws6v3aZE"
+                      }
+                    ]
+                  }
+                },
+                "fast_followers_count": 0,
+                "favourites_count": 10377,
+                "follow_request_sent": false,
+                "has_custom_timelines": true,
+                "is_translator": false,
+                "listed_count": 576,
+                "media_count": 547,
+                "normal_followers_count": 53356,
+                "notifications": false,
+                "pinned_tweet_ids_str": [],
+                "possibly_sensitive": false,
+                "profile_banner_url": "https://pbs.twimg.com/profile_banners/505835394/1737894291",
+                "profile_interstitial_type": "",
+                "statuses_count": 5608,
+                "translator_type": "regular",
+                "url": "https://t.co/R4Ws6v3aZE",
+                "want_retweets": false,
+                "withheld_in_countries": []
               },
               "relationship_perspectives": {
                 "blocked_by": false,
@@ -650,11 +887,35 @@
               }
             ]
           },
-          "is_quote_status": false
+          "is_quote_status": false,
+          "bookmarked": false,
+          "favorited": false,
+          "retweeted": false,
+          "conversation_id_str": "2036610784386851000",
+          "display_text_range": [
+            0,
+            154
+          ],
+          "user_id_str": "505835394",
+          "lang": "en",
+          "possibly_sensitive": false,
+          "possibly_sensitive_editable": true
         },
         "views": {
           "count": "2493",
           "state": "EnabledWithCount"
+        },
+        "rest_id": "2036610784386851000",
+        "source": "<a href=\"https://typefully.com/\" rel=\"nofollow\">Typefully</a>",
+        "is_translatable": false,
+        "unmention_data": {},
+        "edit_control": {
+          "edit_tweet_ids": [
+            "2036610784386851000"
+          ],
+          "editable_until_msecs": "1774404424000",
+          "edits_remaining": "5",
+          "is_edit_eligible": true
         }
       }
     }
@@ -676,7 +937,57 @@
               "legacy": {
                 "followers_count": 7961,
                 "friends_count": 759,
-                "default_profile_image": false
+                "default_profile_image": false,
+                "default_profile": false,
+                "description": "Founder @ https://t.co/UIbhZFLp0g: WhatsApp for developers. \nPreviously cofounded Platanus, the best pre-seed VC in LatAm.",
+                "entities": {
+                  "description": {
+                    "urls": [
+                      {
+                        "display_url": "kapso.ai",
+                        "expanded_url": "https://kapso.ai/",
+                        "indices": [
+                          10,
+                          33
+                        ],
+                        "url": "https://t.co/UIbhZFLp0g"
+                      }
+                    ]
+                  },
+                  "url": {
+                    "urls": [
+                      {
+                        "display_url": "kapso.ai",
+                        "expanded_url": "https://kapso.ai/",
+                        "indices": [
+                          0,
+                          23
+                        ],
+                        "url": "https://t.co/UIbhZFLp0g"
+                      }
+                    ]
+                  }
+                },
+                "fast_followers_count": 0,
+                "favourites_count": 2270,
+                "follow_request_sent": false,
+                "has_custom_timelines": true,
+                "is_translator": false,
+                "listed_count": 67,
+                "media_count": 284,
+                "normal_followers_count": 7961,
+                "notifications": false,
+                "pinned_tweet_ids_str": [
+                  "2036061707529834773"
+                ],
+                "possibly_sensitive": false,
+                "profile_banner_url": "https://pbs.twimg.com/profile_banners/55669934/1534009313",
+                "profile_interstitial_type": "",
+                "statuses_count": 2407,
+                "translator_type": "none",
+                "url": "https://t.co/UIbhZFLp0g",
+                "want_retweets": false,
+                "withheld_in_countries": []
               },
               "relationship_perspectives": {
                 "blocked_by": false,
@@ -884,11 +1195,35 @@
               }
             ]
           },
-          "is_quote_status": false
+          "is_quote_status": false,
+          "bookmarked": false,
+          "favorited": false,
+          "retweeted": false,
+          "conversation_id_str": "2036061707529834773",
+          "display_text_range": [
+            0,
+            155
+          ],
+          "user_id_str": "55669934",
+          "lang": "en",
+          "possibly_sensitive": false,
+          "possibly_sensitive_editable": true
         },
         "views": {
           "count": "625168",
           "state": "EnabledWithCount"
+        },
+        "rest_id": "2036061707529834773",
+        "source": "<a href=\"https://mobile.twitter.com\" rel=\"nofollow\">Twitter Web App</a>",
+        "is_translatable": false,
+        "unmention_data": {},
+        "edit_control": {
+          "edit_tweet_ids": [
+            "2036061707529834773"
+          ],
+          "editable_until_msecs": "1774273513000",
+          "edits_remaining": "5",
+          "is_edit_eligible": false
         }
       }
     }
@@ -910,7 +1245,47 @@
               "legacy": {
                 "followers_count": 36074,
                 "friends_count": 5582,
-                "default_profile_image": false
+                "default_profile_image": false,
+                "default_profile": false,
+                "description": "🤖 Entrepreneur. Healthcare AI. Biomedical Engineer PhD. Futurist. Optimist. Unvaxxed. 38 yo.",
+                "entities": {
+                  "description": {
+                    "urls": []
+                  },
+                  "url": {
+                    "urls": [
+                      {
+                        "display_url": "t.me/deepthrill",
+                        "expanded_url": "https://t.me/deepthrill",
+                        "indices": [
+                          0,
+                          23
+                        ],
+                        "url": "https://t.co/8tMjqTyeLU"
+                      }
+                    ]
+                  }
+                },
+                "fast_followers_count": 0,
+                "favourites_count": 533204,
+                "follow_request_sent": false,
+                "has_custom_timelines": true,
+                "is_translator": false,
+                "listed_count": 457,
+                "media_count": 9271,
+                "normal_followers_count": 36074,
+                "notifications": false,
+                "pinned_tweet_ids_str": [
+                  "2010894030087860271"
+                ],
+                "possibly_sensitive": false,
+                "profile_banner_url": "https://pbs.twimg.com/profile_banners/2252943488/1648402073",
+                "profile_interstitial_type": "",
+                "statuses_count": 144800,
+                "translator_type": "none",
+                "url": "https://t.co/8tMjqTyeLU",
+                "want_retweets": false,
+                "withheld_in_countries": []
               },
               "relationship_perspectives": {
                 "blocked_by": false,
@@ -944,7 +1319,17 @@
             "urls": [],
             "user_mentions": []
           },
-          "is_quote_status": false
+          "is_quote_status": false,
+          "bookmarked": false,
+          "favorited": false,
+          "retweeted": false,
+          "conversation_id_str": "2036272027233816652",
+          "display_text_range": [
+            0,
+            280
+          ],
+          "user_id_str": "2252943488",
+          "lang": "en"
         },
         "views": {
           "count": "80621",
@@ -967,6 +1352,22 @@
               "text": "My coding workflow is currently:\n\n1. Spend about ten minutes writing a plan for a new feature in a markdown file as bullet points.\n\n2. Spend about an hour with a bunch of back forths between Opus 4.6 and Codex 5.4 xhigh, asking each one to improve the markdown plan file.\n\n3. Read the final markdown plan, which ends up as a bunch of bullet points, includes implementation details, and is usually between 200-500 lines long.\n\n4. Ask either Claude Code or Codex to implement it.\n\n5. Ask the other one to review the implementation.\n\n6. Run my /deslop command on the implementation (see my pinned tweet).\n\n7. Deploy, test, and ask an agent to fix any bugs."
             }
           }
+        },
+        "rest_id": "2036272027233816652",
+        "source": "<a href=\"https://mobile.twitter.com\" rel=\"nofollow\">Twitter Web App</a>",
+        "is_translatable": false,
+        "unmention_data": {},
+        "edit_control": {
+          "edit_control_initial": {
+            "edit_tweet_ids": [
+              "2036271884392657010",
+              "2036272027233816652"
+            ],
+            "editable_until_msecs": "1774323623000",
+            "edits_remaining": "4",
+            "is_edit_eligible": false
+          },
+          "initial_tweet_id": "2036271884392657010"
         }
       }
     }
@@ -988,7 +1389,47 @@
               "legacy": {
                 "followers_count": 5359,
                 "friends_count": 964,
-                "default_profile_image": false
+                "default_profile_image": false,
+                "default_profile": true,
+                "description": "PhDing @UBC @VectorInst • Undergrad @imperialcollege • ex-Intern @AIatMeta • Reinforcement Learning, Self-Improving AI, Open-endedness",
+                "entities": {
+                  "description": {
+                    "urls": []
+                  },
+                  "url": {
+                    "urls": [
+                      {
+                        "display_url": "jennyzhangzt.com",
+                        "expanded_url": "https://jennyzhangzt.com",
+                        "indices": [
+                          0,
+                          23
+                        ],
+                        "url": "https://t.co/YmUUOKNaVA"
+                      }
+                    ]
+                  }
+                },
+                "fast_followers_count": 0,
+                "favourites_count": 5580,
+                "follow_request_sent": false,
+                "has_custom_timelines": true,
+                "is_translator": false,
+                "listed_count": 68,
+                "media_count": 63,
+                "normal_followers_count": 5359,
+                "notifications": false,
+                "pinned_tweet_ids_str": [
+                  "2036099935083618487"
+                ],
+                "possibly_sensitive": false,
+                "profile_banner_url": "https://pbs.twimg.com/profile_banners/1553003264051798019/1670500359",
+                "profile_interstitial_type": "",
+                "statuses_count": 571,
+                "translator_type": "none",
+                "url": "https://t.co/YmUUOKNaVA",
+                "want_retweets": false,
+                "withheld_in_countries": []
               },
               "relationship_perspectives": {
                 "blocked_by": false,
@@ -1372,7 +1813,19 @@
               }
             ]
           },
-          "is_quote_status": false
+          "is_quote_status": false,
+          "bookmarked": false,
+          "favorited": false,
+          "retweeted": false,
+          "conversation_id_str": "2036099935083618487",
+          "display_text_range": [
+            0,
+            275
+          ],
+          "user_id_str": "1553003264051798019",
+          "lang": "en",
+          "possibly_sensitive": false,
+          "possibly_sensitive_editable": true
         },
         "views": {
           "count": "267550",
@@ -1483,6 +1936,18 @@
               "text": "Introducing Hyperagents: an AI system that not only improves at solving tasks, but also improves how it improves itself.\n\nThe Darwin Gödel Machine (DGM) demonstrated that open-ended self-improvement is possible by iteratively generating and evaluating improved agents, yet it relies on a key assumption: that improvements in task performance (e.g., coding ability) translate into improvements in the self-improvement process itself. This alignment holds in coding, where both evaluation and modification are expressed in the same domain, but breaks down more generally. As a result, prior systems remain constrained by fixed, handcrafted meta-level procedures that do not themselves evolve.\n\nWe introduce Hyperagents – self-referential agents that can modify both their task-solving behavior and the process that generates future improvements. This enables what we call metacognitive self-modification: learning not just to perform better, but to improve at improving.\n\nWe instantiate this framework as DGM-Hyperagents (DGM-H), an extension of the DGM in which both task-solving behavior and the self-improvement procedure are editable and subject to evolution. Across diverse domains (coding, paper review, robotics reward design, and Olympiad-level math solution grading), hyperagents enable continuous performance improvements over time and outperform baselines without self-improvement or open-ended exploration, as well as prior self-improving systems (including DGM). DGM-H also improves the process by which new agents are generated (e.g. persistent memory, performance tracking), and these meta-level improvements transfer across domains and accumulate across runs.\n\nThis work was done during my internship at Meta (@AIatMeta), in collaboration with Bingchen Zhao (@BingchenZhao), Wannan Yang (@winnieyangwn), Jakob Foerster (@j_foerst), Jeff Clune (@jeffclune), Minqi Jiang (@MinqiJiang), Sam Devlin (@smdvln), and Tatiana Shavrina (@rybolos)."
             }
           }
+        },
+        "rest_id": "2036099935083618487",
+        "source": "<a href=\"https://mobile.twitter.com\" rel=\"nofollow\">Twitter Web App</a>",
+        "is_translatable": false,
+        "unmention_data": {},
+        "edit_control": {
+          "edit_tweet_ids": [
+            "2036099935083618487"
+          ],
+          "editable_until_msecs": "1774282628000",
+          "edits_remaining": "5",
+          "is_edit_eligible": false
         }
       }
     }
@@ -1504,7 +1969,47 @@
               "legacy": {
                 "followers_count": 353,
                 "friends_count": 255,
-                "default_profile_image": false
+                "default_profile_image": false,
+                "default_profile": true,
+                "description": "Founder & Investor. Ex-Googler. Exploring a new renaissance in AI and robotics.",
+                "entities": {
+                  "description": {
+                    "urls": []
+                  },
+                  "url": {
+                    "urls": [
+                      {
+                        "display_url": "robonaissance.com",
+                        "expanded_url": "https://www.robonaissance.com",
+                        "indices": [
+                          0,
+                          23
+                        ],
+                        "url": "https://t.co/oIxsl7dY8F"
+                      }
+                    ]
+                  }
+                },
+                "fast_followers_count": 0,
+                "favourites_count": 116,
+                "follow_request_sent": false,
+                "has_custom_timelines": false,
+                "is_translator": false,
+                "listed_count": 6,
+                "media_count": 5,
+                "normal_followers_count": 353,
+                "notifications": false,
+                "pinned_tweet_ids_str": [
+                  "2035294050790556084"
+                ],
+                "possibly_sensitive": false,
+                "profile_banner_url": "https://pbs.twimg.com/profile_banners/2021529718835597312/1770887740",
+                "profile_interstitial_type": "",
+                "statuses_count": 38,
+                "translator_type": "none",
+                "url": "https://t.co/oIxsl7dY8F",
+                "want_retweets": false,
+                "withheld_in_countries": []
               },
               "relationship_perspectives": {
                 "blocked_by": false,
@@ -1754,7 +2259,19 @@
               }
             ]
           },
-          "is_quote_status": false
+          "is_quote_status": false,
+          "bookmarked": false,
+          "favorited": false,
+          "retweeted": false,
+          "conversation_id_str": "2036182120033558617",
+          "display_text_range": [
+            0,
+            279
+          ],
+          "user_id_str": "2021529718835597312",
+          "lang": "en",
+          "possibly_sensitive": false,
+          "possibly_sensitive_editable": true
         },
         "views": {
           "count": "10847",
@@ -1796,6 +2313,18 @@
               "text": "If you’re interested in reinforcement learning and neuroscience, and are fascinated by the connection between them, I’ve been writing an eight-part series called The RL Spiral.\n\nhttps://t.co/66iC3MCBWi\n\nThe title is quite literal. Reinforcement learning and neuroscience have not developed in parallel; rather, they have spiraled around each other, with each revolution deepening our understanding of both fields. That spiral began over a century ago, and we are still within it.\n\nI’ve completed four parts so far and expect to finish the series within the next two to three weeks. I hope you enjoy it. Stay tuned."
             }
           }
+        },
+        "rest_id": "2036182120033558617",
+        "source": "<a href=\"https://mobile.twitter.com\" rel=\"nofollow\">Twitter Web App</a>",
+        "is_translatable": false,
+        "unmention_data": {},
+        "edit_control": {
+          "edit_tweet_ids": [
+            "2036182120033558617"
+          ],
+          "editable_until_msecs": "1774302222000",
+          "edits_remaining": "5",
+          "is_edit_eligible": true
         }
       }
     }
@@ -1817,7 +2346,47 @@
               "legacy": {
                 "followers_count": 104007,
                 "friends_count": 247,
-                "default_profile_image": false
+                "default_profile_image": false,
+                "default_profile": true,
+                "description": "Helping you master AI daily with step-by-step AI guides, latest news, & practical tools • DM for Collabs",
+                "entities": {
+                  "description": {
+                    "urls": []
+                  },
+                  "url": {
+                    "urls": [
+                      {
+                        "display_url": "linktr.ee/navtoor",
+                        "expanded_url": "https://linktr.ee/navtoor",
+                        "indices": [
+                          0,
+                          23
+                        ],
+                        "url": "https://t.co/b36GQWSNBh"
+                      }
+                    ]
+                  }
+                },
+                "fast_followers_count": 0,
+                "favourites_count": 4305,
+                "follow_request_sent": false,
+                "has_custom_timelines": false,
+                "is_translator": false,
+                "listed_count": 690,
+                "media_count": 312,
+                "normal_followers_count": 104007,
+                "notifications": false,
+                "pinned_tweet_ids_str": [
+                  "2028025232532120000"
+                ],
+                "possibly_sensitive": false,
+                "profile_banner_url": "https://pbs.twimg.com/profile_banners/1916904726295453696/1769272939",
+                "profile_interstitial_type": "",
+                "statuses_count": 3126,
+                "translator_type": "none",
+                "url": "https://t.co/b36GQWSNBh",
+                "want_retweets": false,
+                "withheld_in_countries": []
               },
               "relationship_perspectives": {
                 "blocked_by": false,
@@ -2015,7 +2584,19 @@
               }
             ]
           },
-          "is_quote_status": false
+          "is_quote_status": false,
+          "bookmarked": false,
+          "favorited": false,
+          "retweeted": false,
+          "conversation_id_str": "2036401120453792119",
+          "display_text_range": [
+            0,
+            276
+          ],
+          "user_id_str": "1916904726295453696",
+          "lang": "en",
+          "possibly_sensitive": false,
+          "possibly_sensitive_editable": true
         },
         "views": {
           "count": "263842",
@@ -2036,6 +2617,18 @@
               "text": "🚨 Electrical engineers are going to hate this.\n\nSomeone just turned React into a circuit board factory. Write code. Get a real PCB manufactured and delivered to your door.\n\nIt's called tscircuit. React for Electronics.\n\nNo Altium. No $10,000/year licenses. No 6-month learning curve.\n\nYou write React components. But instead of <div> and <button>, you write <resistor>, <chip>, and <capacitor>. The same way you build a website. That's how you build a circuit board now.\n\nHere's what this thing actually does:\n\n→ Design real circuit boards using TypeScript and React\n→ Edit code in your IDE, watch the circuit update in real time\n→ Auto-generates schematics, PCB layouts, and 3D previews from your code\n→ Automatic part selection and bill of materials generation\n→ Built-in autorouting algorithm for PCB traces\n→ Export to Gerber files and send directly to a manufacturer\n→ Online playground. Design circuits in your browser right now.\n\nHere's the wildest part:\n\nThe creator wrote 40 lines of TypeScript. From that he got a full PCB, a schematic, and a 3D preview. Then he exported it, sent it to a manufacturer, and got a real working circuit board delivered.\n\n40 lines of code. A real physical product.\n\nThis is free. Write React. Get hardware.\n\n$20K+ in bounties already paid to contributors. 8 years in the making.\n\n100% Open Source. MIT License."
             }
           }
+        },
+        "rest_id": "2036401120453792119",
+        "source": "<a href=\"https://typefully.com/\" rel=\"nofollow\">Typefully</a>",
+        "is_translatable": false,
+        "unmention_data": {},
+        "edit_control": {
+          "edit_tweet_ids": [
+            "2036401120453792119"
+          ],
+          "editable_until_msecs": "1774354436000",
+          "edits_remaining": "5",
+          "is_edit_eligible": false
         }
       }
     }
@@ -2057,7 +2650,47 @@
               "legacy": {
                 "followers_count": 461957,
                 "friends_count": 2296,
-                "default_profile_image": false
+                "default_profile_image": false,
+                "default_profile": false,
+                "description": "Polyagentmorous ClawFather. Came back from retirement to mess with AI and help a lobster take over the world @openclaw🦞",
+                "entities": {
+                  "description": {
+                    "urls": []
+                  },
+                  "url": {
+                    "urls": [
+                      {
+                        "display_url": "steipete.me",
+                        "expanded_url": "https://steipete.me",
+                        "indices": [
+                          0,
+                          23
+                        ],
+                        "url": "https://t.co/VeCkD9BBZx"
+                      }
+                    ]
+                  }
+                },
+                "fast_followers_count": 0,
+                "favourites_count": 60095,
+                "follow_request_sent": false,
+                "has_custom_timelines": true,
+                "is_translator": false,
+                "listed_count": 5007,
+                "media_count": 8431,
+                "normal_followers_count": 461957,
+                "notifications": false,
+                "pinned_tweet_ids_str": [
+                  "2023154018714100102"
+                ],
+                "possibly_sensitive": false,
+                "profile_banner_url": "https://pbs.twimg.com/profile_banners/25401953/1773684932",
+                "profile_interstitial_type": "",
+                "statuses_count": 137010,
+                "translator_type": "none",
+                "url": "https://t.co/VeCkD9BBZx",
+                "want_retweets": true,
+                "withheld_in_countries": []
               },
               "relationship_perspectives": {
                 "blocked_by": false,
@@ -2101,11 +2734,37 @@
               }
             ]
           },
-          "is_quote_status": false
+          "is_quote_status": false,
+          "bookmarked": false,
+          "favorited": false,
+          "retweeted": false,
+          "conversation_id_str": "2036216692750295442",
+          "display_text_range": [
+            0,
+            199
+          ],
+          "user_id_str": "25401953",
+          "lang": "en"
         },
         "views": {
           "count": "249799",
           "state": "EnabledWithCount"
+        },
+        "rest_id": "2036216692750295442",
+        "source": "<a href=\"https://mobile.twitter.com\" rel=\"nofollow\">Twitter Web App</a>",
+        "is_translatable": false,
+        "unmention_data": {},
+        "edit_control": {
+          "edit_control_initial": {
+            "edit_tweet_ids": [
+              "2036216639520423953",
+              "2036216692750295442"
+            ],
+            "editable_until_msecs": "1774310452000",
+            "edits_remaining": "4",
+            "is_edit_eligible": true
+          },
+          "initial_tweet_id": "2036216639520423953"
         }
       }
     }
@@ -2127,7 +2786,47 @@
               "legacy": {
                 "followers_count": 478194,
                 "friends_count": 19,
-                "default_profile_image": false
+                "default_profile_image": false,
+                "default_profile": true,
+                "description": "The AI that does things. Emails, calendar, home automation, from your favorite chat app. Your machine, your rules. \nNew shell, same lobster soul. 🦞",
+                "entities": {
+                  "description": {
+                    "urls": []
+                  },
+                  "url": {
+                    "urls": [
+                      {
+                        "display_url": "openclaw.ai",
+                        "expanded_url": "https://openclaw.ai",
+                        "indices": [
+                          0,
+                          23
+                        ],
+                        "url": "https://t.co/PuzGLMmjps"
+                      }
+                    ]
+                  }
+                },
+                "fast_followers_count": 0,
+                "favourites_count": 338,
+                "follow_request_sent": false,
+                "has_custom_timelines": false,
+                "is_translator": false,
+                "listed_count": 2454,
+                "media_count": 22,
+                "normal_followers_count": 478194,
+                "notifications": false,
+                "pinned_tweet_ids_str": [
+                  "2006801472487629257"
+                ],
+                "possibly_sensitive": false,
+                "profile_banner_url": "https://pbs.twimg.com/profile_banners/1995710751097659392/1769751337",
+                "profile_interstitial_type": "",
+                "statuses_count": 493,
+                "translator_type": "none",
+                "url": "https://t.co/PuzGLMmjps",
+                "want_retweets": true,
+                "withheld_in_countries": []
               },
               "relationship_perspectives": {
                 "blocked_by": false,
@@ -2172,11 +2871,35 @@
             ],
             "user_mentions": []
           },
-          "is_quote_status": false
+          "is_quote_status": false,
+          "bookmarked": false,
+          "favorited": false,
+          "retweeted": false,
+          "conversation_id_str": "2036043904949330407",
+          "display_text_range": [
+            0,
+            273
+          ],
+          "user_id_str": "1995710751097659392",
+          "lang": "en",
+          "possibly_sensitive": false,
+          "possibly_sensitive_editable": true
         },
         "views": {
           "count": "1779473",
           "state": "EnabledWithCount"
+        },
+        "rest_id": "2036043904949330407",
+        "source": "<a href=\"https://mobile.twitter.com\" rel=\"nofollow\">Twitter Web App</a>",
+        "is_translatable": false,
+        "unmention_data": {},
+        "edit_control": {
+          "edit_tweet_ids": [
+            "2036043904949330407"
+          ],
+          "editable_until_msecs": "1774269269000",
+          "edits_remaining": "5",
+          "is_edit_eligible": true
         }
       }
     }
@@ -2198,7 +2921,47 @@
               "legacy": {
                 "followers_count": 461957,
                 "friends_count": 2296,
-                "default_profile_image": false
+                "default_profile_image": false,
+                "default_profile": false,
+                "description": "Polyagentmorous ClawFather. Came back from retirement to mess with AI and help a lobster take over the world @openclaw🦞",
+                "entities": {
+                  "description": {
+                    "urls": []
+                  },
+                  "url": {
+                    "urls": [
+                      {
+                        "display_url": "steipete.me",
+                        "expanded_url": "https://steipete.me",
+                        "indices": [
+                          0,
+                          23
+                        ],
+                        "url": "https://t.co/VeCkD9BBZx"
+                      }
+                    ]
+                  }
+                },
+                "fast_followers_count": 0,
+                "favourites_count": 60095,
+                "follow_request_sent": false,
+                "has_custom_timelines": true,
+                "is_translator": false,
+                "listed_count": 5007,
+                "media_count": 8431,
+                "normal_followers_count": 461957,
+                "notifications": false,
+                "pinned_tweet_ids_str": [
+                  "2023154018714100102"
+                ],
+                "possibly_sensitive": false,
+                "profile_banner_url": "https://pbs.twimg.com/profile_banners/25401953/1773684932",
+                "profile_interstitial_type": "",
+                "statuses_count": 137010,
+                "translator_type": "none",
+                "url": "https://t.co/VeCkD9BBZx",
+                "want_retweets": true,
+                "withheld_in_countries": []
               },
               "relationship_perspectives": {
                 "blocked_by": false,
@@ -2430,11 +3193,35 @@
               }
             ]
           },
-          "is_quote_status": false
+          "is_quote_status": false,
+          "bookmarked": false,
+          "favorited": false,
+          "retweeted": false,
+          "conversation_id_str": "2036486352964035013",
+          "display_text_range": [
+            0,
+            207
+          ],
+          "user_id_str": "25401953",
+          "lang": "en",
+          "possibly_sensitive": false,
+          "possibly_sensitive_editable": true
         },
         "views": {
           "count": "79602",
           "state": "EnabledWithCount"
+        },
+        "rest_id": "2036486352964035013",
+        "source": "<a href=\"http://twitter.com/download/iphone\" rel=\"nofollow\">Twitter for iPhone</a>",
+        "is_translatable": false,
+        "unmention_data": {},
+        "edit_control": {
+          "edit_tweet_ids": [
+            "2036486352964035013"
+          ],
+          "editable_until_msecs": "1774374757000",
+          "edits_remaining": "5",
+          "is_edit_eligible": true
         }
       }
     }
@@ -2456,7 +3243,47 @@
               "legacy": {
                 "followers_count": 1377369,
                 "friends_count": 280,
-                "default_profile_image": false
+                "default_profile_image": false,
+                "default_profile": true,
+                "description": "We’re a team of scientists, engineers, ethicists and more, committed to solving intelligence, to advance science and benefit humanity.",
+                "entities": {
+                  "description": {
+                    "urls": []
+                  },
+                  "url": {
+                    "urls": [
+                      {
+                        "display_url": "deepmind.google",
+                        "expanded_url": "http://deepmind.google",
+                        "indices": [
+                          0,
+                          23
+                        ],
+                        "url": "https://t.co/uR24kkW95X"
+                      }
+                    ]
+                  }
+                },
+                "fast_followers_count": 0,
+                "favourites_count": 2776,
+                "follow_request_sent": false,
+                "has_custom_timelines": true,
+                "is_translator": false,
+                "listed_count": 15526,
+                "media_count": 1793,
+                "normal_followers_count": 1377369,
+                "notifications": false,
+                "pinned_tweet_ids_str": [
+                  "2034014385941975298"
+                ],
+                "possibly_sensitive": false,
+                "profile_banner_url": "https://pbs.twimg.com/profile_banners/4783690002/1763482530",
+                "profile_interstitial_type": "",
+                "statuses_count": 4304,
+                "translator_type": "none",
+                "url": "https://t.co/uR24kkW95X",
+                "want_retweets": true,
+                "withheld_in_countries": []
               },
               "relationship_perspectives": {
                 "blocked_by": false,
@@ -2699,11 +3526,35 @@
               }
             ]
           },
-          "is_quote_status": false
+          "is_quote_status": false,
+          "bookmarked": false,
+          "favorited": false,
+          "retweeted": false,
+          "conversation_id_str": "2036418139672482229",
+          "display_text_range": [
+            0,
+            235
+          ],
+          "user_id_str": "4783690002",
+          "lang": "en",
+          "possibly_sensitive": false,
+          "possibly_sensitive_editable": true
         },
         "views": {
           "count": "61948",
           "state": "EnabledWithCount"
+        },
+        "rest_id": "2036418139672482229",
+        "source": "<a href=\"https://mobile.twitter.com\" rel=\"nofollow\">Twitter Web App</a>",
+        "is_translatable": false,
+        "unmention_data": {},
+        "edit_control": {
+          "edit_tweet_ids": [
+            "2036418139672482229"
+          ],
+          "editable_until_msecs": "1774358493000",
+          "edits_remaining": "5",
+          "is_edit_eligible": true
         }
       }
     }
@@ -2725,7 +3576,55 @@
               "legacy": {
                 "followers_count": 882577,
                 "friends_count": 1,
-                "default_profile_image": false
+                "default_profile_image": false,
+                "default_profile": true,
+                "description": "Claude is an AI assistant built by @anthropicai to be safe, accurate, and secure. Talk to Claude on https://t.co/ZhTwG8d1e5 or download the app.",
+                "entities": {
+                  "description": {
+                    "urls": [
+                      {
+                        "display_url": "claude.ai",
+                        "expanded_url": "http://claude.ai",
+                        "indices": [
+                          100,
+                          123
+                        ],
+                        "url": "https://t.co/ZhTwG8d1e5"
+                      }
+                    ]
+                  },
+                  "url": {
+                    "urls": [
+                      {
+                        "display_url": "claude.ai",
+                        "expanded_url": "http://claude.ai",
+                        "indices": [
+                          0,
+                          23
+                        ],
+                        "url": "https://t.co/ZhTwG8d1e5"
+                      }
+                    ]
+                  }
+                },
+                "fast_followers_count": 0,
+                "favourites_count": 294,
+                "follow_request_sent": false,
+                "has_custom_timelines": false,
+                "is_translator": false,
+                "listed_count": 4211,
+                "media_count": 163,
+                "normal_followers_count": 882577,
+                "notifications": false,
+                "pinned_tweet_ids_str": [],
+                "possibly_sensitive": false,
+                "profile_banner_url": "https://pbs.twimg.com/profile_banners/1943306828697550848/1774295083",
+                "profile_interstitial_type": "",
+                "statuses_count": 360,
+                "translator_type": "none",
+                "url": "https://t.co/ZhTwG8d1e5",
+                "want_retweets": true,
+                "withheld_in_countries": []
               },
               "relationship_perspectives": {
                 "blocked_by": false,
@@ -2939,11 +3838,35 @@
               }
             ]
           },
-          "is_quote_status": false
+          "is_quote_status": false,
+          "bookmarked": false,
+          "favorited": false,
+          "retweeted": false,
+          "conversation_id_str": "2036503582166393240",
+          "display_text_range": [
+            0,
+            231
+          ],
+          "user_id_str": "1943306828697550848",
+          "lang": "en",
+          "possibly_sensitive": false,
+          "possibly_sensitive_editable": true
         },
         "views": {
           "count": "3393197",
           "state": "EnabledWithCount"
+        },
+        "rest_id": "2036503582166393240",
+        "source": "<a href=\"https://mobile.twitter.com\" rel=\"nofollow\">Twitter Web App</a>",
+        "is_translatable": false,
+        "unmention_data": {},
+        "edit_control": {
+          "edit_tweet_ids": [
+            "2036503582166393240"
+          ],
+          "editable_until_msecs": "1774378865000",
+          "edits_remaining": "5",
+          "is_edit_eligible": false
         }
       }
     }
@@ -2965,7 +3888,57 @@
               "legacy": {
                 "followers_count": 4694276,
                 "friends_count": 4,
-                "default_profile_image": false
+                "default_profile_image": false,
+                "default_profile": true,
+                "description": "OpenAI’s mission is to ensure that artificial general intelligence benefits all of humanity. We’re hiring: https://t.co/dJGr6LgzPA",
+                "entities": {
+                  "description": {
+                    "urls": [
+                      {
+                        "display_url": "openai.com/jobs",
+                        "expanded_url": "http://openai.com/jobs",
+                        "indices": [
+                          107,
+                          130
+                        ],
+                        "url": "https://t.co/dJGr6LgzPA"
+                      }
+                    ]
+                  },
+                  "url": {
+                    "urls": [
+                      {
+                        "display_url": "openai.com",
+                        "expanded_url": "https://openai.com",
+                        "indices": [
+                          0,
+                          23
+                        ],
+                        "url": "https://t.co/3bPlZZkvdL"
+                      }
+                    ]
+                  }
+                },
+                "fast_followers_count": 0,
+                "favourites_count": 1803,
+                "follow_request_sent": false,
+                "has_custom_timelines": false,
+                "is_translator": false,
+                "listed_count": 28256,
+                "media_count": 527,
+                "normal_followers_count": 4694276,
+                "notifications": false,
+                "pinned_tweet_ids_str": [
+                  "2029620619743219811"
+                ],
+                "possibly_sensitive": false,
+                "profile_banner_url": "https://pbs.twimg.com/profile_banners/4398626122/1770318871",
+                "profile_interstitial_type": "",
+                "statuses_count": 1722,
+                "translator_type": "none",
+                "url": "https://t.co/3bPlZZkvdL",
+                "want_retweets": true,
+                "withheld_in_countries": []
               },
               "relationship_perspectives": {
                 "blocked_by": false,
@@ -3248,7 +4221,19 @@
               }
             ]
           },
-          "is_quote_status": false
+          "is_quote_status": false,
+          "bookmarked": false,
+          "favorited": false,
+          "retweeted": false,
+          "conversation_id_str": "2036183180219392103",
+          "display_text_range": [
+            0,
+            275
+          ],
+          "user_id_str": "4398626122",
+          "lang": "en",
+          "possibly_sensitive": false,
+          "possibly_sensitive_editable": true
         },
         "views": {
           "count": "562996",
@@ -3271,6 +4256,18 @@
               "text": "It’s now easier to find, reuse, and build on the files you upload and create in ChatGPT.\n\nYou can quickly reference files in a chat using recent files in the toolbar, ask ChatGPT about something you’ve uploaded, or browse your files in the new Library tab in the web sidebar.\n\nRolling out globally for Plus, Pro, and Business users, and coming soon to users in the EEA, Switzerland, and the UK."
             }
           }
+        },
+        "rest_id": "2036183180219392103",
+        "source": "<a href=\"https://mobile.twitter.com\" rel=\"nofollow\">Twitter Web App</a>",
+        "is_translatable": false,
+        "unmention_data": {},
+        "edit_control": {
+          "edit_tweet_ids": [
+            "2036183180219392103"
+          ],
+          "editable_until_msecs": "1774302475000",
+          "edits_remaining": "5",
+          "is_edit_eligible": true
         }
       }
     }
@@ -3292,7 +4289,47 @@
               "legacy": {
                 "followers_count": 1377369,
                 "friends_count": 280,
-                "default_profile_image": false
+                "default_profile_image": false,
+                "default_profile": true,
+                "description": "We’re a team of scientists, engineers, ethicists and more, committed to solving intelligence, to advance science and benefit humanity.",
+                "entities": {
+                  "description": {
+                    "urls": []
+                  },
+                  "url": {
+                    "urls": [
+                      {
+                        "display_url": "deepmind.google",
+                        "expanded_url": "http://deepmind.google",
+                        "indices": [
+                          0,
+                          23
+                        ],
+                        "url": "https://t.co/uR24kkW95X"
+                      }
+                    ]
+                  }
+                },
+                "fast_followers_count": 0,
+                "favourites_count": 2776,
+                "follow_request_sent": false,
+                "has_custom_timelines": true,
+                "is_translator": false,
+                "listed_count": 15526,
+                "media_count": 1793,
+                "normal_followers_count": 1377369,
+                "notifications": false,
+                "pinned_tweet_ids_str": [
+                  "2034014385941975298"
+                ],
+                "possibly_sensitive": false,
+                "profile_banner_url": "https://pbs.twimg.com/profile_banners/4783690002/1763482530",
+                "profile_interstitial_type": "",
+                "statuses_count": 4304,
+                "translator_type": "none",
+                "url": "https://t.co/uR24kkW95X",
+                "want_retweets": true,
+                "withheld_in_countries": []
               },
               "relationship_perspectives": {
                 "blocked_by": false,
@@ -3527,7 +4564,19 @@
               }
             ]
           },
-          "is_quote_status": false
+          "is_quote_status": false,
+          "bookmarked": false,
+          "favorited": false,
+          "retweeted": false,
+          "conversation_id_str": "2036483295983100314",
+          "display_text_range": [
+            0,
+            182
+          ],
+          "user_id_str": "4783690002",
+          "lang": "en",
+          "possibly_sensitive": false,
+          "possibly_sensitive_editable": true
         },
         "views": {
           "count": "202291",
@@ -3569,6 +4618,18 @@
               "text": "Watch how fast Gemini 3.1 Flash-Lite can generate websites. ⚡\n\nThis browser creates each page in real-time as you click, search, and navigate. Give it a try → https://t.co/h3W5o1wItY"
             }
           }
+        },
+        "rest_id": "2036483295983100314",
+        "source": "<a href=\"https://mobile.twitter.com\" rel=\"nofollow\">Twitter Web App</a>",
+        "is_translatable": false,
+        "unmention_data": {},
+        "edit_control": {
+          "edit_tweet_ids": [
+            "2036483295983100314"
+          ],
+          "editable_until_msecs": "1774374028000",
+          "edits_remaining": "5",
+          "is_edit_eligible": true
         }
       }
     }
@@ -3590,7 +4651,66 @@
               "legacy": {
                 "followers_count": 12730,
                 "friends_count": 1,
-                "default_profile_image": false
+                "default_profile_image": false,
+                "default_profile": true,
+                "description": "Build & use computer vision models fast ✨ \n\nGet started: https://t.co/QvAsWtf7c8\n\nOpen source datasets & models https://t.co/IzwgoIkBEe",
+                "entities": {
+                  "description": {
+                    "urls": [
+                      {
+                        "display_url": "roboflow.com",
+                        "expanded_url": "https://roboflow.com/",
+                        "indices": [
+                          57,
+                          80
+                        ],
+                        "url": "https://t.co/QvAsWtf7c8"
+                      },
+                      {
+                        "display_url": "universe.roboflow.com",
+                        "expanded_url": "http://universe.roboflow.com",
+                        "indices": [
+                          112,
+                          135
+                        ],
+                        "url": "https://t.co/IzwgoIkBEe"
+                      }
+                    ]
+                  },
+                  "url": {
+                    "urls": [
+                      {
+                        "display_url": "roboflow.com",
+                        "expanded_url": "https://roboflow.com",
+                        "indices": [
+                          0,
+                          23
+                        ],
+                        "url": "https://t.co/FrsZpK7kp1"
+                      }
+                    ]
+                  }
+                },
+                "fast_followers_count": 0,
+                "favourites_count": 3844,
+                "follow_request_sent": false,
+                "has_custom_timelines": true,
+                "is_translator": false,
+                "listed_count": 186,
+                "media_count": 359,
+                "normal_followers_count": 12730,
+                "notifications": false,
+                "pinned_tweet_ids_str": [
+                  "2021989354512523568"
+                ],
+                "possibly_sensitive": false,
+                "profile_banner_url": "https://pbs.twimg.com/profile_banners/1144354342532722689/1729026061",
+                "profile_interstitial_type": "",
+                "statuses_count": 1952,
+                "translator_type": "none",
+                "url": "https://t.co/FrsZpK7kp1",
+                "want_retweets": false,
+                "withheld_in_countries": []
               },
               "relationship_perspectives": {
                 "blocked_by": false,
@@ -3624,7 +4744,17 @@
             "urls": [],
             "user_mentions": []
           },
-          "is_quote_status": true
+          "is_quote_status": true,
+          "bookmarked": false,
+          "favorited": false,
+          "retweeted": false,
+          "conversation_id_str": "2036438639308136516",
+          "display_text_range": [
+            0,
+            63
+          ],
+          "user_id_str": "1144354342532722689",
+          "lang": "en"
         },
         "views": {
           "count": "5133",
@@ -3645,7 +4775,66 @@
                   "legacy": {
                     "followers_count": 67,
                     "friends_count": 806,
-                    "default_profile_image": false
+                    "default_profile_image": false,
+                    "default_profile": true,
+                    "description": "CTO, Co-Founder https://t.co/2PN7rgp59S , YCS20\nComputer Vision, Robots and more.\n\nBuild you own agent.\nHere's mine: https://t.co/7LYqIxgcEB",
+                    "entities": {
+                      "description": {
+                        "urls": [
+                          {
+                            "display_url": "hellometer.io",
+                            "expanded_url": "http://hellometer.io",
+                            "indices": [
+                              16,
+                              39
+                            ],
+                            "url": "https://t.co/2PN7rgp59S"
+                          },
+                          {
+                            "display_url": "github.com/alberto139/Mal…",
+                            "expanded_url": "https://github.com/alberto139/Mallard",
+                            "indices": [
+                              117,
+                              140
+                            ],
+                            "url": "https://t.co/7LYqIxgcEB"
+                          }
+                        ]
+                      },
+                      "url": {
+                        "urls": [
+                          {
+                            "display_url": "albertogrivera.com",
+                            "expanded_url": "https://albertogrivera.com/",
+                            "indices": [
+                              0,
+                              23
+                            ],
+                            "url": "https://t.co/IDzmL6VTYh"
+                          }
+                        ]
+                      }
+                    },
+                    "fast_followers_count": 0,
+                    "favourites_count": 1860,
+                    "follow_request_sent": false,
+                    "has_custom_timelines": false,
+                    "is_translator": false,
+                    "listed_count": 3,
+                    "media_count": 26,
+                    "normal_followers_count": 67,
+                    "notifications": false,
+                    "pinned_tweet_ids_str": [
+                      "2023922522279080361"
+                    ],
+                    "possibly_sensitive": false,
+                    "profile_banner_url": "https://pbs.twimg.com/profile_banners/929057615979495424/1770414802",
+                    "profile_interstitial_type": "",
+                    "statuses_count": 295,
+                    "translator_type": "none",
+                    "url": "https://t.co/IDzmL6VTYh",
+                    "want_retweets": false,
+                    "withheld_in_countries": []
                   },
                   "relationship_perspectives": {
                     "blocked_by": false,
@@ -3853,13 +5042,49 @@
                   }
                 ]
               },
-              "is_quote_status": false
+              "is_quote_status": false,
+              "bookmarked": false,
+              "favorited": false,
+              "retweeted": false,
+              "conversation_id_str": "2036235592892293566",
+              "display_text_range": [
+                0,
+                55
+              ],
+              "user_id_str": "929057615979495424",
+              "lang": "en",
+              "possibly_sensitive": false,
+              "possibly_sensitive_editable": true
             },
             "views": {
               "count": "5321",
               "state": "EnabledWithCount"
+            },
+            "rest_id": "2036235592892293566",
+            "source": "<a href=\"https://mobile.twitter.com\" rel=\"nofollow\">Twitter Web App</a>",
+            "is_translatable": false,
+            "unmention_data": {},
+            "edit_control": {
+              "edit_tweet_ids": [
+                "2036235592892293566"
+              ],
+              "editable_until_msecs": "1774314971000",
+              "edits_remaining": "5",
+              "is_edit_eligible": true
             }
           }
+        },
+        "rest_id": "2036438639308136516",
+        "source": "<a href=\"https://mobile.twitter.com\" rel=\"nofollow\">Twitter Web App</a>",
+        "is_translatable": false,
+        "unmention_data": {},
+        "edit_control": {
+          "edit_tweet_ids": [
+            "2036438639308136516"
+          ],
+          "editable_until_msecs": "1774363381000",
+          "edits_remaining": "5",
+          "is_edit_eligible": true
         }
       }
     }
@@ -3881,7 +5106,47 @@
               "legacy": {
                 "followers_count": 308,
                 "friends_count": 215,
-                "default_profile_image": false
+                "default_profile_image": false,
+                "default_profile": true,
+                "description": "4D vision + Robotics | Research Intern @ Frontier AI & Robotics (FAR), Amazon",
+                "entities": {
+                  "description": {
+                    "urls": []
+                  },
+                  "url": {
+                    "urls": [
+                      {
+                        "display_url": "z1hanw.github.io",
+                        "expanded_url": "https://z1hanw.github.io/",
+                        "indices": [
+                          0,
+                          23
+                        ],
+                        "url": "https://t.co/PLKMkNPd9i"
+                      }
+                    ]
+                  }
+                },
+                "fast_followers_count": 0,
+                "favourites_count": 163,
+                "follow_request_sent": false,
+                "has_custom_timelines": false,
+                "is_translator": false,
+                "listed_count": 6,
+                "media_count": 4,
+                "normal_followers_count": 308,
+                "notifications": false,
+                "pinned_tweet_ids_str": [
+                  "2001737502353437147"
+                ],
+                "possibly_sensitive": false,
+                "profile_banner_url": "https://pbs.twimg.com/profile_banners/1506925319730642949/1766560578",
+                "profile_interstitial_type": "",
+                "statuses_count": 55,
+                "translator_type": "none",
+                "url": "https://t.co/PLKMkNPd9i",
+                "want_retweets": false,
+                "withheld_in_countries": []
               },
               "relationship_perspectives": {
                 "blocked_by": false,
@@ -3935,7 +5200,19 @@
               }
             ]
           },
-          "is_quote_status": true
+          "is_quote_status": true,
+          "bookmarked": false,
+          "favorited": false,
+          "retweeted": false,
+          "conversation_id_str": "2036231613055639701",
+          "display_text_range": [
+            0,
+            277
+          ],
+          "user_id_str": "1506925319730642949",
+          "lang": "en",
+          "possibly_sensitive": false,
+          "possibly_sensitive_editable": true
         },
         "views": {
           "count": "6998",
@@ -3956,7 +5233,47 @@
                   "legacy": {
                     "followers_count": 308,
                     "friends_count": 215,
-                    "default_profile_image": false
+                    "default_profile_image": false,
+                    "default_profile": true,
+                    "description": "4D vision + Robotics | Research Intern @ Frontier AI & Robotics (FAR), Amazon",
+                    "entities": {
+                      "description": {
+                        "urls": []
+                      },
+                      "url": {
+                        "urls": [
+                          {
+                            "display_url": "z1hanw.github.io",
+                            "expanded_url": "https://z1hanw.github.io/",
+                            "indices": [
+                              0,
+                              23
+                            ],
+                            "url": "https://t.co/PLKMkNPd9i"
+                          }
+                        ]
+                      }
+                    },
+                    "fast_followers_count": 0,
+                    "favourites_count": 163,
+                    "follow_request_sent": false,
+                    "has_custom_timelines": false,
+                    "is_translator": false,
+                    "listed_count": 6,
+                    "media_count": 4,
+                    "normal_followers_count": 308,
+                    "notifications": false,
+                    "pinned_tweet_ids_str": [
+                      "2001737502353437147"
+                    ],
+                    "possibly_sensitive": false,
+                    "profile_banner_url": "https://pbs.twimg.com/profile_banners/1506925319730642949/1766560578",
+                    "profile_interstitial_type": "",
+                    "statuses_count": 55,
+                    "translator_type": "none",
+                    "url": "https://t.co/PLKMkNPd9i",
+                    "want_retweets": false,
+                    "withheld_in_countries": []
                   },
                   "relationship_perspectives": {
                     "blocked_by": false,
@@ -4180,7 +5497,19 @@
                   }
                 ]
               },
-              "is_quote_status": false
+              "is_quote_status": false,
+              "bookmarked": false,
+              "favorited": false,
+              "retweeted": false,
+              "conversation_id_str": "2001737502353437147",
+              "display_text_range": [
+                0,
+                270
+              ],
+              "user_id_str": "1506925319730642949",
+              "lang": "en",
+              "possibly_sensitive": false,
+              "possibly_sensitive_editable": true
             },
             "views": {
               "count": "44245",
@@ -4260,8 +5589,32 @@
                   "text": "Introduce CRISP, a real-to-sim pipeline that recovers human motion and simulatable scene geometry from monocular video!   \n\nCRISP builds contact-faithful 3D scene for simulation - 8× fewer sim failures, +43% faster sim, and improves human motion!   \n\nInteractive demos👉: https://t.co/locrdrxO16\n\nExciting collaboration w/ @JiashunWang @jefftan969 @_Tsukasane @ Jessica Hodgins @shubhtuls @RamananDeva"
                 }
               }
+            },
+            "rest_id": "2001737502353437147",
+            "source": "<a href=\"https://mobile.twitter.com\" rel=\"nofollow\">Twitter Web App</a>",
+            "is_translatable": false,
+            "unmention_data": {},
+            "edit_control": {
+              "edit_tweet_ids": [
+                "2001737502353437147"
+              ],
+              "editable_until_msecs": "1766089985000",
+              "edits_remaining": "5",
+              "is_edit_eligible": false
             }
           }
+        },
+        "rest_id": "2036231613055639701",
+        "source": "<a href=\"https://mobile.twitter.com\" rel=\"nofollow\">Twitter Web App</a>",
+        "is_translatable": false,
+        "unmention_data": {},
+        "edit_control": {
+          "edit_tweet_ids": [
+            "2036231613055639701"
+          ],
+          "editable_until_msecs": "1774314022000",
+          "edits_remaining": "5",
+          "is_edit_eligible": true
         }
       }
     }
@@ -4283,7 +5636,32 @@
               "legacy": {
                 "followers_count": 50662,
                 "friends_count": 3552,
-                "default_profile_image": false
+                "default_profile_image": false,
+                "default_profile": false,
+                "description": "an aligner of incentives",
+                "entities": {
+                  "description": {
+                    "urls": []
+                  }
+                },
+                "fast_followers_count": 0,
+                "favourites_count": 35316,
+                "follow_request_sent": false,
+                "has_custom_timelines": true,
+                "is_translator": false,
+                "listed_count": 1002,
+                "media_count": 631,
+                "normal_followers_count": 50662,
+                "notifications": false,
+                "pinned_tweet_ids_str": [
+                  "2023465136204419096"
+                ],
+                "possibly_sensitive": false,
+                "profile_interstitial_type": "",
+                "statuses_count": 11123,
+                "translator_type": "none",
+                "want_retweets": false,
+                "withheld_in_countries": []
               },
               "relationship_perspectives": {
                 "blocked_by": false,
@@ -4509,7 +5887,19 @@
               }
             ]
           },
-          "is_quote_status": true
+          "is_quote_status": true,
+          "bookmarked": false,
+          "favorited": false,
+          "retweeted": false,
+          "conversation_id_str": "2036530156140171511",
+          "display_text_range": [
+            0,
+            44
+          ],
+          "user_id_str": "777685806437785601",
+          "lang": "en",
+          "possibly_sensitive": false,
+          "possibly_sensitive_editable": true
         },
         "views": {
           "count": "49405",
@@ -4530,7 +5920,47 @@
                   "legacy": {
                     "followers_count": 97259,
                     "friends_count": 48,
-                    "default_profile_image": false
+                    "default_profile_image": false,
+                    "default_profile": false,
+                    "description": "The product development system for teams and agents.",
+                    "entities": {
+                      "description": {
+                        "urls": []
+                      },
+                      "url": {
+                        "urls": [
+                          {
+                            "display_url": "linear.app",
+                            "expanded_url": "https://linear.app",
+                            "indices": [
+                              0,
+                              23
+                            ],
+                            "url": "https://t.co/Epn6PF9g9o"
+                          }
+                        ]
+                      }
+                    },
+                    "fast_followers_count": 0,
+                    "favourites_count": 4387,
+                    "follow_request_sent": false,
+                    "has_custom_timelines": true,
+                    "is_translator": false,
+                    "listed_count": 827,
+                    "media_count": 612,
+                    "normal_followers_count": 97259,
+                    "notifications": false,
+                    "pinned_tweet_ids_str": [
+                      "2036502198062821842"
+                    ],
+                    "possibly_sensitive": false,
+                    "profile_banner_url": "https://pbs.twimg.com/profile_banners/1083130198042656768/1770918641",
+                    "profile_interstitial_type": "",
+                    "statuses_count": 2978,
+                    "translator_type": "none",
+                    "url": "https://t.co/Epn6PF9g9o",
+                    "want_retweets": false,
+                    "withheld_in_countries": []
                   },
                   "relationship_perspectives": {
                     "blocked_by": false,
@@ -4749,7 +6179,19 @@
                   }
                 ]
               },
-              "is_quote_status": false
+              "is_quote_status": false,
+              "bookmarked": false,
+              "favorited": false,
+              "retweeted": false,
+              "conversation_id_str": "2036502198062821842",
+              "display_text_range": [
+                0,
+                81
+              ],
+              "user_id_str": "1083130198042656768",
+              "lang": "en",
+              "possibly_sensitive": false,
+              "possibly_sensitive_editable": true
             },
             "views": {
               "count": "781031",
@@ -4791,8 +6233,32 @@
                   "text": "Issue tracking is dead.\nWe are building what comes next.\n\nhttps://t.co/JM2d4mAEEB"
                 }
               }
+            },
+            "rest_id": "2036502198062821842",
+            "source": "<a href=\"https://mobile.twitter.com\" rel=\"nofollow\">Twitter Web App</a>",
+            "is_translatable": false,
+            "unmention_data": {},
+            "edit_control": {
+              "edit_tweet_ids": [
+                "2036502198062821842"
+              ],
+              "editable_until_msecs": "1774378535000",
+              "edits_remaining": "5",
+              "is_edit_eligible": true
             }
           }
+        },
+        "rest_id": "2036530156140171511",
+        "source": "<a href=\"https://mobile.twitter.com\" rel=\"nofollow\">Twitter Web App</a>",
+        "is_translatable": false,
+        "unmention_data": {},
+        "edit_control": {
+          "edit_tweet_ids": [
+            "2036530156140171511"
+          ],
+          "editable_until_msecs": "1774385200000",
+          "edits_remaining": "5",
+          "is_edit_eligible": true
         }
       }
     }
@@ -4814,7 +6280,33 @@
               "legacy": {
                 "followers_count": 1708,
                 "friends_count": 1968,
-                "default_profile_image": false
+                "default_profile_image": false,
+                "default_profile": true,
+                "description": "Founding member of technical staff @GeneralistAI_. Formerly: @GoogleDeepMind Robotics. ML grad student at U of T / Vector Institute.",
+                "entities": {
+                  "description": {
+                    "urls": []
+                  }
+                },
+                "fast_followers_count": 0,
+                "favourites_count": 1538,
+                "follow_request_sent": false,
+                "has_custom_timelines": true,
+                "is_translator": false,
+                "listed_count": 25,
+                "media_count": 22,
+                "normal_followers_count": 1708,
+                "notifications": false,
+                "pinned_tweet_ids_str": [
+                  "1192937775768555520"
+                ],
+                "possibly_sensitive": false,
+                "profile_banner_url": "https://pbs.twimg.com/profile_banners/996372772275154944/1572759787",
+                "profile_interstitial_type": "",
+                "statuses_count": 237,
+                "translator_type": "none",
+                "want_retweets": false,
+                "withheld_in_countries": []
               },
               "relationship_perspectives": {
                 "blocked_by": false,
@@ -4876,7 +6368,17 @@
               }
             ]
           },
-          "is_quote_status": true
+          "is_quote_status": true,
+          "bookmarked": false,
+          "favorited": false,
+          "retweeted": false,
+          "conversation_id_str": "2036488989721632879",
+          "display_text_range": [
+            0,
+            285
+          ],
+          "user_id_str": "996372772275154944",
+          "lang": "en"
         },
         "views": {
           "count": "4538",
@@ -4940,7 +6442,45 @@
                   "legacy": {
                     "followers_count": 5944,
                     "friends_count": 18,
-                    "default_profile_image": false
+                    "default_profile_image": false,
+                    "default_profile": true,
+                    "description": "Generalist is an AI robotics company on a mission to make general-purpose robots a reality.",
+                    "entities": {
+                      "description": {
+                        "urls": []
+                      },
+                      "url": {
+                        "urls": [
+                          {
+                            "display_url": "generalistai.com",
+                            "expanded_url": "http://generalistai.com",
+                            "indices": [
+                              0,
+                              23
+                            ],
+                            "url": "https://t.co/wY4LERy0yY"
+                          }
+                        ]
+                      }
+                    },
+                    "fast_followers_count": 0,
+                    "favourites_count": 195,
+                    "follow_request_sent": false,
+                    "has_custom_timelines": false,
+                    "is_translator": false,
+                    "listed_count": 95,
+                    "media_count": 27,
+                    "normal_followers_count": 5944,
+                    "notifications": false,
+                    "pinned_tweet_ids_str": [],
+                    "possibly_sensitive": false,
+                    "profile_banner_url": "https://pbs.twimg.com/profile_banners/1931415664918700032/1750121961",
+                    "profile_interstitial_type": "",
+                    "statuses_count": 74,
+                    "translator_type": "none",
+                    "url": "https://t.co/wY4LERy0yY",
+                    "want_retweets": false,
+                    "withheld_in_countries": []
                   },
                   "relationship_perspectives": {
                     "blocked_by": false,
@@ -5155,13 +6695,58 @@
                   }
                 ]
               },
-              "is_quote_status": false
+              "is_quote_status": false,
+              "bookmarked": false,
+              "favorited": false,
+              "retweeted": false,
+              "conversation_id_str": "2036458731685155030",
+              "display_text_range": [
+                0,
+                270
+              ],
+              "user_id_str": "1931415664918700032",
+              "lang": "en",
+              "possibly_sensitive": false,
+              "possibly_sensitive_editable": true
             },
             "views": {
               "count": "20341",
               "state": "EnabledWithCount"
+            },
+            "rest_id": "2036458731685155030",
+            "source": "<a href=\"https://mobile.twitter.com\" rel=\"nofollow\">Twitter Web App</a>",
+            "is_translatable": false,
+            "unmention_data": {},
+            "edit_control": {
+              "edit_control_initial": {
+                "edit_tweet_ids": [
+                  "2036458593495474641",
+                  "2036458731685155030"
+                ],
+                "editable_until_msecs": "1774368138000",
+                "edits_remaining": "4",
+                "is_edit_eligible": false
+              },
+              "initial_tweet_id": "2036458593495474641"
             }
           }
+        },
+        "rest_id": "2036488989721632879",
+        "source": "<a href=\"http://twitter.com/download/iphone\" rel=\"nofollow\">Twitter for iPhone</a>",
+        "is_translatable": false,
+        "unmention_data": {},
+        "edit_control": {
+          "edit_control_initial": {
+            "edit_tweet_ids": [
+              "2036487930617929971",
+              "2036488262265745592",
+              "2036488989721632879"
+            ],
+            "editable_until_msecs": "1774375133000",
+            "edits_remaining": "3",
+            "is_edit_eligible": true
+          },
+          "initial_tweet_id": "2036487930617929971"
         }
       }
     }
@@ -5183,7 +6768,57 @@
               "legacy": {
                 "followers_count": 13047,
                 "friends_count": 3864,
-                "default_profile_image": false
+                "default_profile_image": false,
+                "default_profile": true,
+                "description": "training llm's (prev: @huggingface)\nanon feedback: https://t.co/JmMh7Sg3mL",
+                "entities": {
+                  "description": {
+                    "urls": [
+                      {
+                        "display_url": "admonymous.co/eliebakouch",
+                        "expanded_url": "https://www.admonymous.co/eliebakouch",
+                        "indices": [
+                          51,
+                          74
+                        ],
+                        "url": "https://t.co/JmMh7Sg3mL"
+                      }
+                    ]
+                  },
+                  "url": {
+                    "urls": [
+                      {
+                        "display_url": "huggingface.co/eliebak",
+                        "expanded_url": "https://huggingface.co/eliebak",
+                        "indices": [
+                          0,
+                          23
+                        ],
+                        "url": "https://t.co/Rhb0otAJaz"
+                      }
+                    ]
+                  }
+                },
+                "fast_followers_count": 0,
+                "favourites_count": 17962,
+                "follow_request_sent": false,
+                "has_custom_timelines": false,
+                "is_translator": false,
+                "listed_count": 190,
+                "media_count": 719,
+                "normal_followers_count": 13047,
+                "notifications": false,
+                "pinned_tweet_ids_str": [
+                  "1983930328751153159"
+                ],
+                "possibly_sensitive": false,
+                "profile_banner_url": "https://pbs.twimg.com/profile_banners/1745892418539417600/1751243891",
+                "profile_interstitial_type": "",
+                "statuses_count": 5735,
+                "translator_type": "none",
+                "url": "https://t.co/Rhb0otAJaz",
+                "want_retweets": false,
+                "withheld_in_countries": []
               },
               "relationship_perspectives": {
                 "blocked_by": false,
@@ -5415,7 +7050,19 @@
               }
             ]
           },
-          "is_quote_status": true
+          "is_quote_status": true,
+          "bookmarked": false,
+          "favorited": false,
+          "retweeted": false,
+          "conversation_id_str": "2036591729348952395",
+          "display_text_range": [
+            0,
+            289
+          ],
+          "user_id_str": "1745892418539417600",
+          "lang": "en",
+          "possibly_sensitive": false,
+          "possibly_sensitive_editable": true
         },
         "views": {
           "count": "13101",
@@ -5454,7 +7101,47 @@
                   "legacy": {
                     "followers_count": 334346,
                     "friends_count": 43,
-                    "default_profile_image": false
+                    "default_profile_image": false,
+                    "default_profile": true,
+                    "description": "The best way to code with AI.",
+                    "entities": {
+                      "description": {
+                        "urls": []
+                      },
+                      "url": {
+                        "urls": [
+                          {
+                            "display_url": "cursor.com",
+                            "expanded_url": "http://cursor.com",
+                            "indices": [
+                              0,
+                              23
+                            ],
+                            "url": "https://t.co/mH7DszvHHI"
+                          }
+                        ]
+                      }
+                    },
+                    "fast_followers_count": 0,
+                    "favourites_count": 574,
+                    "follow_request_sent": false,
+                    "has_custom_timelines": false,
+                    "is_translator": false,
+                    "listed_count": 2927,
+                    "media_count": 159,
+                    "normal_followers_count": 334346,
+                    "notifications": false,
+                    "pinned_tweet_ids_str": [
+                      "2034668943676244133"
+                    ],
+                    "possibly_sensitive": false,
+                    "profile_banner_url": "https://pbs.twimg.com/profile_banners/1695890961094909952/1758562002",
+                    "profile_interstitial_type": "",
+                    "statuses_count": 331,
+                    "translator_type": "none",
+                    "url": "https://t.co/mH7DszvHHI",
+                    "want_retweets": false,
+                    "withheld_in_countries": []
                   },
                   "relationship_perspectives": {
                     "blocked_by": false,
@@ -5743,13 +7430,49 @@
                   }
                 ]
               },
-              "is_quote_status": false
+              "is_quote_status": false,
+              "bookmarked": false,
+              "favorited": false,
+              "retweeted": false,
+              "conversation_id_str": "2036566134468542651",
+              "display_text_range": [
+                0,
+                73
+              ],
+              "user_id_str": "1695890961094909952",
+              "lang": "en",
+              "possibly_sensitive": false,
+              "possibly_sensitive_editable": true
             },
             "views": {
               "count": "338786",
               "state": "EnabledWithCount"
+            },
+            "rest_id": "2036566134468542651",
+            "source": "<a href=\"https://mobile.twitter.com\" rel=\"nofollow\">Twitter Web App</a>",
+            "is_translatable": false,
+            "unmention_data": {},
+            "edit_control": {
+              "edit_tweet_ids": [
+                "2036566134468542651"
+              ],
+              "editable_until_msecs": "1774393778000",
+              "edits_remaining": "5",
+              "is_edit_eligible": false
             }
           }
+        },
+        "rest_id": "2036591729348952395",
+        "source": "<a href=\"https://mobile.twitter.com\" rel=\"nofollow\">Twitter Web App</a>",
+        "is_translatable": false,
+        "unmention_data": {},
+        "edit_control": {
+          "edit_tweet_ids": [
+            "2036591729348952395"
+          ],
+          "editable_until_msecs": "1774399880000",
+          "edits_remaining": "5",
+          "is_edit_eligible": true
         }
       }
     }
@@ -5771,7 +7494,47 @@
               "legacy": {
                 "followers_count": 31616,
                 "friends_count": 5376,
-                "default_profile_image": false
+                "default_profile_image": false,
+                "default_profile": true,
+                "description": "verifying stark proofs @StarkWareLtd and elite agentic wizard. ready to enter singularity after writing code manually for two decades. freedom tech maxi",
+                "entities": {
+                  "description": {
+                    "urls": []
+                  },
+                  "url": {
+                    "urls": [
+                      {
+                        "display_url": "github.com/AbdelStark",
+                        "expanded_url": "https://github.com/AbdelStark",
+                        "indices": [
+                          0,
+                          23
+                        ],
+                        "url": "https://t.co/I8y3hMTZbH"
+                      }
+                    ]
+                  }
+                },
+                "fast_followers_count": 0,
+                "favourites_count": 47178,
+                "follow_request_sent": false,
+                "has_custom_timelines": true,
+                "is_translator": false,
+                "listed_count": 444,
+                "media_count": 1085,
+                "normal_followers_count": 31616,
+                "notifications": false,
+                "pinned_tweet_ids_str": [
+                  "2036091136385675417"
+                ],
+                "possibly_sensitive": false,
+                "profile_banner_url": "https://pbs.twimg.com/profile_banners/513341499/1756200504",
+                "profile_interstitial_type": "",
+                "statuses_count": 20805,
+                "translator_type": "none",
+                "url": "https://t.co/I8y3hMTZbH",
+                "want_retweets": false,
+                "withheld_in_countries": []
               },
               "relationship_perspectives": {
                 "blocked_by": false,
@@ -5979,7 +7742,19 @@
               }
             ]
           },
-          "is_quote_status": true
+          "is_quote_status": true,
+          "bookmarked": false,
+          "favorited": false,
+          "retweeted": false,
+          "conversation_id_str": "2036091136385675417",
+          "display_text_range": [
+            0,
+            280
+          ],
+          "user_id_str": "513341499",
+          "lang": "en",
+          "possibly_sensitive": false,
+          "possibly_sensitive_editable": true
         },
         "views": {
           "count": "151646",
@@ -6019,7 +7794,47 @@
                   "legacy": {
                     "followers_count": 23103,
                     "friends_count": 121,
-                    "default_profile_image": false
+                    "default_profile_image": false,
+                    "default_profile": false,
+                    "description": "Founding Researcher at Percepta, Associate Professor at University of Athens, Lead Researcher at Archimedes, MIT PhD",
+                    "entities": {
+                      "description": {
+                        "urls": []
+                      },
+                      "url": {
+                        "urls": [
+                          {
+                            "display_url": "tzamos.com",
+                            "expanded_url": "http://tzamos.com",
+                            "indices": [
+                              0,
+                              23
+                            ],
+                            "url": "https://t.co/avDTPyP6iO"
+                          }
+                        ]
+                      }
+                    },
+                    "fast_followers_count": 0,
+                    "favourites_count": 74,
+                    "follow_request_sent": false,
+                    "has_custom_timelines": false,
+                    "is_translator": false,
+                    "listed_count": 531,
+                    "media_count": 7,
+                    "normal_followers_count": 23103,
+                    "notifications": false,
+                    "pinned_tweet_ids_str": [
+                      "2031845134577406426"
+                    ],
+                    "possibly_sensitive": false,
+                    "profile_banner_url": "https://pbs.twimg.com/profile_banners/193377392/1758278567",
+                    "profile_interstitial_type": "",
+                    "statuses_count": 42,
+                    "translator_type": "none",
+                    "url": "https://t.co/avDTPyP6iO",
+                    "want_retweets": false,
+                    "withheld_in_countries": []
                   },
                   "relationship_perspectives": {
                     "blocked_by": false,
@@ -6227,13 +8042,49 @@
                   }
                 ]
               },
-              "is_quote_status": false
+              "is_quote_status": false,
+              "bookmarked": false,
+              "favorited": false,
+              "retweeted": false,
+              "conversation_id_str": "2031845134577406426",
+              "display_text_range": [
+                0,
+                279
+              ],
+              "user_id_str": "193377392",
+              "lang": "en",
+              "possibly_sensitive": false,
+              "possibly_sensitive_editable": true
             },
             "views": {
               "count": "1746889",
               "state": "EnabledWithCount"
+            },
+            "rest_id": "2031845134577406426",
+            "source": "<a href=\"https://mobile.twitter.com\" rel=\"nofollow\">Twitter Web App</a>",
+            "is_translatable": false,
+            "unmention_data": {},
+            "edit_control": {
+              "edit_tweet_ids": [
+                "2031845134577406426"
+              ],
+              "editable_until_msecs": "1773268204000",
+              "edits_remaining": "5",
+              "is_edit_eligible": false
             }
           }
+        },
+        "rest_id": "2036091136385675417",
+        "source": "<a href=\"https://mobile.twitter.com\" rel=\"nofollow\">Twitter Web App</a>",
+        "is_translatable": false,
+        "unmention_data": {},
+        "edit_control": {
+          "edit_tweet_ids": [
+            "2036091136385675417"
+          ],
+          "editable_until_msecs": "1774280530000",
+          "edits_remaining": "5",
+          "is_edit_eligible": false
         }
       }
     }
@@ -6255,7 +8106,55 @@
               "legacy": {
                 "followers_count": 649372,
                 "friends_count": 220,
-                "default_profile_image": false
+                "default_profile_image": false,
+                "default_profile": true,
+                "description": "The AI community building the future. https://t.co/TpiXQMQ9rZ",
+                "entities": {
+                  "description": {
+                    "urls": [
+                      {
+                        "display_url": "hf.co/careers",
+                        "expanded_url": "http://hf.co/careers",
+                        "indices": [
+                          38,
+                          61
+                        ],
+                        "url": "https://t.co/TpiXQMQ9rZ"
+                      }
+                    ]
+                  },
+                  "url": {
+                    "urls": [
+                      {
+                        "display_url": "huggingface.co",
+                        "expanded_url": "https://huggingface.co",
+                        "indices": [
+                          0,
+                          23
+                        ],
+                        "url": "https://t.co/A337WqHDnG"
+                      }
+                    ]
+                  }
+                },
+                "fast_followers_count": 0,
+                "favourites_count": 8942,
+                "follow_request_sent": false,
+                "has_custom_timelines": false,
+                "is_translator": false,
+                "listed_count": 8043,
+                "media_count": 467,
+                "normal_followers_count": 649372,
+                "notifications": false,
+                "pinned_tweet_ids_str": [],
+                "possibly_sensitive": false,
+                "profile_banner_url": "https://pbs.twimg.com/profile_banners/778764142412984320/1731533786",
+                "profile_interstitial_type": "",
+                "statuses_count": 13085,
+                "translator_type": "none",
+                "url": "https://t.co/A337WqHDnG",
+                "want_retweets": true,
+                "withheld_in_countries": []
               },
               "relationship_perspectives": {
                 "blocked_by": false,
@@ -6289,7 +8188,17 @@
             "urls": [],
             "user_mentions": []
           },
-          "is_quote_status": true
+          "is_quote_status": true,
+          "bookmarked": false,
+          "favorited": false,
+          "retweeted": false,
+          "conversation_id_str": "2036562768476742142",
+          "display_text_range": [
+            0,
+            24
+          ],
+          "user_id_str": "778764142412984320",
+          "lang": "en"
         },
         "views": {
           "count": "14584",
@@ -6310,7 +8219,45 @@
                   "legacy": {
                     "followers_count": 69391,
                     "friends_count": 22,
-                    "default_profile_image": false
+                    "default_profile_image": false,
+                    "default_profile": true,
+                    "description": "",
+                    "entities": {
+                      "description": {
+                        "urls": []
+                      },
+                      "url": {
+                        "urls": [
+                          {
+                            "display_url": "semianalysis.com",
+                            "expanded_url": "https://www.semianalysis.com",
+                            "indices": [
+                              0,
+                              23
+                            ],
+                            "url": "https://t.co/Baki8ZPDhj"
+                          }
+                        ]
+                      }
+                    },
+                    "fast_followers_count": 0,
+                    "favourites_count": 751,
+                    "follow_request_sent": false,
+                    "has_custom_timelines": false,
+                    "is_translator": false,
+                    "listed_count": 1248,
+                    "media_count": 1044,
+                    "normal_followers_count": 69391,
+                    "notifications": false,
+                    "pinned_tweet_ids_str": [],
+                    "possibly_sensitive": false,
+                    "profile_banner_url": "https://pbs.twimg.com/profile_banners/1745106082790318080/1749234994",
+                    "profile_interstitial_type": "",
+                    "statuses_count": 1913,
+                    "translator_type": "none",
+                    "url": "https://t.co/Baki8ZPDhj",
+                    "want_retweets": false,
+                    "withheld_in_countries": []
                   },
                   "relationship_perspectives": {
                     "blocked_by": false,
@@ -6556,7 +8503,19 @@
                   }
                 ]
               },
-              "is_quote_status": false
+              "is_quote_status": false,
+              "bookmarked": false,
+              "favorited": false,
+              "retweeted": false,
+              "conversation_id_str": "2036548649728053498",
+              "display_text_range": [
+                0,
+                281
+              ],
+              "user_id_str": "1745106082790318080",
+              "lang": "en",
+              "possibly_sensitive": false,
+              "possibly_sensitive_editable": true
             },
             "views": {
               "count": "39552",
@@ -6595,8 +8554,32 @@
                   "text": "CLAUDE OPUS 5 ALERT: I was walking around San Francisco Hayes Valley today and saw an sidewalk this USB key saying it contains the opus 5 weights. Should i plug it into my computer & upload the weights to huggingface or should I give this USB key to @jekbradbury @aj_kourabi in case it is their USB?"
                 }
               }
+            },
+            "rest_id": "2036548649728053498",
+            "source": "<a href=\"https://buffer.com\" rel=\"nofollow\">Buffer</a>",
+            "is_translatable": false,
+            "unmention_data": {},
+            "edit_control": {
+              "edit_tweet_ids": [
+                "2036548649728053498"
+              ],
+              "editable_until_msecs": "1774389609000",
+              "edits_remaining": "5",
+              "is_edit_eligible": true
             }
           }
+        },
+        "rest_id": "2036562768476742142",
+        "source": "<a href=\"https://mobile.twitter.com\" rel=\"nofollow\">Twitter Web App</a>",
+        "is_translatable": false,
+        "unmention_data": {},
+        "edit_control": {
+          "edit_tweet_ids": [
+            "2036562768476742142"
+          ],
+          "editable_until_msecs": "1774392976000",
+          "edits_remaining": "5",
+          "is_edit_eligible": true
         }
       }
     }
@@ -6618,7 +8601,44 @@
               "legacy": {
                 "followers_count": 4535897,
                 "friends_count": 988,
-                "default_profile_image": false
+                "default_profile_image": false,
+                "default_profile": false,
+                "description": "AI is cool i guess",
+                "entities": {
+                  "description": {
+                    "urls": []
+                  },
+                  "url": {
+                    "urls": [
+                      {
+                        "display_url": "blog.samaltman.com",
+                        "expanded_url": "http://blog.samaltman.com",
+                        "indices": [
+                          0,
+                          23
+                        ],
+                        "url": "https://t.co/teHmy8EFSH"
+                      }
+                    ]
+                  }
+                },
+                "fast_followers_count": 0,
+                "favourites_count": 1020,
+                "follow_request_sent": false,
+                "has_custom_timelines": false,
+                "is_translator": false,
+                "listed_count": 27811,
+                "media_count": 385,
+                "normal_followers_count": 4535897,
+                "notifications": false,
+                "pinned_tweet_ids_str": [],
+                "possibly_sensitive": false,
+                "profile_interstitial_type": "",
+                "statuses_count": 7497,
+                "translator_type": "none",
+                "url": "https://t.co/teHmy8EFSH",
+                "want_retweets": true,
+                "withheld_in_countries": []
               },
               "relationship_perspectives": {
                 "blocked_by": false,
@@ -6652,7 +8672,17 @@
             "urls": [],
             "user_mentions": []
           },
-          "is_quote_status": true
+          "is_quote_status": true,
+          "bookmarked": false,
+          "favorited": false,
+          "retweeted": false,
+          "conversation_id_str": "2036137695605563682",
+          "display_text_range": [
+            0,
+            274
+          ],
+          "user_id_str": "1605",
+          "lang": "en"
         },
         "views": {
           "count": "711222",
@@ -6691,7 +8721,47 @@
                   "legacy": {
                     "followers_count": 10666,
                     "friends_count": 231,
-                    "default_profile_image": false
+                    "default_profile_image": false,
+                    "default_profile": false,
+                    "description": "Level 12 atomancer",
+                    "entities": {
+                      "description": {
+                        "urls": []
+                      },
+                      "url": {
+                        "urls": [
+                          {
+                            "display_url": "he3.com",
+                            "expanded_url": "http://www.he3.com",
+                            "indices": [
+                              0,
+                              23
+                            ],
+                            "url": "https://t.co/kEUIkwmg4H"
+                          }
+                        ]
+                      }
+                    },
+                    "fast_followers_count": 0,
+                    "favourites_count": 2490,
+                    "follow_request_sent": false,
+                    "has_custom_timelines": false,
+                    "is_translator": false,
+                    "listed_count": 114,
+                    "media_count": 184,
+                    "normal_followers_count": 10666,
+                    "notifications": false,
+                    "pinned_tweet_ids_str": [
+                      "1990526047046213950"
+                    ],
+                    "possibly_sensitive": false,
+                    "profile_banner_url": "https://pbs.twimg.com/profile_banners/2841950879/1738082689",
+                    "profile_interstitial_type": "",
+                    "statuses_count": 1172,
+                    "translator_type": "none",
+                    "url": "https://t.co/kEUIkwmg4H",
+                    "want_retweets": false,
+                    "withheld_in_countries": []
                   },
                   "relationship_perspectives": {
                     "blocked_by": false,
@@ -6725,7 +8795,17 @@
                 "urls": [],
                 "user_mentions": []
               },
-              "is_quote_status": false
+              "is_quote_status": false,
+              "bookmarked": false,
+              "favorited": false,
+              "retweeted": false,
+              "conversation_id_str": "2036120194805014537",
+              "display_text_range": [
+                0,
+                276
+              ],
+              "user_id_str": "2841950879",
+              "lang": "en"
             },
             "views": {
               "count": "698508",
@@ -6748,8 +8828,32 @@
                   "text": "Sam Altman is stepping down from Helion’s Board of Directors.\n\nThis decision enables Helion and OpenAI to explore future partnerships to bring zero-carbon, safe electricity to the world, which Helion is perfectly poised to deliver.\n\nSam has played an integral role in Helion’s development; I am extremely grateful for his commitment to Helion since he joined our board in 2015. He has pushed me and the Helion team to dream big, build with urgency, and focus on the thing that matters most: deploying fusion for our customers as quickly as possible to fully satisfy the world’s need for clean and abundant energy. Fusion would not be where it is today if it were not for Sam’s support over the last decade.\n\nSam, thank you for your vision, your encouragement, and your commitment to Helion. I look forward to working with you in this new capacity."
                 }
               }
+            },
+            "rest_id": "2036120194805014537",
+            "source": "<a href=\"https://mobile.twitter.com\" rel=\"nofollow\">Twitter Web App</a>",
+            "is_translatable": false,
+            "unmention_data": {},
+            "edit_control": {
+              "edit_tweet_ids": [
+                "2036120194805014537"
+              ],
+              "editable_until_msecs": "1774287458000",
+              "edits_remaining": "5",
+              "is_edit_eligible": true
             }
           }
+        },
+        "rest_id": "2036137695605563682",
+        "source": "<a href=\"https://mobile.twitter.com\" rel=\"nofollow\">Twitter Web App</a>",
+        "is_translatable": false,
+        "unmention_data": {},
+        "edit_control": {
+          "edit_tweet_ids": [
+            "2036137695605563682"
+          ],
+          "editable_until_msecs": "1774291630000",
+          "edits_remaining": "5",
+          "is_edit_eligible": true
         }
       }
     }
@@ -6771,7 +8875,47 @@
               "legacy": {
                 "followers_count": 1377369,
                 "friends_count": 280,
-                "default_profile_image": false
+                "default_profile_image": false,
+                "default_profile": true,
+                "description": "We’re a team of scientists, engineers, ethicists and more, committed to solving intelligence, to advance science and benefit humanity.",
+                "entities": {
+                  "description": {
+                    "urls": []
+                  },
+                  "url": {
+                    "urls": [
+                      {
+                        "display_url": "deepmind.google",
+                        "expanded_url": "http://deepmind.google",
+                        "indices": [
+                          0,
+                          23
+                        ],
+                        "url": "https://t.co/uR24kkW95X"
+                      }
+                    ]
+                  }
+                },
+                "fast_followers_count": 0,
+                "favourites_count": 2776,
+                "follow_request_sent": false,
+                "has_custom_timelines": true,
+                "is_translator": false,
+                "listed_count": 15526,
+                "media_count": 1793,
+                "normal_followers_count": 1377369,
+                "notifications": false,
+                "pinned_tweet_ids_str": [
+                  "2034014385941975298"
+                ],
+                "possibly_sensitive": false,
+                "profile_banner_url": "https://pbs.twimg.com/profile_banners/4783690002/1763482530",
+                "profile_interstitial_type": "",
+                "statuses_count": 4304,
+                "translator_type": "none",
+                "url": "https://t.co/uR24kkW95X",
+                "want_retweets": true,
+                "withheld_in_countries": []
               },
               "relationship_perspectives": {
                 "blocked_by": false,
@@ -6841,7 +8985,45 @@
                     "legacy": {
                       "followers_count": 1463,
                       "friends_count": 595,
-                      "default_profile_image": false
+                      "default_profile_image": false,
+                      "default_profile": false,
+                      "description": "Staff Research Scientist @GoogleDeepMind Frontier AI.\nAudio LMs (Gemini, Magenta RT) & AI for math(.AG, .NT).\nPast: #NLProc #SpeechProc @AWSAI, @HarvardMath.",
+                      "entities": {
+                        "description": {
+                          "urls": []
+                        },
+                        "url": {
+                          "urls": [
+                            {
+                              "display_url": "julianslzr.com",
+                              "expanded_url": "https://julianslzr.com",
+                              "indices": [
+                                0,
+                                23
+                              ],
+                              "url": "https://t.co/5MKTP6dQgL"
+                            }
+                          ]
+                        }
+                      },
+                      "fast_followers_count": 0,
+                      "favourites_count": 2455,
+                      "follow_request_sent": false,
+                      "has_custom_timelines": true,
+                      "is_translator": false,
+                      "listed_count": 29,
+                      "media_count": 67,
+                      "normal_followers_count": 1463,
+                      "notifications": false,
+                      "pinned_tweet_ids_str": [],
+                      "possibly_sensitive": false,
+                      "profile_banner_url": "https://pbs.twimg.com/profile_banners/1605763477/1761957868",
+                      "profile_interstitial_type": "",
+                      "statuses_count": 493,
+                      "translator_type": "none",
+                      "url": "https://t.co/5MKTP6dQgL",
+                      "want_retweets": false,
+                      "withheld_in_countries": []
                     },
                     "relationship_perspectives": {
                       "blocked_by": false,
@@ -7077,18 +9259,64 @@
                     }
                   ]
                 },
-                "is_quote_status": false
+                "is_quote_status": false,
+                "bookmarked": false,
+                "favorited": false,
+                "retweeted": false,
+                "conversation_id_str": "2034947433520918853",
+                "display_text_range": [
+                  0,
+                  278
+                ],
+                "user_id_str": "1605763477",
+                "lang": "en",
+                "possibly_sensitive": false,
+                "possibly_sensitive_editable": true
               },
               "views": {
                 "count": "56923",
                 "state": "EnabledWithCount"
+              },
+              "rest_id": "2034947433520918853",
+              "source": "<a href=\"https://mobile.twitter.com\" rel=\"nofollow\">Twitter Web App</a>",
+              "is_translatable": false,
+              "unmention_data": {},
+              "edit_control": {
+                "edit_tweet_ids": [
+                  "2034947433520918853"
+                ],
+                "editable_until_msecs": "1774007850000",
+                "edits_remaining": "5",
+                "is_edit_eligible": false
               }
             }
-          }
+          },
+          "bookmarked": false,
+          "favorited": false,
+          "retweeted": false,
+          "conversation_id_str": "2036048754411778358",
+          "display_text_range": [
+            0,
+            140
+          ],
+          "user_id_str": "4783690002",
+          "lang": "en"
         },
         "views": {
           "count": "13",
           "state": "EnabledWithCount"
+        },
+        "rest_id": "2036048754411778358",
+        "source": "<a href=\"https://mobile.twitter.com\" rel=\"nofollow\">Twitter Web App</a>",
+        "is_translatable": false,
+        "unmention_data": {},
+        "edit_control": {
+          "edit_tweet_ids": [
+            "2036048754411778358"
+          ],
+          "editable_until_msecs": "1774270425665",
+          "edits_remaining": "5",
+          "is_edit_eligible": false
         }
       }
     }
@@ -7110,7 +9338,55 @@
               "legacy": {
                 "followers_count": 649372,
                 "friends_count": 220,
-                "default_profile_image": false
+                "default_profile_image": false,
+                "default_profile": true,
+                "description": "The AI community building the future. https://t.co/TpiXQMQ9rZ",
+                "entities": {
+                  "description": {
+                    "urls": [
+                      {
+                        "display_url": "hf.co/careers",
+                        "expanded_url": "http://hf.co/careers",
+                        "indices": [
+                          38,
+                          61
+                        ],
+                        "url": "https://t.co/TpiXQMQ9rZ"
+                      }
+                    ]
+                  },
+                  "url": {
+                    "urls": [
+                      {
+                        "display_url": "huggingface.co",
+                        "expanded_url": "https://huggingface.co",
+                        "indices": [
+                          0,
+                          23
+                        ],
+                        "url": "https://t.co/A337WqHDnG"
+                      }
+                    ]
+                  }
+                },
+                "fast_followers_count": 0,
+                "favourites_count": 8942,
+                "follow_request_sent": false,
+                "has_custom_timelines": false,
+                "is_translator": false,
+                "listed_count": 8043,
+                "media_count": 467,
+                "normal_followers_count": 649372,
+                "notifications": false,
+                "pinned_tweet_ids_str": [],
+                "possibly_sensitive": false,
+                "profile_banner_url": "https://pbs.twimg.com/profile_banners/778764142412984320/1731533786",
+                "profile_interstitial_type": "",
+                "statuses_count": 13085,
+                "translator_type": "none",
+                "url": "https://t.co/A337WqHDnG",
+                "want_retweets": true,
+                "withheld_in_countries": []
               },
               "relationship_perspectives": {
                 "blocked_by": false,
@@ -7188,7 +9464,32 @@
                     "legacy": {
                       "followers_count": 10372,
                       "friends_count": 2483,
-                      "default_profile_image": false
+                      "default_profile_image": false,
+                      "default_profile": true,
+                      "description": "Head of APAC ecosystem @huggingface, interested in future tech. Ex-Googler on TFLite / micro. Ideas are my own. DM me to talk open source and robotics in APAC.",
+                      "entities": {
+                        "description": {
+                          "urls": []
+                        }
+                      },
+                      "fast_followers_count": 0,
+                      "favourites_count": 8915,
+                      "follow_request_sent": false,
+                      "has_custom_timelines": false,
+                      "is_translator": false,
+                      "listed_count": 159,
+                      "media_count": 827,
+                      "normal_followers_count": 10372,
+                      "notifications": false,
+                      "pinned_tweet_ids_str": [
+                        "2027263267429863787"
+                      ],
+                      "possibly_sensitive": false,
+                      "profile_interstitial_type": "",
+                      "statuses_count": 3167,
+                      "translator_type": "none",
+                      "want_retweets": false,
+                      "withheld_in_countries": []
                     },
                     "relationship_perspectives": {
                       "blocked_by": false,
@@ -7430,18 +9731,66 @@
                     }
                   ]
                 },
-                "is_quote_status": false
+                "is_quote_status": false,
+                "bookmarked": false,
+                "favorited": false,
+                "retweeted": false,
+                "conversation_id_str": "2035916252007608675",
+                "display_text_range": [
+                  0,
+                  99
+                ],
+                "user_id_str": "1597257798068637697",
+                "lang": "in",
+                "possibly_sensitive": false,
+                "possibly_sensitive_editable": true
               },
               "views": {
                 "count": "30020",
                 "state": "EnabledWithCount"
+              },
+              "rest_id": "2035916252007608675",
+              "source": "<a href=\"https://mobile.twitter.com\" rel=\"nofollow\">Twitter Web App</a>",
+              "is_translatable": false,
+              "unmention_data": {},
+              "edit_control": {
+                "edit_tweet_ids": [
+                  "2035916252007608675"
+                ],
+                "editable_until_msecs": "1774238834000",
+                "edits_remaining": "5",
+                "is_edit_eligible": false
               }
             }
-          }
+          },
+          "bookmarked": false,
+          "favorited": false,
+          "retweeted": false,
+          "conversation_id_str": "2035916433356714342",
+          "display_text_range": [
+            0,
+            140
+          ],
+          "user_id_str": "778764142412984320",
+          "lang": "in",
+          "possibly_sensitive": false,
+          "possibly_sensitive_editable": true
         },
         "views": {
           "count": "10",
           "state": "EnabledWithCount"
+        },
+        "rest_id": "2035916433356714342",
+        "source": "<a href=\"https://mobile.twitter.com\" rel=\"nofollow\">Twitter Web App</a>",
+        "is_translatable": false,
+        "unmention_data": {},
+        "edit_control": {
+          "edit_tweet_ids": [
+            "2035916433356714342"
+          ],
+          "editable_until_msecs": "1774238877867",
+          "edits_remaining": "5",
+          "is_edit_eligible": false
         }
       }
     }
@@ -7463,7 +9812,47 @@
               "legacy": {
                 "followers_count": 461957,
                 "friends_count": 2296,
-                "default_profile_image": false
+                "default_profile_image": false,
+                "default_profile": false,
+                "description": "Polyagentmorous ClawFather. Came back from retirement to mess with AI and help a lobster take over the world @openclaw🦞",
+                "entities": {
+                  "description": {
+                    "urls": []
+                  },
+                  "url": {
+                    "urls": [
+                      {
+                        "display_url": "steipete.me",
+                        "expanded_url": "https://steipete.me",
+                        "indices": [
+                          0,
+                          23
+                        ],
+                        "url": "https://t.co/VeCkD9BBZx"
+                      }
+                    ]
+                  }
+                },
+                "fast_followers_count": 0,
+                "favourites_count": 60095,
+                "follow_request_sent": false,
+                "has_custom_timelines": true,
+                "is_translator": false,
+                "listed_count": 5007,
+                "media_count": 8431,
+                "normal_followers_count": 461957,
+                "notifications": false,
+                "pinned_tweet_ids_str": [
+                  "2023154018714100102"
+                ],
+                "possibly_sensitive": false,
+                "profile_banner_url": "https://pbs.twimg.com/profile_banners/25401953/1773684932",
+                "profile_interstitial_type": "",
+                "statuses_count": 137010,
+                "translator_type": "none",
+                "url": "https://t.co/VeCkD9BBZx",
+                "want_retweets": true,
+                "withheld_in_countries": []
               },
               "relationship_perspectives": {
                 "blocked_by": false,
@@ -7725,7 +10114,31 @@
                     "legacy": {
                       "followers_count": 5062,
                       "friends_count": 5102,
-                      "default_profile_image": false
+                      "default_profile_image": false,
+                      "default_profile": false,
+                      "description": "feel the agi",
+                      "entities": {
+                        "description": {
+                          "urls": []
+                        }
+                      },
+                      "fast_followers_count": 0,
+                      "favourites_count": 204061,
+                      "follow_request_sent": false,
+                      "has_custom_timelines": true,
+                      "is_translator": false,
+                      "listed_count": 117,
+                      "media_count": 2524,
+                      "normal_followers_count": 5062,
+                      "notifications": false,
+                      "pinned_tweet_ids_str": [],
+                      "possibly_sensitive": false,
+                      "profile_banner_url": "https://pbs.twimg.com/profile_banners/384338897/1641168806",
+                      "profile_interstitial_type": "",
+                      "statuses_count": 13506,
+                      "translator_type": "none",
+                      "want_retweets": false,
+                      "withheld_in_countries": []
                     },
                     "relationship_perspectives": {
                       "blocked_by": false,
@@ -7957,18 +10370,66 @@
                     }
                   ]
                 },
-                "is_quote_status": false
+                "is_quote_status": false,
+                "bookmarked": false,
+                "favorited": false,
+                "retweeted": false,
+                "conversation_id_str": "2035945202787950833",
+                "display_text_range": [
+                  0,
+                  37
+                ],
+                "user_id_str": "384338897",
+                "lang": "en",
+                "possibly_sensitive": false,
+                "possibly_sensitive_editable": true
               },
               "views": {
                 "count": "324653",
                 "state": "EnabledWithCount"
+              },
+              "rest_id": "2035945202787950833",
+              "source": "<a href=\"https://mobile.twitter.com\" rel=\"nofollow\">Twitter Web App</a>",
+              "is_translatable": false,
+              "unmention_data": {},
+              "edit_control": {
+                "edit_tweet_ids": [
+                  "2035945202787950833"
+                ],
+                "editable_until_msecs": "1774245737000",
+                "edits_remaining": "5",
+                "is_edit_eligible": true
               }
             }
-          }
+          },
+          "bookmarked": false,
+          "favorited": false,
+          "retweeted": false,
+          "conversation_id_str": "2036032641351446756",
+          "display_text_range": [
+            0,
+            78
+          ],
+          "user_id_str": "25401953",
+          "lang": "en",
+          "possibly_sensitive": false,
+          "possibly_sensitive_editable": true
         },
         "views": {
           "count": "2634",
           "state": "EnabledWithCount"
+        },
+        "rest_id": "2036032641351446756",
+        "source": "<a href=\"https://mobile.twitter.com\" rel=\"nofollow\">Twitter Web App</a>",
+        "is_translatable": false,
+        "unmention_data": {},
+        "edit_control": {
+          "edit_tweet_ids": [
+            "2036032641351446756"
+          ],
+          "editable_until_msecs": "1774266584012",
+          "edits_remaining": "5",
+          "is_edit_eligible": false
         }
       }
     }
@@ -7990,7 +10451,47 @@
               "legacy": {
                 "followers_count": 461957,
                 "friends_count": 2296,
-                "default_profile_image": false
+                "default_profile_image": false,
+                "default_profile": false,
+                "description": "Polyagentmorous ClawFather. Came back from retirement to mess with AI and help a lobster take over the world @openclaw🦞",
+                "entities": {
+                  "description": {
+                    "urls": []
+                  },
+                  "url": {
+                    "urls": [
+                      {
+                        "display_url": "steipete.me",
+                        "expanded_url": "https://steipete.me",
+                        "indices": [
+                          0,
+                          23
+                        ],
+                        "url": "https://t.co/VeCkD9BBZx"
+                      }
+                    ]
+                  }
+                },
+                "fast_followers_count": 0,
+                "favourites_count": 60095,
+                "follow_request_sent": false,
+                "has_custom_timelines": true,
+                "is_translator": false,
+                "listed_count": 5007,
+                "media_count": 8431,
+                "normal_followers_count": 461957,
+                "notifications": false,
+                "pinned_tweet_ids_str": [
+                  "2023154018714100102"
+                ],
+                "possibly_sensitive": false,
+                "profile_banner_url": "https://pbs.twimg.com/profile_banners/25401953/1773684932",
+                "profile_interstitial_type": "",
+                "statuses_count": 137010,
+                "translator_type": "none",
+                "url": "https://t.co/VeCkD9BBZx",
+                "want_retweets": true,
+                "withheld_in_countries": []
               },
               "relationship_perspectives": {
                 "blocked_by": false,
@@ -8434,7 +10935,33 @@
                     "legacy": {
                       "followers_count": 38702,
                       "friends_count": 5440,
-                      "default_profile_image": false
+                      "default_profile_image": false,
+                      "default_profile": false,
+                      "description": "VP @Nvidia, prev (COO/President@GroqInc) prev (co-f@definitiveio acq. by groq, co-f@autonomic acq. by @ford, and co-f@xtreme labs acq. by pivotal/@vmware)",
+                      "entities": {
+                        "description": {
+                          "urls": []
+                        }
+                      },
+                      "fast_followers_count": 0,
+                      "favourites_count": 79281,
+                      "follow_request_sent": false,
+                      "has_custom_timelines": true,
+                      "is_translator": false,
+                      "listed_count": 540,
+                      "media_count": 3263,
+                      "normal_followers_count": 38702,
+                      "notifications": false,
+                      "pinned_tweet_ids_str": [
+                        "2033942449182412904"
+                      ],
+                      "possibly_sensitive": false,
+                      "profile_banner_url": "https://pbs.twimg.com/profile_banners/81278776/1358533389",
+                      "profile_interstitial_type": "",
+                      "statuses_count": 26069,
+                      "translator_type": "none",
+                      "want_retweets": false,
+                      "withheld_in_countries": []
                     },
                     "relationship_perspectives": {
                       "blocked_by": false,
@@ -8852,18 +11379,66 @@
                     }
                   ]
                 },
-                "is_quote_status": false
+                "is_quote_status": false,
+                "bookmarked": false,
+                "favorited": false,
+                "retweeted": false,
+                "conversation_id_str": "2034829022082080846",
+                "display_text_range": [
+                  0,
+                  110
+                ],
+                "user_id_str": "81278776",
+                "lang": "en",
+                "possibly_sensitive": false,
+                "possibly_sensitive_editable": true
               },
               "views": {
                 "count": "6958684",
                 "state": "EnabledWithCount"
+              },
+              "rest_id": "2034829022082080846",
+              "source": "<a href=\"http://twitter.com/download/iphone\" rel=\"nofollow\">Twitter for iPhone</a>",
+              "is_translatable": false,
+              "unmention_data": {},
+              "edit_control": {
+                "edit_tweet_ids": [
+                  "2034829022082080846"
+                ],
+                "editable_until_msecs": "1773979618000",
+                "edits_remaining": "5",
+                "is_edit_eligible": false
               }
             }
-          }
+          },
+          "bookmarked": false,
+          "favorited": false,
+          "retweeted": false,
+          "conversation_id_str": "2034857117577093403",
+          "display_text_range": [
+            0,
+            123
+          ],
+          "user_id_str": "25401953",
+          "lang": "en",
+          "possibly_sensitive": false,
+          "possibly_sensitive_editable": true
         },
         "views": {
           "count": "93",
           "state": "EnabledWithCount"
+        },
+        "rest_id": "2034857117577093403",
+        "source": "<a href=\"http://twitter.com/download/iphone\" rel=\"nofollow\">Twitter for iPhone</a>",
+        "is_translatable": false,
+        "unmention_data": {},
+        "edit_control": {
+          "edit_tweet_ids": [
+            "2034857117577093403"
+          ],
+          "editable_until_msecs": "1773986317304",
+          "edits_remaining": "5",
+          "is_edit_eligible": false
         }
       }
     }
@@ -9144,6 +11719,748 @@
             "count": "11884",
             "state": "EnabledWithCount"
           }
+        }
+      }
+    }
+  },
+  {
+    "_variant": "direct|quote|following:true|media:photo|empty_text",
+    "tweet_results": {
+      "result": {
+        "__typename": "Tweet",
+        "core": {
+          "user_results": {
+            "result": {
+              "__typename": "User",
+              "affiliates_highlighted_label": {
+                "label": {
+                  "badge": {
+                    "url": "https://pbs.twimg.com/profile_images/2017100664984186880/orbYx-3U_bigger.jpg"
+                  },
+                  "description": "OpenClaw🦞",
+                  "url": {
+                    "url": "https://twitter.com/openclaw",
+                    "urlType": "DeepLink"
+                  },
+                  "userLabelDisplayType": "Badge",
+                  "userLabelType": "BusinessLabel"
+                }
+              },
+              "avatar": {
+                "image_url": "https://pbs.twimg.com/profile_images/1131851609774985216/OcsssQ9J_normal.png"
+              },
+              "core": {
+                "created_at": "Thu Mar 19 22:54:05 +0000 2009",
+                "name": "Peter Steinberger 🦞",
+                "screen_name": "steipete"
+              },
+              "dm_permissions": {
+                "can_dm": true
+              },
+              "follow_request_sent": false,
+              "has_graduated_access": true,
+              "id": "VXNlcjoyNTQwMTk1Mw==",
+              "is_blue_verified": true,
+              "legacy": {
+                "default_profile": false,
+                "default_profile_image": false,
+                "description": "Polyagentmorous ClawFather. Came back from retirement to mess with AI and help a lobster take over the world @openclaw🦞",
+                "entities": {
+                  "description": {
+                    "urls": []
+                  },
+                  "url": {
+                    "urls": [
+                      {
+                        "display_url": "steipete.me",
+                        "expanded_url": "https://steipete.me",
+                        "indices": [
+                          0,
+                          23
+                        ],
+                        "url": "https://t.co/VeCkD9BBZx"
+                      }
+                    ]
+                  }
+                },
+                "fast_followers_count": 0,
+                "favourites_count": 60095,
+                "follow_request_sent": false,
+                "followers_count": 461957,
+                "friends_count": 2296,
+                "has_custom_timelines": true,
+                "is_translator": false,
+                "listed_count": 5007,
+                "media_count": 8431,
+                "normal_followers_count": 461957,
+                "notifications": false,
+                "pinned_tweet_ids_str": [
+                  "2023154018714100102"
+                ],
+                "possibly_sensitive": false,
+                "profile_banner_url": "https://pbs.twimg.com/profile_banners/25401953/1773684932",
+                "profile_interstitial_type": "",
+                "statuses_count": 137010,
+                "translator_type": "none",
+                "url": "https://t.co/VeCkD9BBZx",
+                "want_retweets": true,
+                "withheld_in_countries": []
+              },
+              "location": {
+                "location": "Vienna & London"
+              },
+              "media_permissions": {
+                "can_media_tag": false
+              },
+              "parody_commentary_fan_label": "None",
+              "privacy": {
+                "protected": false
+              },
+              "profile_bio": {
+                "description": "Polyagentmorous ClawFather. Came back from retirement to mess with AI and help a lobster take over the world @openclaw🦞"
+              },
+              "profile_description_language": "en",
+              "profile_image_shape": "Circle",
+              "relationship_perspectives": {
+                "blocked_by": false,
+                "blocking": false,
+                "followed_by": false,
+                "following": true,
+                "muting": false
+              },
+              "rest_id": "25401953",
+              "super_follow_eligible": false,
+              "super_followed_by": false,
+              "super_following": false,
+              "verification": {
+                "verified": false
+              }
+            }
+          }
+        },
+        "edit_control": {
+          "edit_tweet_ids": [
+            "2035821030502191409"
+          ],
+          "editable_until_msecs": "1774216132000",
+          "edits_remaining": "5",
+          "is_edit_eligible": false
+        },
+        "grok_analysis_button": true,
+        "grok_annotations": {
+          "is_image_editable_by_grok": true
+        },
+        "is_translatable": false,
+        "legacy": {
+          "bookmark_count": 129,
+          "bookmarked": false,
+          "conversation_id_str": "2035821030502191409",
+          "created_at": "Sun Mar 22 20:48:52 +0000 2026",
+          "display_text_range": [
+            0,
+            0
+          ],
+          "entities": {
+            "hashtags": [],
+            "media": [
+              {
+                "allow_download_status": {
+                  "allow_download": true
+                },
+                "display_url": "pic.x.com/biBteEbIdf",
+                "expanded_url": "https://x.com/steipete/status/2035821030502191409/photo/1",
+                "ext_media_availability": {
+                  "status": "Available"
+                },
+                "features": {
+                  "large": {
+                    "faces": []
+                  },
+                  "medium": {
+                    "faces": []
+                  },
+                  "orig": {
+                    "faces": []
+                  },
+                  "small": {
+                    "faces": []
+                  }
+                },
+                "id_str": "2035821009551740928",
+                "indices": [
+                  0,
+                  23
+                ],
+                "media_key": "3_2035821009551740928",
+                "media_results": {
+                  "result": {
+                    "media_key": "3_2035821009551740928"
+                  }
+                },
+                "media_url_https": "https://pbs.twimg.com/media/HECwbASb0AAWSPS.jpg",
+                "original_info": {
+                  "focus_rects": [
+                    {
+                      "h": 515,
+                      "w": 920,
+                      "x": 0,
+                      "y": 174
+                    },
+                    {
+                      "h": 920,
+                      "w": 920,
+                      "x": 0,
+                      "y": 0
+                    },
+                    {
+                      "h": 1049,
+                      "w": 920,
+                      "x": 0,
+                      "y": 0
+                    },
+                    {
+                      "h": 1152,
+                      "w": 576,
+                      "x": 200,
+                      "y": 0
+                    },
+                    {
+                      "h": 1152,
+                      "w": 920,
+                      "x": 0,
+                      "y": 0
+                    }
+                  ],
+                  "height": 1152,
+                  "width": 920
+                },
+                "sizes": {
+                  "large": {
+                    "h": 1152,
+                    "resize": "fit",
+                    "w": 920
+                  },
+                  "medium": {
+                    "h": 1152,
+                    "resize": "fit",
+                    "w": 920
+                  },
+                  "small": {
+                    "h": 680,
+                    "resize": "fit",
+                    "w": 543
+                  },
+                  "thumb": {
+                    "h": 150,
+                    "resize": "crop",
+                    "w": 150
+                  }
+                },
+                "type": "photo",
+                "url": "https://t.co/biBteEbIdf"
+              }
+            ],
+            "symbols": [],
+            "timestamps": [],
+            "urls": [],
+            "user_mentions": []
+          },
+          "extended_entities": {
+            "media": [
+              {
+                "allow_download_status": {
+                  "allow_download": true
+                },
+                "display_url": "pic.x.com/biBteEbIdf",
+                "expanded_url": "https://x.com/steipete/status/2035821030502191409/photo/1",
+                "ext_media_availability": {
+                  "status": "Available"
+                },
+                "features": {
+                  "large": {
+                    "faces": []
+                  },
+                  "medium": {
+                    "faces": []
+                  },
+                  "orig": {
+                    "faces": []
+                  },
+                  "small": {
+                    "faces": []
+                  }
+                },
+                "id_str": "2035821009551740928",
+                "indices": [
+                  0,
+                  23
+                ],
+                "media_key": "3_2035821009551740928",
+                "media_results": {
+                  "result": {
+                    "media_key": "3_2035821009551740928"
+                  }
+                },
+                "media_url_https": "https://pbs.twimg.com/media/HECwbASb0AAWSPS.jpg",
+                "original_info": {
+                  "focus_rects": [
+                    {
+                      "h": 515,
+                      "w": 920,
+                      "x": 0,
+                      "y": 174
+                    },
+                    {
+                      "h": 920,
+                      "w": 920,
+                      "x": 0,
+                      "y": 0
+                    },
+                    {
+                      "h": 1049,
+                      "w": 920,
+                      "x": 0,
+                      "y": 0
+                    },
+                    {
+                      "h": 1152,
+                      "w": 576,
+                      "x": 200,
+                      "y": 0
+                    },
+                    {
+                      "h": 1152,
+                      "w": 920,
+                      "x": 0,
+                      "y": 0
+                    }
+                  ],
+                  "height": 1152,
+                  "width": 920
+                },
+                "sizes": {
+                  "large": {
+                    "h": 1152,
+                    "resize": "fit",
+                    "w": 920
+                  },
+                  "medium": {
+                    "h": 1152,
+                    "resize": "fit",
+                    "w": 920
+                  },
+                  "small": {
+                    "h": 680,
+                    "resize": "fit",
+                    "w": 543
+                  },
+                  "thumb": {
+                    "h": 150,
+                    "resize": "crop",
+                    "w": 150
+                  }
+                },
+                "type": "photo",
+                "url": "https://t.co/biBteEbIdf"
+              }
+            ]
+          },
+          "favorite_count": 2259,
+          "favorited": false,
+          "full_text": "https://t.co/biBteEbIdf",
+          "id_str": "2035821030502191409",
+          "is_quote_status": true,
+          "lang": "zxx",
+          "possibly_sensitive": false,
+          "possibly_sensitive_editable": true,
+          "quote_count": 38,
+          "quoted_status_id_str": "2035818425105162535",
+          "quoted_status_permalink": {
+            "display": "x.com/Juuso95/status…",
+            "expanded": "https://twitter.com/Juuso95/status/2035818425105162535",
+            "url": "https://t.co/lpu8acoqi5"
+          },
+          "reply_count": 140,
+          "retweet_count": 105,
+          "retweeted": false,
+          "user_id_str": "25401953"
+        },
+        "quoted_status_result": {
+          "result": {
+            "__typename": "Tweet",
+            "core": {
+              "user_results": {
+                "result": {
+                  "__typename": "User",
+                  "affiliates_highlighted_label": {},
+                  "avatar": {
+                    "image_url": "https://pbs.twimg.com/profile_images/2023811152954773504/LOZGBeVx_normal.jpg"
+                  },
+                  "core": {
+                    "created_at": "Fri Sep 14 01:56:56 +0000 2012",
+                    "name": "Juuso Heikkinen",
+                    "screen_name": "Juuso95"
+                  },
+                  "dm_permissions": {
+                    "can_dm": true
+                  },
+                  "follow_request_sent": false,
+                  "has_graduated_access": true,
+                  "id": "VXNlcjo4MjI1MDQ5MTI=",
+                  "is_blue_verified": true,
+                  "legacy": {
+                    "default_profile": true,
+                    "default_profile_image": false,
+                    "description": "Building AI employees at https://t.co/lyuKFhUyYG",
+                    "entities": {
+                      "description": {
+                        "urls": [
+                          {
+                            "display_url": "Firstmate.work",
+                            "expanded_url": "http://Firstmate.work",
+                            "indices": [
+                              25,
+                              48
+                            ],
+                            "url": "https://t.co/lyuKFhUyYG"
+                          }
+                        ]
+                      },
+                      "url": {
+                        "urls": [
+                          {
+                            "display_url": "firstmate.work",
+                            "expanded_url": "https://firstmate.work",
+                            "indices": [
+                              0,
+                              23
+                            ],
+                            "url": "https://t.co/qnNxAkZPjF"
+                          }
+                        ]
+                      }
+                    },
+                    "fast_followers_count": 0,
+                    "favourites_count": 781,
+                    "follow_request_sent": false,
+                    "followers_count": 324,
+                    "friends_count": 484,
+                    "has_custom_timelines": false,
+                    "is_translator": false,
+                    "listed_count": 2,
+                    "media_count": 13,
+                    "normal_followers_count": 324,
+                    "notifications": false,
+                    "pinned_tweet_ids_str": [
+                      "2035831101919215644"
+                    ],
+                    "possibly_sensitive": false,
+                    "profile_banner_url": "https://pbs.twimg.com/profile_banners/822504912/1771349155",
+                    "profile_interstitial_type": "",
+                    "statuses_count": 398,
+                    "translator_type": "none",
+                    "url": "https://t.co/qnNxAkZPjF",
+                    "want_retweets": false,
+                    "withheld_in_countries": []
+                  },
+                  "location": {
+                    "location": "Helsinki"
+                  },
+                  "media_permissions": {
+                    "can_media_tag": false
+                  },
+                  "parody_commentary_fan_label": "None",
+                  "privacy": {
+                    "protected": false
+                  },
+                  "profile_bio": {
+                    "description": "Building AI employees at https://t.co/lyuKFhUyYG"
+                  },
+                  "profile_description_language": "en",
+                  "profile_image_shape": "Circle",
+                  "relationship_perspectives": {
+                    "blocked_by": false,
+                    "blocking": false,
+                    "followed_by": false,
+                    "following": false,
+                    "muting": false
+                  },
+                  "rest_id": "822504912",
+                  "super_follow_eligible": false,
+                  "super_followed_by": false,
+                  "super_following": false,
+                  "verification": {
+                    "verified": false
+                  }
+                }
+              }
+            },
+            "edit_control": {
+              "edit_tweet_ids": [
+                "2035818425105162535"
+              ],
+              "editable_until_msecs": "1774215510000",
+              "edits_remaining": "5",
+              "is_edit_eligible": true
+            },
+            "grok_analysis_button": true,
+            "is_translatable": false,
+            "legacy": {
+              "bookmark_count": 22,
+              "bookmarked": false,
+              "conversation_id_str": "2035818425105162535",
+              "created_at": "Sun Mar 22 20:38:30 +0000 2026",
+              "display_text_range": [
+                0,
+                65
+              ],
+              "entities": {
+                "hashtags": [],
+                "media": [
+                  {
+                    "display_url": "pic.x.com/7ojfvV5Qhw",
+                    "expanded_url": "https://x.com/Juuso95/status/2035818425105162535/photo/1",
+                    "ext_media_availability": {
+                      "status": "Available"
+                    },
+                    "features": {
+                      "large": {
+                        "faces": []
+                      },
+                      "medium": {
+                        "faces": []
+                      },
+                      "orig": {
+                        "faces": []
+                      },
+                      "small": {
+                        "faces": []
+                      }
+                    },
+                    "id_str": "2035818420088836096",
+                    "indices": [
+                      66,
+                      89
+                    ],
+                    "media_key": "3_2035818420088836096",
+                    "media_results": {
+                      "result": {
+                        "media_key": "3_2035818420088836096"
+                      }
+                    },
+                    "media_url_https": "https://pbs.twimg.com/media/HECuERyXkAAwPXn.jpg",
+                    "original_info": {
+                      "focus_rects": [
+                        {
+                          "h": 531,
+                          "w": 948,
+                          "x": 0,
+                          "y": 0
+                        },
+                        {
+                          "h": 531,
+                          "w": 531,
+                          "x": 0,
+                          "y": 0
+                        },
+                        {
+                          "h": 531,
+                          "w": 466,
+                          "x": 0,
+                          "y": 0
+                        },
+                        {
+                          "h": 531,
+                          "w": 266,
+                          "x": 16,
+                          "y": 0
+                        },
+                        {
+                          "h": 531,
+                          "w": 1196,
+                          "x": 0,
+                          "y": 0
+                        }
+                      ],
+                      "height": 531,
+                      "width": 1196
+                    },
+                    "sizes": {
+                      "large": {
+                        "h": 531,
+                        "resize": "fit",
+                        "w": 1196
+                      },
+                      "medium": {
+                        "h": 531,
+                        "resize": "fit",
+                        "w": 1196
+                      },
+                      "small": {
+                        "h": 302,
+                        "resize": "fit",
+                        "w": 680
+                      },
+                      "thumb": {
+                        "h": 150,
+                        "resize": "crop",
+                        "w": 150
+                      }
+                    },
+                    "type": "photo",
+                    "url": "https://t.co/7ojfvV5Qhw"
+                  }
+                ],
+                "symbols": [],
+                "timestamps": [],
+                "urls": [],
+                "user_mentions": [
+                  {
+                    "id_str": "25401953",
+                    "indices": [
+                      18,
+                      27
+                    ],
+                    "name": "Peter Steinberger 🦞",
+                    "screen_name": "steipete"
+                  },
+                  {
+                    "id_str": "1995710751097659392",
+                    "indices": [
+                      32,
+                      41
+                    ],
+                    "name": "OpenClaw🦞",
+                    "screen_name": "openclaw"
+                  }
+                ]
+              },
+              "extended_entities": {
+                "media": [
+                  {
+                    "display_url": "pic.x.com/7ojfvV5Qhw",
+                    "expanded_url": "https://x.com/Juuso95/status/2035818425105162535/photo/1",
+                    "ext_media_availability": {
+                      "status": "Available"
+                    },
+                    "features": {
+                      "large": {
+                        "faces": []
+                      },
+                      "medium": {
+                        "faces": []
+                      },
+                      "orig": {
+                        "faces": []
+                      },
+                      "small": {
+                        "faces": []
+                      }
+                    },
+                    "id_str": "2035818420088836096",
+                    "indices": [
+                      66,
+                      89
+                    ],
+                    "media_key": "3_2035818420088836096",
+                    "media_results": {
+                      "result": {
+                        "media_key": "3_2035818420088836096"
+                      }
+                    },
+                    "media_url_https": "https://pbs.twimg.com/media/HECuERyXkAAwPXn.jpg",
+                    "original_info": {
+                      "focus_rects": [
+                        {
+                          "h": 531,
+                          "w": 948,
+                          "x": 0,
+                          "y": 0
+                        },
+                        {
+                          "h": 531,
+                          "w": 531,
+                          "x": 0,
+                          "y": 0
+                        },
+                        {
+                          "h": 531,
+                          "w": 466,
+                          "x": 0,
+                          "y": 0
+                        },
+                        {
+                          "h": 531,
+                          "w": 266,
+                          "x": 16,
+                          "y": 0
+                        },
+                        {
+                          "h": 531,
+                          "w": 1196,
+                          "x": 0,
+                          "y": 0
+                        }
+                      ],
+                      "height": 531,
+                      "width": 1196
+                    },
+                    "sizes": {
+                      "large": {
+                        "h": 531,
+                        "resize": "fit",
+                        "w": 1196
+                      },
+                      "medium": {
+                        "h": 531,
+                        "resize": "fit",
+                        "w": 1196
+                      },
+                      "small": {
+                        "h": 302,
+                        "resize": "fit",
+                        "w": 680
+                      },
+                      "thumb": {
+                        "h": 150,
+                        "resize": "crop",
+                        "w": 150
+                      }
+                    },
+                    "type": "photo",
+                    "url": "https://t.co/7ojfvV5Qhw"
+                  }
+                ]
+              },
+              "favorite_count": 225,
+              "favorited": false,
+              "full_text": "What on earth are @steipete and @openclaw cooking? Unprecedented. https://t.co/7ojfvV5Qhw",
+              "id_str": "2035818425105162535",
+              "is_quote_status": false,
+              "lang": "en",
+              "possibly_sensitive": false,
+              "possibly_sensitive_editable": true,
+              "quote_count": 1,
+              "reply_count": 12,
+              "retweet_count": 8,
+              "retweeted": false,
+              "user_id_str": "822504912"
+            },
+            "rest_id": "2035818425105162535",
+            "source": "<a href=\"http://twitter.com/download/iphone\" rel=\"nofollow\">Twitter for iPhone</a>",
+            "unmention_data": {},
+            "views": {
+              "count": "160101",
+              "state": "EnabledWithCount"
+            }
+          }
+        },
+        "rest_id": "2035821030502191409",
+        "source": "<a href=\"https://mobile.twitter.com\" rel=\"nofollow\">Twitter Web App</a>",
+        "unmention_data": {},
+        "views": {
+          "count": "207256",
+          "state": "EnabledWithCount"
         }
       }
     }
