@@ -1,4 +1,5 @@
 import { z, type ZodType } from 'zod';
+import path from 'node:path';
 import type { SiteRuntime } from '../runtime/types.js';
 import { SiteUseError, BrowserDisconnected, RateLimited } from '../errors.js';
 import { resolveHint } from './default-descriptions.js';
@@ -15,6 +16,7 @@ const IngestItemSchema = z.object({
 });
 
 export interface ToolResult {
+  [key: string]: unknown;
   content: Array<{ type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string }>;
   isError?: boolean;
 }
@@ -27,7 +29,7 @@ export interface WrapOptions {
   resultSchema?: ZodType;
   onBrowserDisconnected?: () => void;
   autoIngest?: {
-    storeAdapter: { toIngestItems: (items: unknown[]) => unknown[] };
+    storeAdapter: { toIngestItems: (items: any[]) => any[] };
     siteName: string;
   };
 }
@@ -84,11 +86,14 @@ export function wrapToolHandler(opts: WrapOptions): (params: Record<string, unkn
       if (opts.autoIngest) {
         const feedResult = result as { items?: unknown[] };
         if (feedResult.items && feedResult.items.length > 0) {
-          const { getStore } = await import('../storage/index.js');
-          const store = getStore();
+          const { createStore } = await import('../storage/index.js');
+          const { getConfig } = await import('../config.js');
+          const cfg = getConfig();
+          const dbPath = path.join(cfg.dataDir, 'data', 'knowledge.db');
+          const store = createStore(dbPath);
           const ingestItems = opts.autoIngest.storeAdapter
             .toIngestItems(feedResult.items)
-            .map((item: Record<string, unknown>) => ({ ...item, site: opts.autoIngest!.siteName }));
+            .map((item: any) => ({ ...item, site: opts.autoIngest!.siteName }));
           z.array(IngestItemSchema).parse(ingestItems);
           await store.ingest(ingestItems);
         }
