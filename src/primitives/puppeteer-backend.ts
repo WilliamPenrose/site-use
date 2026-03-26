@@ -20,8 +20,15 @@ import { RateLimitDetector } from './rate-limit-detect.js';
 
 const DEFAULT_SITE = '_default';
 
+export interface PuppeteerBackendOptions {
+  siteDomains?: Record<string, string[]>;
+  rateLimitDetector?: RateLimitDetector;
+  /** Pre-assigned page for single-site mode. When set, browser is not needed. */
+  page?: Page;
+}
+
 export class PuppeteerBackend implements Primitives {
-  private browser: Browser;
+  private browser: Browser | null;
   private pages: Map<string, Page> = new Map();
   private currentSite: string = DEFAULT_SITE;
   private siteDomains: Record<string, string[]>;
@@ -32,13 +39,30 @@ export class PuppeteerBackend implements Primitives {
   private uidToBackendNodeId: Map<string, number> = new Map();
 
   constructor(
-    browser: Browser,
-    siteDomains: Record<string, string[]> = {},
+    browserOrOptions: Browser | PuppeteerBackendOptions,
+    siteDomains?: Record<string, string[]> | PuppeteerBackendOptions,
     rateLimitDetector?: RateLimitDetector,
   ) {
-    this.browser = browser;
-    this.siteDomains = siteDomains;
-    this.rateLimitDetector = rateLimitDetector ?? null;
+    if (browserOrOptions && typeof browserOrOptions === 'object' && 'newPage' in browserOrOptions) {
+      // Old signature: (browser, siteDomains?, rateLimitDetector?)
+      this.browser = browserOrOptions as Browser;
+      this.siteDomains = (siteDomains as Record<string, string[]>) ?? {};
+      this.rateLimitDetector = rateLimitDetector ?? null;
+    } else {
+      // New signature: (options with page)
+      const opts = browserOrOptions as PuppeteerBackendOptions;
+      this.browser = null;
+      this.siteDomains = opts.siteDomains ?? {};
+      this.rateLimitDetector = opts.rateLimitDetector ?? null;
+
+      if (opts.page) {
+        const siteName = Object.keys(this.siteDomains)[0];
+        if (siteName) {
+          this.pages.set(siteName, opts.page);
+          this.currentSite = siteName;
+        }
+      }
+    }
   }
 
   private installResponseListener(page: Page, site: string): void {
@@ -90,7 +114,7 @@ export class PuppeteerBackend implements Primitives {
 
     // 2. Scan existing browser tabs for domain match
     const domains = this.siteDomains[key];
-    if (domains) {
+    if (domains && this.browser) {
       try {
         const existingPages = await this.browser.pages();
         for (const p of existingPages) {
@@ -116,6 +140,9 @@ export class PuppeteerBackend implements Primitives {
     }
 
     // 3. No existing tab — create new
+    if (!this.browser) {
+      throw new Error('PuppeteerBackend: no browser and no pre-assigned page for site');
+    }
     const page = await this.browser.newPage();
     await injectCoordFix(page);
     this.pages.set(key, page);
