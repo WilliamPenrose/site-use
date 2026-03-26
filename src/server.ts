@@ -4,6 +4,7 @@ import { discoverPlugins } from './registry/discovery.js';
 import { generateMcpTools } from './registry/codegen.js';
 import { SiteRuntimeManager } from './runtime/manager.js';
 import { registerGlobalTools } from './server-global-tools.js';
+import { registerResources } from './server-resources.js';
 import { BUILD_HASH, BUILD_DATE } from './build-info.js';
 
 function getVersion(): string {
@@ -29,8 +30,11 @@ export async function createServer(): Promise<McpServer> {
     server.registerTool(tool.name, tool.config, tool.handler);
   }
 
-  // Register global tools (screenshot, search, stats)
+  // Register global tools (screenshot, search)
   registerGlobalTools(server, runtimeManager);
+
+  // Register resources (stats)
+  registerResources(server, plugins);
 
   return server;
 }

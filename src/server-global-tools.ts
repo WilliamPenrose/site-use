@@ -1,6 +1,6 @@
 // src/server-global-tools.ts
 // Global MCP tools that don't belong to any specific site plugin:
-// screenshot, search, stats.
+// screenshot, search.
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import path from 'node:path';
@@ -8,7 +8,6 @@ import fs from 'node:fs';
 import type { SiteRuntimeManager } from './runtime/manager.js';
 import { createStore, type KnowledgeStore } from './storage/index.js';
 import { SEARCH_FIELDS } from './storage/types.js';
-import { getAllTimestamps } from './fetch-timestamps.js';
 import { getConfig } from './config.js';
 
 // ---------------------------------------------------------------------------
@@ -105,50 +104,6 @@ export function registerGlobalTools(
           metricFilters: metricFilters.length > 0 ? metricFilters : undefined,
           fields,
         });
-        return {
-          content: [{ type: 'text' as const, text: JSON.stringify(result) }],
-        };
-      } catch (err) {
-        return {
-          content: [{ type: 'text' as const, text: JSON.stringify({ error: String(err) }) }],
-          isError: true,
-        };
-      }
-    },
-  );
-
-  // -- stats ----------------------------------------------------------------
-  server.registerTool(
-    'stats',
-    {
-      description:
-        'Show knowledge base statistics per site: post counts, content time range, ' +
-        'and when each feed tab was last collected. ' +
-        'Use this to decide whether to fetch fresh data or query existing data with search.',
-      inputSchema: {
-        site: z.string().optional()
-          .describe('Only return stats for this site. Omit for all sites.'),
-      },
-    },
-    async ({ site }) => {
-      try {
-        const store = getOrCreateStore();
-        const dbStats = await store.statsBySite(site);
-        const cfg = getConfig();
-        const tsPath = path.join(cfg.dataDir, 'fetch-timestamps.json');
-        const allTimestamps = getAllTimestamps(tsPath);
-        const result: Record<string, unknown> = {};
-        for (const [siteName, siteStats] of Object.entries(dbStats)) {
-          result[siteName] = { ...siteStats, lastCollected: allTimestamps[siteName] ?? {} };
-        }
-        for (const [siteName, variants] of Object.entries(allTimestamps)) {
-          if (!result[siteName] && (!site || siteName === site)) {
-            result[siteName] = {
-              totalPosts: 0, uniqueAuthors: 0, oldestPost: null, newestPost: null,
-              lastCollected: variants,
-            };
-          }
-        }
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result) }],
         };

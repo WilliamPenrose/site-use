@@ -100,15 +100,14 @@ describe('MCP Server contract', () => {
     expect(serverInfo!.name).toBe('site-use');
   });
 
-  it('lists all five tools', async () => {
+  it('lists all four tools', async () => {
     const { tools } = await client.listTools();
-    expect(tools).toHaveLength(5);
+    expect(tools).toHaveLength(4);
     const toolNames = tools.map((t) => t.name);
     expect(toolNames).toContain('twitter_check_login');
     expect(toolNames).toContain('twitter_feed');
     expect(toolNames).toContain('screenshot');
     expect(toolNames).toContain('search');
-    expect(toolNames).toContain('stats');
   });
 
   it('search tool has correct schema', async () => {
@@ -141,31 +140,57 @@ describe('MCP Server contract', () => {
     expect(typeof content[0].data).toBe('string');
   });
 
-  it('stats tool returns all sites when called with no params', async () => {
-    const result = await client.callTool({ name: 'stats', arguments: {} });
-    expect(result.isError).toBeFalsy();
-    const content = result.content as any[];
-    expect(content).toHaveLength(1);
-    expect(content[0].type).toBe('text');
-    const data = JSON.parse(content[0].text);
-    expect(data).toHaveProperty('twitter');
-    const tw = data.twitter;
+  it('stats resource returns server info and all sites', async () => {
+    const { resources } = await client.listResources();
+    const statsRes = resources.find((r) => r.uri === 'site-use://stats');
+    expect(statsRes).toBeDefined();
+    expect(statsRes!.mimeType).toBe('application/json');
+
+    const result = await client.readResource({ uri: 'site-use://stats' });
+    const data = JSON.parse((result.contents[0] as any).text);
+
+    // server block
+    expect(data.server).toBeDefined();
+    expect(data.server.version).toBeDefined();
+    expect(data.server.plugins).toContain('twitter');
+
+    // sites block
+    expect(data.sites).toHaveProperty('twitter');
+    const tw = data.sites.twitter;
     expect(tw).toHaveProperty('totalPosts', 42);
     expect(tw).toHaveProperty('uniqueAuthors', 10);
     expect(tw).toHaveProperty('oldestPost');
     expect(tw).toHaveProperty('newestPost');
     expect(tw).toHaveProperty('lastCollected');
     expect(tw.lastCollected).toHaveProperty('following');
-    expect(tw.lastCollected).toHaveProperty('for_you');
+    expect(tw).toHaveProperty('capabilities');
+    expect(tw.capabilities).toContain('auth');
+    expect(tw.capabilities).toContain('feed');
   });
 
-  it('stats tool returns only specified site when called with site param', async () => {
-    const result = await client.callTool({ name: 'stats', arguments: { site: 'twitter' } });
-    expect(result.isError).toBeFalsy();
-    const content = result.content as any[];
-    const data = JSON.parse(content[0].text);
-    expect(Object.keys(data)).toEqual(['twitter']);
-    expect(data.twitter.totalPosts).toBe(42);
-    expect(data.twitter.lastCollected).toHaveProperty('following');
+  it('stats resource template returns single site', async () => {
+    const { resourceTemplates } = await client.listResourceTemplates();
+    const tmpl = resourceTemplates.find(
+      (r) => r.uriTemplate === 'site-use://stats/{site}'
+    );
+    expect(tmpl).toBeDefined();
+
+    const result = await client.readResource({ uri: 'site-use://stats/twitter' });
+    const data = JSON.parse((result.contents[0] as any).text);
+
+    // server block still present
+    expect(data.server.version).toBeDefined();
+
+    // only the requested site
+    expect(Object.keys(data.sites)).toEqual(['twitter']);
+    expect(data.sites.twitter.totalPosts).toBe(42);
+    expect(data.sites.twitter.capabilities).toContain('feed');
+  });
+
+  it('stats resource template returns empty sites for unknown site', async () => {
+    const result = await client.readResource({ uri: 'site-use://stats/reddit' });
+    const data = JSON.parse((result.contents[0] as any).text);
+    expect(data.sites).toEqual({});
+    expect(data.server.plugins).toContain('twitter');
   });
 });
