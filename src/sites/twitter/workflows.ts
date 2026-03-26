@@ -11,9 +11,9 @@ import {
   buildFeedMeta,
   GRAPHQL_TIMELINE_PATTERN,
 } from './extractors.js';
-import type { RawTweetData, FeedDebug, FeedResult } from './types.js';
-import { tweetsToIngestItems } from './store-adapter.js';
-import type { KnowledgeStore } from '../../storage/types.js';
+import type { RawTweetData } from './types.js';
+import type { FeedResult as FrameworkFeedResult } from '../../registry/types.js';
+import { tweetToFeedItem } from './feed-item.js';
 
 const TWITTER_HOME = 'https://x.com/home';
 
@@ -86,17 +86,14 @@ export interface GetFeedOptions {
   count?: number;
   tab?: TimelineFeed;
   debug?: boolean;
-  store?: KnowledgeStore;
   dumpRaw?: string;
 }
 
 export async function getFeed(
   primitives: Primitives,
   opts: GetFeedOptions = {},
-): Promise<FeedResult> {
-  const { count = 20, tab = 'following', debug = false, store, dumpRaw } = opts;
-  const startTime = Date.now();
-  let graphqlResponseCount = 0;
+): Promise<FrameworkFeedResult> {
+  const { count = 20, tab = 'following', dumpRaw } = opts;
   let reloadFallback = false;
 
   // Set up interception BEFORE navigation so initial GraphQL response is captured
@@ -113,7 +110,6 @@ export async function getFeed(
         }
         const parsed = parseGraphQLTimeline(response.body);
         interceptedRaw.push(...parsed);
-        graphqlResponseCount++;
       } catch {
         // GraphQL parse failed — ignore this response
       }
@@ -158,29 +154,16 @@ export async function getFeed(
 
     const meta = buildFeedMeta(tweets);
 
-    const result: FeedResult = { tweets, meta };
-    if (debug) {
-      result.debug = {
-        tabRequested: tab,
-        navAction: action,
-        tabAction,
-        reloadFallback,
-        graphqlResponseCount,
-        rawBeforeFilter: rawTweets.length,
-        elapsedMs: Date.now() - startTime,
-      };
-    }
-    // Persist to knowledge store — best-effort, never breaks the main flow
-    if (store) {
-      try {
-        const ingestItems = tweetsToIngestItems(tweets);
-        await store.ingest(ingestItems);
-      } catch (err) {
-        console.warn('Knowledge store ingest failed:', err);
-      }
-    }
+    const items = tweets.map(tweetToFeedItem);
+    const frameworkResult: FrameworkFeedResult = {
+      items,
+      meta: {
+        coveredUsers: meta.coveredUsers,
+        timeRange: { from: meta.timeRange.from, to: meta.timeRange.to },
+      },
+    };
 
-    return result;
+    return frameworkResult;
   } finally {
     cleanup();
   }

@@ -2,6 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { checkLogin, getFeed } from './sites/twitter/workflows.js';
+import { feedItemsToIngestItems } from './sites/twitter/store-adapter.js';
 import { twitterSiteConfig } from './sites/twitter/site.js';
 import type { Primitives } from './primitives/types.js';
 import { ensureBrowser, isBrowserConnected } from './browser/browser.js';
@@ -208,7 +209,14 @@ export function createServer(): McpServer {
           try {
             const s = await getPrimitives();
             const store = getOrCreateStore();
-            const result = await getFeed(s.guarded, { count, tab, debug, store, dumpRaw: dump_raw });
+            const result = await getFeed(s.guarded, { count, tab, dumpRaw: dump_raw });
+            // Persist to knowledge store — best-effort
+            try {
+              const ingestItems = feedItemsToIngestItems(result.items);
+              await store.ingest(ingestItems);
+            } catch (ingestErr) {
+              console.warn('Knowledge store ingest failed:', ingestErr);
+            }
             resetErrorStreak();
             const cfg = getConfig();
             setLastFetchTime(path.join(cfg.dataDir, 'fetch-timestamps.json'), 'twitter', tab);

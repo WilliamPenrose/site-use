@@ -1,6 +1,6 @@
 import type { Browser } from 'puppeteer-core';
 import type { Primitives } from '../primitives/types.js';
-import type { FeedResult } from '../sites/twitter/types.js';
+import type { FeedResult } from '../registry/types.js';
 import { ensureBrowser } from '../browser/browser.js';
 import { buildPrimitivesStack } from '../primitives/factory.js';
 import { twitterSiteConfig } from '../sites/twitter/site.js';
@@ -9,7 +9,7 @@ import { getConfig } from '../config.js';
 import { withLock } from '../lock.js';
 import { createStore } from '../storage/index.js';
 import type { SearchParams } from '../storage/types.js';
-import { tweetToSearchResultItem } from '../sites/twitter/store-adapter.js';
+import { tweetToSearchResultItem, feedItemsToIngestItems } from '../sites/twitter/store-adapter.js';
 import { formatTweetText } from '../sites/twitter/format.js';
 import { setLastFetchTime } from '../fetch-timestamps.js';
 import { checkFreshness, formatAge } from './freshness.js';
@@ -101,16 +101,21 @@ export function buildPrimitives(browser: Browser): Primitives {
 // ---------------------------------------------------------------------------
 
 function formatFeedOutput(result: FeedResult): string {
-  const items = result.tweets.map(tweetToSearchResultItem);
-  const parts = items.map(formatTweetText);
+  const searchItems = result.items.map((fi) => ({
+    id: fi.id,
+    site: 'twitter' as const,
+    text: fi.text,
+    author: fi.author.handle,
+    timestamp: fi.timestamp,
+    url: fi.url,
+    links: fi.links,
+    media: fi.media,
+    siteMeta: fi.siteMeta,
+  }));
+  const parts = searchItems.map(formatTweetText);
   const body = parts.join('\n\n---\n\n');
-  const noun = result.tweets.length === 1 ? 'tweet' : 'tweets';
-  const lines = [body, '', `Collected ${result.tweets.length} ${noun}`];
-
-  if (result.debug) {
-    const d = result.debug;
-    lines.push('', `[debug] tab=${d.tabRequested} nav=${d.navAction} tabAction=${d.tabAction} reload=${d.reloadFallback} graphql=${d.graphqlResponseCount} raw=${d.rawBeforeFilter} elapsed=${d.elapsedMs}ms`);
-  }
+  const noun = result.items.length === 1 ? 'tweet' : 'tweets';
+  const lines = [body, '', `Collected ${result.items.length} ${noun}`];
   return lines.join('\n');
 }
 
@@ -188,7 +193,14 @@ async function runFetchFromBrowser(parsed: FeedArgs, config: ReturnType<typeof g
 
       let result: FeedResult;
       try {
-        result = await getFeed(primitives, { count: parsed.count, tab: parsed.tab, debug: parsed.debug, store, dumpRaw: parsed.dumpRaw });
+        result = await getFeed(primitives, { count: parsed.count, tab: parsed.tab, dumpRaw: parsed.dumpRaw });
+        // Persist to knowledge store — best-effort, never breaks the main flow
+        try {
+          const ingestItems = feedItemsToIngestItems(result.items);
+          await store.ingest(ingestItems);
+        } catch (err) {
+          console.warn('Knowledge store ingest failed:', err);
+        }
       } finally {
         store.close();
       }
@@ -199,8 +211,18 @@ async function runFetchFromBrowser(parsed: FeedArgs, config: ReturnType<typeof g
       setLastFetchTime(path.join(config.dataDir, 'fetch-timestamps.json'), 'twitter', parsed.tab);
 
       if (parsed.json) {
-        const items = result.tweets.map(tweetToSearchResultItem);
-        console.log(JSON.stringify(items, null, 2));
+        const searchItems = result.items.map((fi) => ({
+          id: fi.id,
+          site: 'twitter' as const,
+          text: fi.text,
+          author: fi.author.handle,
+          timestamp: fi.timestamp,
+          url: fi.url,
+          links: fi.links,
+          media: fi.media,
+          siteMeta: fi.siteMeta,
+        }));
+        console.log(JSON.stringify(searchItems, null, 2));
       } else {
         console.log(formatFeedOutput(result));
       }
