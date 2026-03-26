@@ -71,7 +71,7 @@ export const twitterSiteConfig: SiteConfig = {
   domains: [...twitterSite.domains],
   detect: twitterDetect,
   authCheck: async (inner) => {
-    const currentUrl = await inner.evaluate<string>('window.location.href', 'twitter');
+    const currentUrl = await inner.evaluate<string>('window.location.href');
     if (currentUrl.includes('/login') || currentUrl.includes('/i/flow/login')) {
       return false;
     }
@@ -79,10 +79,10 @@ export const twitterSiteConfig: SiteConfig = {
     // Poll for the Home link up to 10 seconds before concluding not logged in.
     const deadline = Date.now() + 10_000;
     while (Date.now() < deadline) {
-      const snapshot = await inner.takeSnapshot('twitter');
+      const snapshot = await inner.takeSnapshot();
       if (matchByRule(snapshot, homeNavLink)) return true;
       // Re-check URL — Twitter may redirect to login after initial load
-      const url = await inner.evaluate<string>('window.location.href', 'twitter');
+      const url = await inner.evaluate<string>('window.location.href');
       if (url.includes('/login') || url.includes('/i/flow/login')) return false;
       await new Promise(r => setTimeout(r, 500));
     }

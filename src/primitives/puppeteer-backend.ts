@@ -97,12 +97,12 @@ export class PuppeteerBackend implements Primitives {
     });
   }
 
-  private checkRateLimit(step: string, site?: string): void {
-    this.rateLimitDetector?.checkAndThrow(step, site ?? this.currentSite);
+  private checkRateLimit(step: string): void {
+    this.rateLimitDetector?.checkAndThrow(step, this.currentSite);
   }
 
-  private async getPage(site?: string): Promise<Page> {
-    const key = site ?? this.currentSite;
+  private async getPage(): Promise<Page> {
+    const key = this.currentSite;
 
     // 1. Map cache hit
     const cached = this.pages.get(key);
@@ -151,9 +151,9 @@ export class PuppeteerBackend implements Primitives {
     return page;
   }
 
-  async navigate(url: string, site?: string): Promise<void> {
-    this.checkRateLimit('navigate', site);
-    const page = await this.getPage(site);
+  async navigate(url: string): Promise<void> {
+    this.checkRateLimit('navigate');
+    const page = await this.getPage();
     try {
       await page.goto(url, { waitUntil: 'load', timeout: 30_000 });
     } catch (err) {
@@ -164,9 +164,9 @@ export class PuppeteerBackend implements Primitives {
     }
   }
 
-  async takeSnapshot(site?: string): Promise<Snapshot> {
-    this.checkRateLimit('takeSnapshot', site);
-    const page = await this.getPage(site);
+  async takeSnapshot(): Promise<Snapshot> {
+    this.checkRateLimit('takeSnapshot');
+    const page = await this.getPage();
     const client = await page.createCDPSession();
 
     try {
@@ -269,8 +269,8 @@ export class PuppeteerBackend implements Primitives {
     return false;
   }
 
-  async click(uid: string, site?: string): Promise<void> {
-    this.checkRateLimit('click', site);
+  async click(uid: string): Promise<void> {
+    this.checkRateLimit('click');
     if (this.uidToBackendNodeId.size === 0) {
       throw new ElementNotFound(
         'No snapshot available. Call takeSnapshot() before click().',
@@ -285,7 +285,7 @@ export class PuppeteerBackend implements Primitives {
       });
     }
 
-    const page = await this.getPage(site);
+    const page = await this.getPage();
     const config = getClickEnhancementConfig();
 
     // Step 1: Wait for element position to stabilize (CSS animations)
@@ -319,13 +319,13 @@ export class PuppeteerBackend implements Primitives {
     await new Promise((r) => setTimeout(r, 100));
   }
 
-  async type(_uid: string, _text: string, _site?: string): Promise<void> {
+  async type(_uid: string, _text: string): Promise<void> {
     throw new Error('type primitive is not implemented in M1 (planned for M2)');
   }
 
-  async scroll(options: ScrollOptions, site?: string): Promise<void> {
-    this.checkRateLimit('scroll', site);
-    const page = await this.getPage(site);
+  async scroll(options: ScrollOptions): Promise<void> {
+    this.checkRateLimit('scroll');
+    const page = await this.getPage();
     const amount = options.amount ?? 600;
     const direction = options.direction === 'up' ? -1 : 1;
     const totalDelta = amount * direction;
@@ -333,8 +333,8 @@ export class PuppeteerBackend implements Primitives {
     await humanScroll(page, 0, totalDelta);
   }
 
-  async scrollIntoView(uid: string, site?: string): Promise<void> {
-    this.checkRateLimit('scrollIntoView', site);
+  async scrollIntoView(uid: string): Promise<void> {
+    this.checkRateLimit('scrollIntoView');
     if (this.uidToBackendNodeId.size === 0) {
       throw new ElementNotFound(
         'No snapshot available. Call takeSnapshot() before scrollIntoView().',
@@ -349,18 +349,18 @@ export class PuppeteerBackend implements Primitives {
       });
     }
 
-    const page = await this.getPage(site);
+    const page = await this.getPage();
     await scrollElementIntoView(page, backendNodeId);
   }
 
-  async evaluate<T = unknown>(expression: string, site?: string): Promise<T> {
-    this.checkRateLimit('evaluate', site);
-    const page = await this.getPage(site);
+  async evaluate<T = unknown>(expression: string): Promise<T> {
+    this.checkRateLimit('evaluate');
+    const page = await this.getPage();
     return await page.evaluate(expression) as T;
   }
 
-  async screenshot(site?: string): Promise<string> {
-    const page = await this.getPage(site);
+  async screenshot(): Promise<string> {
+    const page = await this.getPage();
     const result = await page.screenshot({ encoding: 'base64', type: 'png' });
     // Puppeteer may return Buffer or string depending on version
     if (typeof result === 'string') return result;
@@ -370,9 +370,8 @@ export class PuppeteerBackend implements Primitives {
   async interceptRequest(
     urlPattern: string | RegExp,
     handler: InterceptHandler,
-    site?: string,
   ): Promise<() => void> {
-    const page = await this.getPage(site);
+    const page = await this.getPage();
 
     const listener = async (response: any) => {
       const url: string = response.url();
@@ -402,7 +401,7 @@ export class PuppeteerBackend implements Primitives {
     };
   }
 
-  async getRawPage(site?: string): Promise<Page> {
-    return this.getPage(site);
+  async getRawPage(): Promise<Page> {
+    return this.getPage();
   }
 }

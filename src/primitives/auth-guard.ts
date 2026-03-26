@@ -22,8 +22,8 @@ export function createAuthGuardedPrimitives(
   configs: AuthGuardConfig[],
 ): Primitives {
   return {
-    navigate: async (url: string, site?: string) => {
-      await inner.navigate(url, site);
+    navigate: async (url: string) => {
+      await inner.navigate(url);
 
       // Check if this URL belongs to a protected site
       for (const config of configs) {
@@ -44,16 +44,16 @@ export function createAuthGuardedPrimitives(
     },
 
     // All other operations pass through unchanged
-    takeSnapshot: (site?) => inner.takeSnapshot(site),
-    click: (uid, site?) => inner.click(uid, site),
-    type: (uid, text, site?) => inner.type(uid, text, site),
-    scroll: (options, site?) => inner.scroll(options, site),
-    scrollIntoView: (uid, site?) => inner.scrollIntoView(uid, site),
-    evaluate: <T = unknown>(expression: string, site?: string) =>
-      inner.evaluate<T>(expression, site),
-    screenshot: (site?) => inner.screenshot(site),
-    interceptRequest: (pattern, handler, site?) =>
-      inner.interceptRequest(pattern, handler, site),
-    getRawPage: (site?) => inner.getRawPage(site),
+    takeSnapshot: () => inner.takeSnapshot(),
+    click: (uid) => inner.click(uid),
+    type: (uid, text) => inner.type(uid, text),
+    scroll: (options) => inner.scroll(options),
+    scrollIntoView: (uid) => inner.scrollIntoView(uid),
+    evaluate: <T = unknown>(expression: string) =>
+      inner.evaluate<T>(expression),
+    screenshot: () => inner.screenshot(),
+    interceptRequest: (pattern, handler) =>
+      inner.interceptRequest(pattern, handler),
+    getRawPage: () => inner.getRawPage(),
   };
 }

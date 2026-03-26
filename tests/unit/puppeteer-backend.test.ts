@@ -71,23 +71,16 @@ describe('PuppeteerBackend', () => {
   describe('multi-page management', () => {
     it('creates a new page lazily on first access for a site', async () => {
       const backend = new PuppeteerBackend(mockBrowser as any);
-      const page = await backend.getRawPage('twitter');
+      const page = await backend.getRawPage();
       expect(mockNewPage).toHaveBeenCalledOnce();
       expect(page).toBeDefined();
     });
 
     it('reuses existing page on subsequent access for same site', async () => {
       const backend = new PuppeteerBackend(mockBrowser as any);
-      await backend.getRawPage('twitter');
-      await backend.getRawPage('twitter');
+      await backend.getRawPage();
+      await backend.getRawPage();
       expect(mockNewPage).toHaveBeenCalledOnce();
-    });
-
-    it('creates separate pages for different sites', async () => {
-      const backend = new PuppeteerBackend(mockBrowser as any);
-      await backend.getRawPage('twitter');
-      await backend.getRawPage('reddit');
-      expect(mockNewPage).toHaveBeenCalledTimes(2);
     });
 
     it('uses default site when site param is omitted', async () => {
@@ -101,7 +94,7 @@ describe('PuppeteerBackend', () => {
   describe('navigate', () => {
     it('calls page.goto with load waitUntil', async () => {
       const backend = new PuppeteerBackend(mockBrowser as any);
-      await backend.navigate('https://x.com/home', 'twitter');
+      await backend.navigate('https://x.com/home');
       expect(mockGoto).toHaveBeenCalledWith('https://x.com/home', {
         waitUntil: 'load',
         timeout: 30_000,
@@ -111,7 +104,7 @@ describe('PuppeteerBackend', () => {
     it('wraps navigation errors as NavigationFailed', async () => {
       mockGoto.mockRejectedValueOnce(new Error('net::ERR_TIMED_OUT'));
       const backend = new PuppeteerBackend(mockBrowser as any);
-      await expect(backend.navigate('https://x.com', 'twitter'))
+      await expect(backend.navigate('https://x.com'))
         .rejects.toThrow(/Failed to navigate/);
     });
   });
@@ -120,7 +113,7 @@ describe('PuppeteerBackend', () => {
     it('calls page.evaluate with expression string', async () => {
       const backend = new PuppeteerBackend(mockBrowser as any);
       mockEvaluate.mockResolvedValueOnce(42);
-      const result = await backend.evaluate<number>('1 + 1', 'twitter');
+      const result = await backend.evaluate<number>('1 + 1');
       expect(mockEvaluate).toHaveBeenCalledWith('1 + 1');
       expect(result).toBe(42);
     });
@@ -130,7 +123,7 @@ describe('PuppeteerBackend', () => {
     it('returns base64 PNG string', async () => {
       const backend = new PuppeteerBackend(mockBrowser as any);
       mockScreenshot.mockResolvedValueOnce(Buffer.from('fakepng'));
-      const result = await backend.screenshot('twitter');
+      const result = await backend.screenshot();
       expect(mockScreenshot).toHaveBeenCalledWith({
         encoding: 'base64',
         type: 'png',
@@ -177,7 +170,7 @@ describe('PuppeteerBackend', () => {
       ]);
 
       const backend = new PuppeteerBackend(mockBrowser as any);
-      const snapshot = await backend.takeSnapshot('twitter');
+      const snapshot = await backend.takeSnapshot();
 
       expect(snapshot.idToNode.size).toBe(2);
       // First valid node gets uid "1"
@@ -213,7 +206,7 @@ describe('PuppeteerBackend', () => {
       ]);
 
       const backend = new PuppeteerBackend(mockBrowser as any);
-      const snapshot = await backend.takeSnapshot('twitter');
+      const snapshot = await backend.takeSnapshot();
 
       expect(snapshot.idToNode.size).toBe(1);
       const node = snapshot.idToNode.get('1');
@@ -241,7 +234,7 @@ describe('PuppeteerBackend', () => {
       ]);
 
       const backend = new PuppeteerBackend(mockBrowser as any);
-      const snapshot = await backend.takeSnapshot('twitter');
+      const snapshot = await backend.takeSnapshot();
 
       expect(snapshot.idToNode.size).toBe(1);
       expect(snapshot.idToNode.get('1')!.role).toBe('textbox');
@@ -263,7 +256,7 @@ describe('PuppeteerBackend', () => {
       ]);
 
       const backend = new PuppeteerBackend(mockBrowser as any);
-      const snapshot = await backend.takeSnapshot('twitter');
+      const snapshot = await backend.takeSnapshot();
 
       const node = snapshot.idToNode.get('1')!;
       expect(node.disabled).toBe(true);
@@ -300,7 +293,7 @@ describe('PuppeteerBackend', () => {
       ]);
 
       const backend = new PuppeteerBackend(mockBrowser as any);
-      const snapshot = await backend.takeSnapshot('twitter');
+      const snapshot = await backend.takeSnapshot();
 
       const parent = snapshot.idToNode.get('1')!;
       expect(parent.children).toEqual(['2', '3']);
@@ -352,8 +345,8 @@ describe('PuppeteerBackend', () => {
 
       const backend = new PuppeteerBackend(mockBrowser as any);
       // Must takeSnapshot first to build uid mapping
-      await backend.takeSnapshot('twitter');
-      await backend.click('1', 'twitter');
+      await backend.takeSnapshot();
+      await backend.click('1');
 
       // Center of (100,200)-(200,240) = (150, 220)
       expect(page.mouse.click).toHaveBeenCalledWith(150, 220);
@@ -362,13 +355,13 @@ describe('PuppeteerBackend', () => {
     it('throws ElementNotFound when uid is not in snapshot', async () => {
       setupClickMocks();
       const backend = new PuppeteerBackend(mockBrowser as any);
-      await backend.takeSnapshot('twitter');
-      await expect(backend.click('999', 'twitter')).rejects.toThrow(/not found/i);
+      await backend.takeSnapshot();
+      await expect(backend.click('999')).rejects.toThrow(/not found/i);
     });
 
     it('throws when takeSnapshot has not been called', async () => {
       const backend = new PuppeteerBackend(mockBrowser as any);
-      await expect(backend.click('1', 'twitter')).rejects.toThrow(/snapshot/i);
+      await expect(backend.click('1')).rejects.toThrow(/snapshot/i);
     });
   });
 
@@ -378,7 +371,7 @@ describe('PuppeteerBackend', () => {
       mockNewPage.mockResolvedValue(page);
 
       const backend = new PuppeteerBackend(mockBrowser as any);
-      await backend.scroll({ direction: 'down' }, 'twitter');
+      await backend.scroll({ direction: 'down' });
 
       const { humanScroll } = await import('../../src/primitives/scroll-enhanced.js');
       expect(humanScroll).toHaveBeenCalledWith(page, 0, 600);
@@ -389,7 +382,7 @@ describe('PuppeteerBackend', () => {
       mockNewPage.mockResolvedValue(page);
 
       const backend = new PuppeteerBackend(mockBrowser as any);
-      await backend.scroll({ direction: 'up' }, 'twitter');
+      await backend.scroll({ direction: 'up' });
 
       const { humanScroll } = await import('../../src/primitives/scroll-enhanced.js');
       expect(humanScroll).toHaveBeenCalledWith(page, 0, -600);
@@ -400,7 +393,7 @@ describe('PuppeteerBackend', () => {
       mockNewPage.mockResolvedValue(page);
 
       const backend = new PuppeteerBackend(mockBrowser as any);
-      await backend.scroll({ direction: 'down', amount: 300 }, 'twitter');
+      await backend.scroll({ direction: 'down', amount: 300 });
 
       const { humanScroll } = await import('../../src/primitives/scroll-enhanced.js');
       expect(humanScroll).toHaveBeenCalledWith(page, 0, 300);
@@ -414,7 +407,7 @@ describe('PuppeteerBackend', () => {
 
       const backend = new PuppeteerBackend(mockBrowser as any);
       const handler = vi.fn();
-      await backend.interceptRequest('/api/graphql', handler, 'twitter');
+      await backend.interceptRequest('/api/graphql', handler);
 
       expect(page.on).toHaveBeenCalledWith('response', expect.any(Function));
     });
@@ -425,7 +418,7 @@ describe('PuppeteerBackend', () => {
 
       const backend = new PuppeteerBackend(mockBrowser as any);
       const handler = vi.fn();
-      const cleanup = await backend.interceptRequest('/api/graphql', handler, 'twitter');
+      const cleanup = await backend.interceptRequest('/api/graphql', handler);
 
       cleanup();
       expect(page.off).toHaveBeenCalledWith('response', expect.any(Function));
@@ -441,7 +434,7 @@ describe('PuppeteerBackend', () => {
 
       const handler = vi.fn();
       const backend = new PuppeteerBackend(mockBrowser as any);
-      await backend.interceptRequest('/api/graphql', handler, 'twitter');
+      await backend.interceptRequest('/api/graphql', handler);
 
       // Simulate a matching response
       const mockResponse = {
@@ -468,7 +461,7 @@ describe('PuppeteerBackend', () => {
 
       const handler = vi.fn();
       const backend = new PuppeteerBackend(mockBrowser as any);
-      await backend.interceptRequest('/api/graphql', handler, 'twitter');
+      await backend.interceptRequest('/api/graphql', handler);
 
       const mockResponse = {
         url: () => 'https://x.com/assets/some-script.js',
@@ -490,7 +483,7 @@ describe('PuppeteerBackend', () => {
 
       const handler = vi.fn();
       const backend = new PuppeteerBackend(mockBrowser as any);
-      await backend.interceptRequest(/graphql.*HomeLatest/, handler, 'twitter');
+      await backend.interceptRequest(/graphql.*HomeLatest/, handler);
 
       const mockResponse = {
         url: () => 'https://x.com/i/api/graphql/xyz/HomeLatestTimeline',
@@ -506,14 +499,14 @@ describe('PuppeteerBackend', () => {
   describe('type (not implemented)', () => {
     it('throws NotImplemented error', async () => {
       const backend = new PuppeteerBackend(mockBrowser as any);
-      await expect(backend.type('5', 'hello', 'twitter')).rejects.toThrow(
+      await expect(backend.type('5', 'hello')).rejects.toThrow(
         /not implemented/i,
       );
     });
   });
 
   describe('tab reuse', () => {
-    const testDomains = { twitter: ['x.com', 'twitter.com'] };
+    const testDomains = { _default: ['x.com', 'twitter.com'] };
 
     it('reuses existing browser tab matching site domain instead of creating new', async () => {
       const existingPage = createMockPage();
@@ -524,7 +517,7 @@ describe('PuppeteerBackend', () => {
       };
 
       const backend = new PuppeteerBackend(mockBrowserWithPages as any, testDomains);
-      const page = await backend.getRawPage('twitter');
+      const page = await backend.getRawPage();
 
       expect(mockBrowserWithPages.pages).toHaveBeenCalled();
       expect(mockNewPage).not.toHaveBeenCalled();
@@ -539,7 +532,7 @@ describe('PuppeteerBackend', () => {
       };
 
       const backend = new PuppeteerBackend(mockBrowserWithPages as any, testDomains);
-      await backend.getRawPage('twitter');
+      await backend.getRawPage();
 
       expect(mockNewPage).toHaveBeenCalled();
     });
@@ -553,7 +546,7 @@ describe('PuppeteerBackend', () => {
       };
 
       const backend = new PuppeteerBackend(mockBrowserWithPages as any, testDomains);
-      await backend.getRawPage('twitter');
+      await backend.getRawPage();
 
       expect(mockNewPage).toHaveBeenCalled();
     });
@@ -567,7 +560,7 @@ describe('PuppeteerBackend', () => {
       };
 
       const backend = new PuppeteerBackend(mockBrowserWithPages as any, testDomains);
-      await backend.getRawPage('twitter');
+      await backend.getRawPage();
 
       expect(mockNewPage).toHaveBeenCalled();
     });
@@ -581,8 +574,8 @@ describe('PuppeteerBackend', () => {
       };
 
       const backend = new PuppeteerBackend(mockBrowserWithPages as any, testDomains);
-      await backend.getRawPage('twitter');
-      await backend.getRawPage('twitter');
+      await backend.getRawPage();
+      await backend.getRawPage();
 
       // pages() scanned once, then Map cache hit
       expect(mockBrowserWithPages.pages).toHaveBeenCalledTimes(1);
@@ -617,14 +610,14 @@ describe('PuppeteerBackend', () => {
 
     it('throws when takeSnapshot has not been called', async () => {
       const backend = new PuppeteerBackend(mockBrowser as any);
-      await expect(backend.scrollIntoView('1', 'twitter')).rejects.toThrow(/snapshot/i);
+      await expect(backend.scrollIntoView('1')).rejects.toThrow(/snapshot/i);
     });
 
     it('throws ElementNotFound when uid is not in snapshot', async () => {
       setupScrollIntoViewMocks();
       const backend = new PuppeteerBackend(mockBrowser as any);
-      await backend.takeSnapshot('twitter');
-      await expect(backend.scrollIntoView('999', 'twitter')).rejects.toThrow(/not found/i);
+      await backend.takeSnapshot();
+      await expect(backend.scrollIntoView('999')).rejects.toThrow(/not found/i);
     });
 
     it('delegates to scrollElementIntoView with correct backendNodeId', async () => {
@@ -633,8 +626,8 @@ describe('PuppeteerBackend', () => {
       mockNewPage.mockResolvedValue(page);
 
       const backend = new PuppeteerBackend(mockBrowser as any);
-      await backend.takeSnapshot('twitter');
-      await backend.scrollIntoView('1', 'twitter');
+      await backend.takeSnapshot();
+      await backend.scrollIntoView('1');
 
       const { scrollElementIntoView } = await import('../../src/primitives/scroll-enhanced.js');
       expect(scrollElementIntoView).toHaveBeenCalledWith(page, 101);

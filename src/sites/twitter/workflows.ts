@@ -16,7 +16,6 @@ import { tweetsToIngestItems } from './store-adapter.js';
 import type { KnowledgeStore } from '../../storage/types.js';
 
 const TWITTER_HOME = 'https://x.com/home';
-const TWITTER_SITE = 'twitter';
 
 /** Poll until interceptedRaw has at least one entry, or timeout. */
 function waitForData(interceptedRaw: RawTweetData[], timeoutMs: number): Promise<void> {
@@ -44,19 +43,18 @@ export interface CheckLoginResult {
  * Does not throw on not-logged-in — returns { loggedIn: false }.
  */
 export async function checkLogin(primitives: Primitives): Promise<CheckLoginResult> {
-  await primitives.navigate(TWITTER_HOME, TWITTER_SITE);
+  await primitives.navigate(TWITTER_HOME);
 
   // Check URL for login redirect
   const currentUrl = await primitives.evaluate<string>(
     'window.location.href',
-    TWITTER_SITE,
   );
   if (currentUrl.includes('/login') || currentUrl.includes('/i/flow/login')) {
     return { loggedIn: false };
   }
 
   // Check accessibility tree for Home navigation link
-  const snapshot = await primitives.takeSnapshot(TWITTER_SITE);
+  const snapshot = await primitives.takeSnapshot();
   const homeUid = matchByRule(snapshot, rules.homeNavLink);
   if (homeUid) {
     return { loggedIn: true };
@@ -120,16 +118,15 @@ export async function getFeed(
         // GraphQL parse failed — ignore this response
       }
     },
-    TWITTER_SITE,
   );
 
   try {
     // Navigate to timeline — auth guard auto-checks login
-    const ensure = makeEnsureState(primitives, TWITTER_SITE);
+    const ensure = makeEnsureState(primitives);
     const { action } = await ensure({ url: TWITTER_HOME });
     if (action === 'already_there') {
       // Already on home — intercept needs a fresh page load to capture GraphQL
-      await primitives.navigate(TWITTER_HOME, TWITTER_SITE);
+      await primitives.navigate(TWITTER_HOME);
     }
 
     // Switch to the requested feed tab
@@ -145,7 +142,7 @@ export async function getFeed(
         // Twitter used cached data — no GraphQL request fired.
         // Force a reload to get fresh data from the server.
         reloadFallback = true;
-        await primitives.navigate(TWITTER_HOME, TWITTER_SITE);
+        await primitives.navigate(TWITTER_HOME);
         await ensure({ role: 'tab', name: tabName, selected: true });
       }
     }

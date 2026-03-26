@@ -34,9 +34,9 @@ describe('createAuthGuardedPrimitives', () => {
     const config = { ...twitterConfig, check: vi.fn().mockResolvedValue(true) };
     const guarded = createAuthGuardedPrimitives(inner, [config]);
 
-    await guarded.navigate('https://x.com/home', 'twitter');
+    await guarded.navigate('https://x.com/home');
 
-    expect(inner.navigate).toHaveBeenCalledWith('https://x.com/home', 'twitter');
+    expect(inner.navigate).toHaveBeenCalledWith('https://x.com/home');
     expect(config.check).toHaveBeenCalledWith(inner);
   });
 
@@ -45,7 +45,7 @@ describe('createAuthGuardedPrimitives', () => {
     const config = { ...twitterConfig, check: vi.fn().mockResolvedValue(false) };
     const guarded = createAuthGuardedPrimitives(inner, [config]);
 
-    await expect(guarded.navigate('https://x.com/home', 'twitter'))
+    await expect(guarded.navigate('https://x.com/home'))
       .rejects.toThrow(SessionExpired);
   });
 
@@ -54,7 +54,7 @@ describe('createAuthGuardedPrimitives', () => {
     const config = { ...twitterConfig, check: vi.fn().mockResolvedValue(true) };
     const guarded = createAuthGuardedPrimitives(inner, [config]);
 
-    await guarded.navigate('https://google.com', 'other');
+    await guarded.navigate('https://google.com');
 
     expect(inner.navigate).toHaveBeenCalled();
     expect(config.check).not.toHaveBeenCalled();
@@ -74,11 +74,11 @@ describe('createAuthGuardedPrimitives', () => {
     const inner = createMockPrimitives();
     const guarded = createAuthGuardedPrimitives(inner, [twitterConfig]);
 
-    await guarded.click('1', 'twitter');
-    expect(inner.click).toHaveBeenCalledWith('1', 'twitter');
+    await guarded.click('1');
+    expect(inner.click).toHaveBeenCalledWith('1');
 
-    await guarded.scroll({ direction: 'down' }, 'twitter');
-    expect(inner.scroll).toHaveBeenCalledWith({ direction: 'down' }, 'twitter');
+    await guarded.scroll({ direction: 'down' });
+    expect(inner.scroll).toHaveBeenCalledWith({ direction: 'down' });
   });
 
   it('check receives inner primitives (not guarded) to avoid recursion', async () => {
@@ -93,7 +93,7 @@ describe('createAuthGuardedPrimitives', () => {
     };
     const guarded = createAuthGuardedPrimitives(inner, [config]);
 
-    await guarded.navigate('https://x.com/home', 'twitter');
+    await guarded.navigate('https://x.com/home');
 
     // check should receive inner, not guarded
     expect(receivedPrimitives).toBe(inner);

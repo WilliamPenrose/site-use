@@ -27,15 +27,15 @@ describe('ThrottledPrimitives', () => {
   it('delegates navigate to inner primitives', async () => {
     const inner = createMockPrimitives();
     const throttled = createThrottledPrimitives(inner, { minDelay: 0, maxDelay: 0 });
-    await throttled.navigate('https://x.com', 'twitter');
-    expect(inner.navigate).toHaveBeenCalledWith('https://x.com', 'twitter');
+    await throttled.navigate('https://x.com');
+    expect(inner.navigate).toHaveBeenCalledWith('https://x.com');
   });
 
   it('delegates click to inner primitives', async () => {
     const inner = createMockPrimitives();
     const throttled = createThrottledPrimitives(inner, { minDelay: 0, maxDelay: 0 });
-    await throttled.click('5', 'twitter');
-    expect(inner.click).toHaveBeenCalledWith('5', 'twitter');
+    await throttled.click('5');
+    expect(inner.click).toHaveBeenCalledWith('5');
   });
 
   it('adds delay before throttled operations', async () => {
@@ -54,11 +54,11 @@ describe('ThrottledPrimitives', () => {
     const throttled = createThrottledPrimitives(inner, { minDelay: 200, maxDelay: 200 });
 
     const start = Date.now();
-    await throttled.takeSnapshot('twitter');
+    await throttled.takeSnapshot();
     const elapsed = Date.now() - start;
 
     expect(elapsed).toBeLessThan(100);
-    expect(inner.takeSnapshot).toHaveBeenCalledWith('twitter');
+    expect(inner.takeSnapshot).toHaveBeenCalledWith();
   });
 
   it('does NOT throttle screenshot (exempt)', async () => {
@@ -66,11 +66,11 @@ describe('ThrottledPrimitives', () => {
     const throttled = createThrottledPrimitives(inner, { minDelay: 200, maxDelay: 200 });
 
     const start = Date.now();
-    await throttled.screenshot('twitter');
+    await throttled.screenshot();
     const elapsed = Date.now() - start;
 
     expect(elapsed).toBeLessThan(100);
-    expect(inner.screenshot).toHaveBeenCalledWith('twitter');
+    expect(inner.screenshot).toHaveBeenCalledWith();
   });
 
   it('does NOT throttle getRawPage (exempt)', async () => {
@@ -78,11 +78,11 @@ describe('ThrottledPrimitives', () => {
     const throttled = createThrottledPrimitives(inner, { minDelay: 200, maxDelay: 200 });
 
     const start = Date.now();
-    await throttled.getRawPage('twitter');
+    await throttled.getRawPage();
     const elapsed = Date.now() - start;
 
     expect(elapsed).toBeLessThan(100);
-    expect(inner.getRawPage).toHaveBeenCalledWith('twitter');
+    expect(inner.getRawPage).toHaveBeenCalledWith();
   });
 
   it('does NOT throttle evaluate (exempt)', async () => {
@@ -90,11 +90,11 @@ describe('ThrottledPrimitives', () => {
     const throttled = createThrottledPrimitives(inner, { minDelay: 200, maxDelay: 200 });
 
     const start = Date.now();
-    await throttled.evaluate('1+1', 'twitter');
+    await throttled.evaluate('1+1');
     const elapsed = Date.now() - start;
 
     expect(elapsed).toBeLessThan(100);
-    expect(inner.evaluate).toHaveBeenCalledWith('1+1', 'twitter');
+    expect(inner.evaluate).toHaveBeenCalledWith('1+1');
   });
 
   it('does NOT throttle interceptRequest (exempt)', async () => {
@@ -103,11 +103,11 @@ describe('ThrottledPrimitives', () => {
     const handler: InterceptHandler = () => {};
 
     const start = Date.now();
-    await throttled.interceptRequest('/api/*', handler, 'twitter');
+    await throttled.interceptRequest('/api/*', handler);
     const elapsed = Date.now() - start;
 
     expect(elapsed).toBeLessThan(100);
-    expect(inner.interceptRequest).toHaveBeenCalledWith('/api/*', handler, 'twitter');
+    expect(inner.interceptRequest).toHaveBeenCalledWith('/api/*', handler);
   });
 
   it('uses default config when none provided', async () => {
@@ -121,8 +121,8 @@ describe('ThrottledPrimitives', () => {
     const inner = createMockPrimitives();
     const throttled = createThrottledPrimitives(inner, { minDelay: 0, maxDelay: 0 });
     const handler: InterceptHandler = () => {};
-    await throttled.interceptRequest('/api/*', handler, 'twitter');
-    expect(inner.interceptRequest).toHaveBeenCalledWith('/api/*', handler, 'twitter');
+    await throttled.interceptRequest('/api/*', handler);
+    expect(inner.interceptRequest).toHaveBeenCalledWith('/api/*', handler);
   });
 });
 
@@ -154,7 +154,7 @@ describe('rate limiting', () => {
 
     await throttled.navigate('https://x.com');
     // takeSnapshot should not be blocked even though 1 op already counted
-    await throttled.takeSnapshot('twitter');
+    await throttled.takeSnapshot();
     expect(inner.takeSnapshot).toHaveBeenCalled();
   });
 
@@ -179,8 +179,8 @@ describe('rate limiting', () => {
       rateLimit: { window: 60_000, maxOps: 100 },
     });
 
-    await throttled.scrollIntoView('1', 'twitter');
-    expect(inner.scrollIntoView).toHaveBeenCalledWith('1', 'twitter');
+    await throttled.scrollIntoView('1');
+    expect(inner.scrollIntoView).toHaveBeenCalledWith('1');
   });
 });
 

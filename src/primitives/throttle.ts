@@ -42,21 +42,21 @@ export function createThrottledPrimitives(
 
   return {
     // Counted toward rate limit
-    navigate: (url, site?) => throttledAndCounted(() => inner.navigate(url, site)),
-    click: (uid, site?) => throttledAndCounted(() => inner.click(uid, site)),
-    type: (uid, text, site?) => throttledAndCounted(() => inner.type(uid, text, site)),
-    scroll: (options, site?) => throttledAndCounted(() => inner.scroll(options, site)),
-    scrollIntoView: (uid, site?) => throttledAndCounted(() => inner.scrollIntoView(uid, site)),
+    navigate: (url) => throttledAndCounted(() => inner.navigate(url)),
+    click: (uid) => throttledAndCounted(() => inner.click(uid)),
+    type: (uid, text) => throttledAndCounted(() => inner.type(uid, text)),
+    scroll: (options) => throttledAndCounted(() => inner.scroll(options)),
+    scrollIntoView: (uid) => throttledAndCounted(() => inner.scrollIntoView(uid)),
 
     // Throttled but NOT counted
-    takeSnapshot: (site?) => inner.takeSnapshot(site),
-    evaluate: <T = unknown>(expression: string, site?: string) =>
-      inner.evaluate<T>(expression, site),
-    interceptRequest: (pattern, handler, site?) =>
-      inner.interceptRequest(pattern, handler, site),
+    takeSnapshot: () => inner.takeSnapshot(),
+    evaluate: <T = unknown>(expression: string) =>
+      inner.evaluate<T>(expression),
+    interceptRequest: (pattern, handler) =>
+      inner.interceptRequest(pattern, handler),
 
     // Fully exempt
-    screenshot: (site?) => inner.screenshot(site),
-    getRawPage: (site?) => inner.getRawPage(site),
+    screenshot: () => inner.screenshot(),
+    getRawPage: () => inner.getRawPage(),
   };
 }

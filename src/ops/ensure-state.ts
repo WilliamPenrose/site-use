@@ -17,7 +17,6 @@ export type EnsureStateFn = (
 
 export function makeEnsureState(
   primitives: Primitives,
-  site: string,
 ): EnsureStateFn {
   return async (target) => {
     const targets = Array.isArray(target) ? target : [target];
@@ -31,7 +30,6 @@ export function makeEnsureState(
       if (t.url) {
         const currentUrl = await primitives.evaluate<string>(
           'window.location.href',
-          site,
         );
         const urlMatch =
           typeof t.url === 'string'
@@ -44,14 +42,14 @@ export function makeEnsureState(
               'Cannot navigate to a RegExp URL that does not match. Provide a string URL.',
             );
           }
-          await primitives.navigate(t.url, site);
+          await primitives.navigate(t.url);
           action = 'transitioned';
         }
       }
 
       // Step 2: Element state check
       if (t.role) {
-        const result = await ensureElementState(primitives, t, site);
+        const result = await ensureElementState(primitives, t);
         lastSnapshot = result.snapshot;
         if (result.action === 'transitioned') action = 'transitioned';
         lastAction = action;
@@ -59,12 +57,12 @@ export function makeEnsureState(
       }
 
       // Step 3: URL-only — take snapshot for the caller
-      lastSnapshot = await primitives.takeSnapshot(site);
+      lastSnapshot = await primitives.takeSnapshot();
       lastAction = action;
     }
 
     if (!lastSnapshot) {
-      lastSnapshot = await primitives.takeSnapshot(site);
+      lastSnapshot = await primitives.takeSnapshot();
     }
 
     return { action: lastAction, snapshot: lastSnapshot };
@@ -74,16 +72,15 @@ export function makeEnsureState(
 async function ensureElementState(
   primitives: Primitives,
   target: StateDescriptor,
-  site: string,
 ): Promise<EnsureStateResult> {
   // Poll until the element appears or timeout
   const deadline = Date.now() + POLL_TIMEOUT_MS;
-  let snapshot = await primitives.takeSnapshot(site);
+  let snapshot = await primitives.takeSnapshot();
   let match = findByDescriptor(snapshot, target);
 
   while (!match && Date.now() < deadline) {
     await sleep(POLL_INTERVAL_MS);
-    snapshot = await primitives.takeSnapshot(site);
+    snapshot = await primitives.takeSnapshot();
     match = findByDescriptor(snapshot, target);
   }
 
@@ -99,12 +96,12 @@ async function ensureElementState(
   }
 
   // Click to transition
-  await primitives.click(match.uid, site);
+  await primitives.click(match.uid);
 
   // Poll until condition met or timeout
   while (Date.now() < deadline) {
     await sleep(POLL_INTERVAL_MS);
-    const pollSnapshot = await primitives.takeSnapshot(site);
+    const pollSnapshot = await primitives.takeSnapshot();
     const pollMatch = findByDescriptor(pollSnapshot, target);
     if (pollMatch && meetsCondition(pollMatch, target)) {
       return { action: 'transitioned', snapshot: pollSnapshot };

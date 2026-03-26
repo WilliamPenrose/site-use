@@ -80,7 +80,7 @@ describe('checkLogin', () => {
       ),
     });
     await checkLogin(primitives);
-    expect(primitives.navigate).toHaveBeenCalledWith('https://x.com/home', 'twitter');
+    expect(primitives.navigate).toHaveBeenCalledWith('https://x.com/home');
   });
 });
 
@@ -139,7 +139,7 @@ describe('getFeed', () => {
     });
 
     const result = await getFeed(primitives, { count: 0 });
-    expect(primitives.navigate).toHaveBeenCalledWith('https://x.com/home', 'twitter');
+    expect(primitives.navigate).toHaveBeenCalledWith('https://x.com/home');
     expect(result.tweets).toBeDefined();
   });
 

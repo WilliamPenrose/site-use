@@ -239,7 +239,7 @@ export function createServer(): McpServer {
         return mutex.run(async () => {
           try {
             const s = await getPrimitives();
-            const data = await s.guarded.screenshot(site);
+            const data = await s.guarded.screenshot();
             resetErrorStreak();
             return {
               content: [{ type: 'image' as const, data, mimeType: 'image/png' }],
