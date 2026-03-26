@@ -5,18 +5,26 @@ import { ingest } from '../../src/storage/ingest.js';
 import { search, statsBySite } from '../../src/storage/query.js';
 import type { IngestItem } from '../../src/storage/types.js';
 
-function tweetJson(overrides: Record<string, unknown> = {}): string {
+function feedItemJson(overrides: {
+  author?: Record<string, unknown>;
+  siteMeta?: Record<string, unknown>;
+  [key: string]: unknown;
+} = {}): string {
+  const { author, siteMeta, ...rest } = overrides;
   return JSON.stringify({
-    author: { handle: 'alice', name: 'Alice', following: true },
+    author: { handle: 'alice', name: 'Alice', ...author },
     text: 'AI agents are reshaping the world',
     timestamp: '2026-03-20T10:00:00Z',
     url: 'https://x.com/alice/status/1',
-    metrics: { likes: 100, retweets: 10, replies: 5, views: 5000, bookmarks: 2, quotes: 1 },
     media: [],
     links: [],
-    isRetweet: false,
-    isAd: false,
-    ...overrides,
+    siteMeta: {
+      likes: 100, retweets: 10, replies: 5, views: 5000, bookmarks: 2, quotes: 1,
+      following: true, isRetweet: false, isAd: false,
+      surfaceReason: 'original',
+      ...siteMeta,
+    },
+    ...rest,
   });
 }
 
@@ -28,7 +36,7 @@ function makeItem(overrides: Partial<IngestItem> = {}): IngestItem {
     author: 'alice',
     timestamp: '2026-03-20T10:00:00Z',
     url: 'https://x.com/alice/status/1',
-    rawJson: tweetJson(),
+    rawJson: feedItemJson(),
     mentions: [],
     hashtags: ['ai'],
     metrics: [
@@ -52,7 +60,7 @@ beforeEach(() => {
       author: 'alice',
       timestamp: '2026-03-20T10:00:00Z',
       hashtags: ['ai'],
-      rawJson: tweetJson({
+      rawJson: feedItemJson({
         media: [{ type: 'photo', url: 'https://pbs.twimg.com/media/ai.jpg', width: 1200, height: 800 }],
         links: ['https://arxiv.org/abs/2401.00001'],
       }),
@@ -69,10 +77,10 @@ beforeEach(() => {
         { metric: 'replies', numValue: 10 },
         { metric: 'views', numValue: 8000 },
       ],
-      rawJson: tweetJson({
-        author: { handle: 'bob', name: 'Bob', following: false },
+      rawJson: feedItemJson({
+        author: { handle: 'bob', name: 'Bob' },
         text: 'Crypto markets showing volatility',
-        metrics: { likes: 200, retweets: 20, replies: 10, views: 8000 },
+        siteMeta: { likes: 200, retweets: 20, replies: 10, views: 8000, following: false },
         media: [{ type: 'video', url: 'https://video.twimg.com/crypto.mp4', width: 1280, height: 720, duration: 30000 }],
         links: ['https://coindesk.com/article'],
       }),
@@ -84,7 +92,7 @@ beforeEach(() => {
       timestamp: '2026-03-21T12:00:00Z',
       hashtags: ['ai', 'agents'],
       metrics: [],
-      rawJson: tweetJson({
+      rawJson: feedItemJson({
         text: 'Building AI systems with autonomous agents',
         timestamp: '2026-03-21T12:00:00Z',
       }),
@@ -134,7 +142,7 @@ describe('search', () => {
     ingest(db, [makeItem({
       id: '4', text: 'Hey @openai check this out', author: 'carol',
       timestamp: '2026-03-18T06:00:00Z', mentions: ['openai'], hashtags: [], metrics: [],
-      rawJson: tweetJson({ author: { handle: 'carol', name: 'Carol', following: true }, text: 'Hey @openai check this out' }),
+      rawJson: feedItemJson({ author: { handle: 'carol', name: 'Carol', following: true }, text: 'Hey @openai check this out' }),
     })]);
     const result = search(db, { mention: 'openai' });
     expect(result.items).toHaveLength(1);
@@ -145,7 +153,7 @@ describe('search', () => {
     ingest(db, [makeItem({
       id: '5', text: 'cc @Tesla', author: 'dave',
       timestamp: '2026-03-17T06:00:00Z', mentions: ['tesla'], hashtags: [], metrics: [],
-      rawJson: tweetJson({ author: { handle: 'dave', name: 'Dave', following: true }, text: 'cc @Tesla' }),
+      rawJson: feedItemJson({ author: { handle: 'dave', name: 'Dave', following: true }, text: 'cc @Tesla' }),
     })]);
     const result = search(db, { mention: '@Tesla' });
     expect(result.items).toHaveLength(1);
@@ -155,7 +163,7 @@ describe('search', () => {
     ingest(db, [makeItem({
       id: '6', text: 'Hey @openai @anthropic', author: 'eve',
       timestamp: '2026-03-16T06:00:00Z', mentions: ['openai', 'anthropic'], hashtags: [], metrics: [],
-      rawJson: tweetJson({ author: { handle: 'eve', name: 'Eve', following: true }, text: 'Hey @openai @anthropic' }),
+      rawJson: feedItemJson({ author: { handle: 'eve', name: 'Eve', following: true }, text: 'Hey @openai @anthropic' }),
     })]);
     const result = search(db, { author: 'eve' });
     expect(result.items[0].mentions).toEqual(expect.arrayContaining(['openai', 'anthropic']));
@@ -166,7 +174,7 @@ describe('search', () => {
     ingest(db, [makeItem({
       id: '7', text: '@foo hi', author: 'fay',
       timestamp: '2026-03-15T06:00:00Z', mentions: ['foo'], hashtags: [], metrics: [],
-      rawJson: tweetJson({ author: { handle: 'fay', name: 'Fay', following: true }, text: '@foo hi' }),
+      rawJson: feedItemJson({ author: { handle: 'fay', name: 'Fay', following: true }, text: '@foo hi' }),
     })]);
     const result = search(db, { fields: ['author'], author: 'fay' });
     expect(result.items[0].mentions).toBeUndefined();

@@ -12,83 +12,45 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { createStore } from '../../src/storage/index.js';
-import type { IngestItem } from '../../src/storage/types.js';
-import type { Tweet } from '../../src/sites/twitter/types.js';
+import { feedItemsToIngestItems } from '../../src/sites/twitter/store-adapter.js';
+import type { FeedItem } from '../../src/registry/types.js';
 
 // ---------------------------------------------------------------------------
 // Test data helpers
 // ---------------------------------------------------------------------------
 
-function makeTweet(overrides: Partial<Tweet> & { id: string }): Tweet {
+function makeFeedItem(overrides: Partial<FeedItem> & { id: string }): FeedItem {
   return {
-    author: { handle: 'alice', name: 'Alice', following: true },
+    author: { handle: 'alice', name: 'Alice' },
     text: `Tweet ${overrides.id}`,
     timestamp: '2026-03-25T12:00:00Z',
     url: `https://x.com/alice/${overrides.id}`,
-    metrics: { likes: 10, retweets: 2, replies: 1, views: 100 },
     media: [],
     links: [],
-    isRetweet: false,
-    isAd: false,
-    surfaceReason: 'original' as const,
+    siteMeta: {
+      likes: 10, retweets: 2, replies: 1, views: 100,
+      following: true, isRetweet: false, isAd: false,
+      surfaceReason: 'original',
+    },
     ...overrides,
-  };
-}
-
-function tweetToIngestItem(tweet: Tweet): IngestItem {
-  const metrics = [
-    { metric: 'following', numValue: tweet.author.following ? 1 : 0 },
-    { metric: 'surface_reason', strValue: tweet.surfaceReason },
-  ];
-  if (tweet.metrics.likes != null) metrics.push({ metric: 'likes', numValue: tweet.metrics.likes });
-  if (tweet.metrics.retweets != null) metrics.push({ metric: 'retweets', numValue: tweet.metrics.retweets });
-  if (tweet.metrics.replies != null) metrics.push({ metric: 'replies', numValue: tweet.metrics.replies });
-  if (tweet.metrics.views != null) metrics.push({ metric: 'views', numValue: tweet.metrics.views });
-
-  const mentions: string[] = [];
-  const mentionMatches = tweet.text.matchAll(/@(\w+)/g);
-  for (const m of mentionMatches) mentions.push(m[1]);
-  if (tweet.surfacedBy) mentions.push(tweet.surfacedBy);
-
-  const hashtags: string[] = [];
-  const hashMatches = tweet.text.matchAll(/#(\w+)/g);
-  for (const m of hashMatches) hashtags.push(m[1].toLowerCase());
-
-  return {
-    site: 'twitter',
-    id: tweet.id,
-    text: tweet.text,
-    author: tweet.author.handle,
-    timestamp: tweet.timestamp,
-    url: tweet.url,
-    rawJson: JSON.stringify(tweet),
-    metrics,
-    mentions: mentions.length > 0 ? mentions : undefined,
-    hashtags: hashtags.length > 0 ? hashtags : undefined,
   };
 }
 
 // A set of tweets that simulates a mix of following-tab and for_you-tab content.
 // In practice the DB cannot distinguish which tab they came from.
-const FOLLOWING_TWEETS = [
-  makeTweet({ id: 'f1', author: { handle: 'alice', name: 'Alice', following: true }, text: 'Following tweet 1', timestamp: '2026-03-25T14:00:00Z' }),
-  makeTweet({ id: 'f2', author: { handle: 'bob', name: 'Bob', following: true }, text: 'Following tweet 2', timestamp: '2026-03-25T13:00:00Z' }),
-  makeTweet({ id: 'f3', author: { handle: 'carol', name: 'Carol', following: true }, text: 'Following tweet 3 with #news', timestamp: '2026-03-25T12:00:00Z' }),
+const FOLLOWING_ITEMS = [
+  makeFeedItem({ id: 'f1', author: { handle: 'alice', name: 'Alice' }, text: 'Following tweet 1', timestamp: '2026-03-25T14:00:00Z', siteMeta: { likes: 10, retweets: 2, replies: 1, views: 100, following: true, surfaceReason: 'original' } }),
+  makeFeedItem({ id: 'f2', author: { handle: 'bob', name: 'Bob' }, text: 'Following tweet 2', timestamp: '2026-03-25T13:00:00Z', siteMeta: { likes: 10, retweets: 2, replies: 1, views: 100, following: true, surfaceReason: 'original' } }),
+  makeFeedItem({ id: 'f3', author: { handle: 'carol', name: 'Carol' }, text: 'Following tweet 3 with #news', timestamp: '2026-03-25T12:00:00Z', siteMeta: { likes: 10, retweets: 2, replies: 1, views: 100, following: true, surfaceReason: 'original' } }),
 ];
 
-const FOR_YOU_TWEETS = [
-  makeTweet({ id: 'fy1', author: { handle: 'dave', name: 'Dave', following: false }, text: 'For you tweet 1 by @alice', timestamp: '2026-03-25T14:30:00Z', surfaceReason: 'original' }),
-  makeTweet({ id: 'fy2', author: { handle: 'eve', name: 'Eve', following: false }, text: 'For you tweet 2', timestamp: '2026-03-25T13:30:00Z', surfaceReason: 'retweet', surfacedBy: 'frank' }),
-  makeTweet({
-    id: 'fy3',
-    author: { handle: 'grace', name: 'Grace', following: false },
-    text: 'For you tweet 3',
-    timestamp: '2026-03-25T11:00:00Z',
-    metrics: { likes: 5000, retweets: 800, replies: 200, views: 100000 },
-  }),
+const FOR_YOU_ITEMS = [
+  makeFeedItem({ id: 'fy1', author: { handle: 'dave', name: 'Dave' }, text: 'For you tweet 1 by @alice', timestamp: '2026-03-25T14:30:00Z', siteMeta: { likes: 10, retweets: 2, replies: 1, views: 100, following: false, surfaceReason: 'original' } }),
+  makeFeedItem({ id: 'fy2', author: { handle: 'eve', name: 'Eve' }, text: 'For you tweet 2', timestamp: '2026-03-25T13:30:00Z', siteMeta: { likes: 10, retweets: 2, replies: 1, views: 100, following: false, surfaceReason: 'retweet', surfacedBy: 'frank' } }),
+  makeFeedItem({ id: 'fy3', author: { handle: 'grace', name: 'Grace' }, text: 'For you tweet 3', timestamp: '2026-03-25T11:00:00Z', siteMeta: { likes: 5000, retweets: 800, replies: 200, views: 100000, following: false, surfaceReason: 'original' } }),
 ];
 
-const ALL_TWEETS = [...FOLLOWING_TWEETS, ...FOR_YOU_TWEETS];
+const ALL_ITEMS = [...FOLLOWING_ITEMS, ...FOR_YOU_ITEMS];
 
 // ---------------------------------------------------------------------------
 // Storage layer — search behavior in local mode
@@ -102,7 +64,7 @@ describe('local mode: storage layer', () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'local-mode-'));
     dbPath = path.join(tmpDir, 'knowledge.db');
     const store = createStore(dbPath);
-    await store.ingest(ALL_TWEETS.map(tweetToIngestItem));
+    await store.ingest(feedItemsToIngestItems(ALL_ITEMS));
     store.close();
   });
 
@@ -318,7 +280,7 @@ describe('local mode: storage layer', () => {
     const store = createStore(dbPath);
     try {
       // Re-ingest same items
-      const ingestResult = await store.ingest(FOLLOWING_TWEETS.map(tweetToIngestItem));
+      const ingestResult = await store.ingest(feedItemsToIngestItems(FOLLOWING_ITEMS));
       expect(ingestResult.duplicates).toBe(3);
       expect(ingestResult.inserted).toBe(0);
       // Count remains the same
@@ -342,7 +304,7 @@ describe('local mode: tab indistinguishable (known limitation)', () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'local-tab-'));
     dbPath = path.join(tmpDir, 'knowledge.db');
     const store = createStore(dbPath);
-    await store.ingest(ALL_TWEETS.map(tweetToIngestItem));
+    await store.ingest(feedItemsToIngestItems(ALL_ITEMS));
     store.close();
   });
 
@@ -480,7 +442,7 @@ describe('local mode: smart default freshness-based decision', () => {
 
     // Populate DB
     const store = createStore(dbPath);
-    await store.ingest(FOLLOWING_TWEETS.map(tweetToIngestItem));
+    await store.ingest(feedItemsToIngestItems(FOLLOWING_ITEMS));
 
     const freshness = checkFreshness(tmpDir, 'twitter', 'following', 120);
     expect(freshness.reason).toBe('fresh');
@@ -556,7 +518,7 @@ describe('local mode: CLI integration', () => {
     fs.mkdirSync(path.join(tmpDir, 'data'), { recursive: true });
     dbPath = path.join(tmpDir, 'data', 'knowledge.db');
     const store = createStore(dbPath);
-    await store.ingest(ALL_TWEETS.map(tweetToIngestItem));
+    await store.ingest(feedItemsToIngestItems(ALL_ITEMS));
     store.close();
   });
 
@@ -718,7 +680,7 @@ describe('local mode: smart default CLI integration', () => {
     fs.mkdirSync(path.join(tmpDir, 'data'), { recursive: true });
     dbPath = path.join(tmpDir, 'data', 'knowledge.db');
     const store = createStore(dbPath);
-    await store.ingest(ALL_TWEETS.map(tweetToIngestItem));
+    await store.ingest(feedItemsToIngestItems(ALL_ITEMS));
     store.close();
   });
 
