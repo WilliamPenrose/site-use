@@ -8,39 +8,14 @@ import { runCleanCli } from './cli/clean.js';
 import { ensureBrowser } from './browser/browser.js';
 import { runDiagnose } from './diagnose/runner.js';
 import { BUILD_HASH, BUILD_DATE } from './build-info.js';
+import { discoverPlugins } from './registry/discovery.js';
+import { generateCliCommands } from './registry/codegen.js';
+import { SiteRuntimeManager } from './runtime/manager.js';
 
 function getVersion(): string {
   if (BUILD_HASH === 'dev') return 'dev';
   return `${BUILD_DATE} (${BUILD_HASH})`;
 }
-
-const HELP = `\
-site-use ${getVersion()} — Site-level browser automation via MCP
-
-
-Usage: site-use <command> [subcommand]
-
-Commands:
-  mcp                Start MCP server (stdio transport)
-  browser launch     Launch Chrome (detached — stays alive after exit)
-  browser status     Show Chrome connection status, PID, and profile path
-  browser close      Kill Chrome and clean up
-  twitter feed       Collect tweets from the home timeline
-  search             Search stored tweets (FTS + structured filters)
-  stats              Show storage statistics
-  rebuild            Rebuild search index (Phase 2)
-  clean              Delete stored items by filter (interactive)
-  diagnose           Run anti-detection diagnostic checks
-  help               Show this help message
-
-Environment:
-  SITE_USE_DATA_DIR      Data directory (default: ~/.site-use)
-  SITE_USE_PROXY         Proxy server URL
-  HTTPS_PROXY            Fallback proxy (if SITE_USE_PROXY not set)
-  HTTP_PROXY             Fallback proxy (if neither above is set)
-  SITE_USE_PROXY_USER    Proxy auth username
-  SITE_USE_PROXY_PASS    Proxy auth password
-`;
 
 const BROWSER_HELP = `\
 site-use browser — Chrome lifecycle management
@@ -115,9 +90,48 @@ async function browserClose(): Promise<void> {
   }
 }
 
+function buildHelp(siteNames: Set<string>): string {
+  const siteList = [...siteNames].sort().map(s => `  ${s} <command>    Run a ${s} command`).join('\n');
+  return `\
+site-use ${getVersion()} — Site-level browser automation via MCP
+
+
+Usage: site-use <command> [subcommand]
+
+Site commands:
+${siteList}
+
+Global commands:
+  mcp                Start MCP server (stdio transport)
+  browser launch     Launch Chrome (detached — stays alive after exit)
+  browser status     Show Chrome connection status, PID, and profile path
+  browser close      Kill Chrome and clean up
+  search             Search stored posts (FTS + structured filters)
+  stats              Show storage statistics
+  rebuild            Rebuild search index (Phase 2)
+  clean              Delete stored items by filter (interactive)
+  diagnose           Run anti-detection diagnostic checks
+  help               Show this help message
+
+Environment:
+  SITE_USE_DATA_DIR      Data directory (default: ~/.site-use)
+  SITE_USE_PROXY         Proxy server URL
+  HTTPS_PROXY            Fallback proxy (if SITE_USE_PROXY not set)
+  HTTP_PROXY             Fallback proxy (if neither above is set)
+  SITE_USE_PROXY_USER    Proxy auth username
+  SITE_USE_PROXY_PASS    Proxy auth password
+`;
+}
+
 async function run(): Promise<boolean> {
   const args = process.argv.slice(2);
   const command = args[0];
+
+  // Discover plugins for dynamic CLI dispatch
+  const plugins = await discoverPlugins();
+  const runtimeManager = new SiteRuntimeManager(plugins);
+  const siteCommands = generateCliCommands(plugins, runtimeManager);
+  const siteNames = new Set(siteCommands.map(c => c.site));
 
   switch (command) {
     case 'mcp':
@@ -132,7 +146,7 @@ The server communicates via stdin/stdout using the MCP protocol.
       return false; // MCP server stays alive — don't process.exit()
 
     case undefined:
-      console.log(HELP);
+      console.log(buildHelp(siteNames));
       break;
 
     case 'browser': {
@@ -161,6 +175,8 @@ The server communicates via stdin/stdout using the MCP protocol.
       break;
     }
 
+    // Keep the existing twitter workflow CLI for --local / --fetch / --max-age support.
+    // The codegen CLI commands don't support these smart freshness features yet.
     case 'twitter':
       await runWorkflowCli('twitter', args.slice(1));
       break;
@@ -204,15 +220,45 @@ Options:
         process.argv = [process.argv[0], process.argv[1], helpTarget, '--help'];
         await run();
       } else {
-        console.log(HELP);
+        console.log(buildHelp(siteNames));
       }
       break;
     }
 
-    default:
+    default: {
+      // Dynamic site command dispatch for non-Twitter sites
+      if (siteNames.has(command)) {
+        const subcommand = args[1];
+        if (!subcommand || subcommand === '--help' || subcommand === '-h' || subcommand === 'help') {
+          const cmds = siteCommands.filter(c => c.site === command);
+          console.log(`site-use ${command} — Available commands:\n`);
+          for (const cmd of cmds) {
+            console.log(`  ${cmd.command.padEnd(16)} ${cmd.description}`);
+          }
+          console.log('');
+          break;
+        }
+
+        const entry = siteCommands.find(c => c.site === command && c.command === subcommand);
+        if (!entry) {
+          console.error(`Unknown command: site-use ${command} ${subcommand}\n`);
+          const cmds = siteCommands.filter(c => c.site === command);
+          console.log(`Available commands for ${command}:`);
+          for (const cmd of cmds) {
+            console.log(`  ${cmd.command.padEnd(16)} ${cmd.description}`);
+          }
+          process.exit(1);
+          break;
+        }
+
+        await entry.handler(args.slice(2));
+        break;
+      }
+
       console.error(`Unknown command: ${command}\n`);
-      console.log(HELP);
+      console.log(buildHelp(siteNames));
       process.exit(1);
+    }
   }
   return true;
 }

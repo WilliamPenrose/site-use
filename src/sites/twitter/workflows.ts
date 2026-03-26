@@ -11,12 +11,11 @@ import {
   buildFeedMeta,
   GRAPHQL_TIMELINE_PATTERN,
 } from './extractors.js';
-import type { RawTweetData, FeedDebug, FeedResult } from './types.js';
-import { tweetsToIngestItems } from './store-adapter.js';
-import type { KnowledgeStore } from '../../storage/types.js';
+import type { RawTweetData } from './types.js';
+import type { FeedResult as FrameworkFeedResult } from '../../registry/types.js';
+import { tweetToFeedItem } from './feed-item.js';
 
 const TWITTER_HOME = 'https://x.com/home';
-const TWITTER_SITE = 'twitter';
 
 /** Poll until interceptedRaw has at least one entry, or timeout. */
 function waitForData(interceptedRaw: RawTweetData[], timeoutMs: number): Promise<void> {
@@ -44,19 +43,18 @@ export interface CheckLoginResult {
  * Does not throw on not-logged-in — returns { loggedIn: false }.
  */
 export async function checkLogin(primitives: Primitives): Promise<CheckLoginResult> {
-  await primitives.navigate(TWITTER_HOME, TWITTER_SITE);
+  await primitives.navigate(TWITTER_HOME);
 
   // Check URL for login redirect
   const currentUrl = await primitives.evaluate<string>(
     'window.location.href',
-    TWITTER_SITE,
   );
   if (currentUrl.includes('/login') || currentUrl.includes('/i/flow/login')) {
     return { loggedIn: false };
   }
 
   // Check accessibility tree for Home navigation link
-  const snapshot = await primitives.takeSnapshot(TWITTER_SITE);
+  const snapshot = await primitives.takeSnapshot();
   const homeUid = matchByRule(snapshot, rules.homeNavLink);
   if (homeUid) {
     return { loggedIn: true };
@@ -88,17 +86,14 @@ export interface GetFeedOptions {
   count?: number;
   tab?: TimelineFeed;
   debug?: boolean;
-  store?: KnowledgeStore;
   dumpRaw?: string;
 }
 
 export async function getFeed(
   primitives: Primitives,
   opts: GetFeedOptions = {},
-): Promise<FeedResult> {
-  const { count = 20, tab = 'following', debug = false, store, dumpRaw } = opts;
-  const startTime = Date.now();
-  let graphqlResponseCount = 0;
+): Promise<FrameworkFeedResult> {
+  const { count = 20, tab = 'following', dumpRaw } = opts;
   let reloadFallback = false;
 
   // Set up interception BEFORE navigation so initial GraphQL response is captured
@@ -115,21 +110,19 @@ export async function getFeed(
         }
         const parsed = parseGraphQLTimeline(response.body);
         interceptedRaw.push(...parsed);
-        graphqlResponseCount++;
       } catch {
         // GraphQL parse failed — ignore this response
       }
     },
-    TWITTER_SITE,
   );
 
   try {
     // Navigate to timeline — auth guard auto-checks login
-    const ensure = makeEnsureState(primitives, TWITTER_SITE);
+    const ensure = makeEnsureState(primitives);
     const { action } = await ensure({ url: TWITTER_HOME });
     if (action === 'already_there') {
       // Already on home — intercept needs a fresh page load to capture GraphQL
-      await primitives.navigate(TWITTER_HOME, TWITTER_SITE);
+      await primitives.navigate(TWITTER_HOME);
     }
 
     // Switch to the requested feed tab
@@ -145,7 +138,7 @@ export async function getFeed(
         // Twitter used cached data — no GraphQL request fired.
         // Force a reload to get fresh data from the server.
         reloadFallback = true;
-        await primitives.navigate(TWITTER_HOME, TWITTER_SITE);
+        await primitives.navigate(TWITTER_HOME);
         await ensure({ role: 'tab', name: tabName, selected: true });
       }
     }
@@ -161,29 +154,16 @@ export async function getFeed(
 
     const meta = buildFeedMeta(tweets);
 
-    const result: FeedResult = { tweets, meta };
-    if (debug) {
-      result.debug = {
-        tabRequested: tab,
-        navAction: action,
-        tabAction,
-        reloadFallback,
-        graphqlResponseCount,
-        rawBeforeFilter: rawTweets.length,
-        elapsedMs: Date.now() - startTime,
-      };
-    }
-    // Persist to knowledge store — best-effort, never breaks the main flow
-    if (store) {
-      try {
-        const ingestItems = tweetsToIngestItems(tweets);
-        await store.ingest(ingestItems);
-      } catch (err) {
-        console.warn('Knowledge store ingest failed:', err);
-      }
-    }
+    const items = tweets.map(tweetToFeedItem);
+    const frameworkResult: FrameworkFeedResult = {
+      items,
+      meta: {
+        coveredUsers: meta.coveredUsers,
+        timeRange: { from: meta.timeRange.from, to: meta.timeRange.to },
+      },
+    };
 
-    return result;
+    return frameworkResult;
   } finally {
     cleanup();
   }

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { Primitives, SnapshotNode, Snapshot } from '../../src/primitives/types.js';
-import { SessionExpired } from '../../src/errors.js';
+import type { Primitives, SnapshotNode, Snapshot } from '../../../primitives/types.js';
+import { SessionExpired } from '../../../errors.js';
 
 function createMockPrimitives(overrides: Partial<Primitives> = {}): Primitives {
   return {
@@ -24,12 +24,12 @@ function buildSnapshot(nodes: SnapshotNode[]): Snapshot {
   return { idToNode };
 }
 
-let checkLogin: typeof import('../../src/sites/twitter/workflows.js').checkLogin;
-let requireLogin: typeof import('../../src/sites/twitter/workflows.js').requireLogin;
-let getFeed: typeof import('../../src/sites/twitter/workflows.js').getFeed;
+let checkLogin: typeof import('../workflows.js').checkLogin;
+let requireLogin: typeof import('../workflows.js').requireLogin;
+let getFeed: typeof import('../workflows.js').getFeed;
 
 beforeEach(async () => {
-  const mod = await import('../../src/sites/twitter/workflows.js');
+  const mod = await import('../workflows.js');
   checkLogin = mod.checkLogin;
   requireLogin = mod.requireLogin;
   getFeed = mod.getFeed;
@@ -80,7 +80,7 @@ describe('checkLogin', () => {
       ),
     });
     await checkLogin(primitives);
-    expect(primitives.navigate).toHaveBeenCalledWith('https://x.com/home', 'twitter');
+    expect(primitives.navigate).toHaveBeenCalledWith('https://x.com/home');
   });
 });
 
@@ -139,11 +139,11 @@ describe('getFeed', () => {
     });
 
     const result = await getFeed(primitives, { count: 0 });
-    expect(primitives.navigate).toHaveBeenCalledWith('https://x.com/home', 'twitter');
-    expect(result.tweets).toBeDefined();
+    expect(primitives.navigate).toHaveBeenCalledWith('https://x.com/home');
+    expect(result.items).toBeDefined();
   });
 
-  it('returns tweets from intercepted GraphQL data', { timeout: 15000 }, async () => {
+  it('returns items from intercepted GraphQL data', { timeout: 15000 }, async () => {
     const GRAPHQL_BODY = JSON.stringify({
       data: {
         home: {
@@ -201,7 +201,7 @@ describe('getFeed', () => {
         .mockResolvedValue('https://x.com/home'),
       takeSnapshot: vi.fn()
         .mockResolvedValueOnce(beforeTabSwitch)   // URL ensure snapshot (returned to caller)
-        .mockResolvedValueOnce(beforeTabSwitch)   // tab ensure initial check (selected: false → click)
+        .mockResolvedValueOnce(beforeTabSwitch)   // tab ensure initial check (selected: false -> click)
         .mockResolvedValueOnce(afterTabSwitch)    // tab ensure poll verification (selected: true)
         .mockResolvedValue(afterTabSwitch),       // any subsequent calls
       interceptRequest: vi.fn().mockImplementation(
@@ -229,9 +229,9 @@ describe('getFeed', () => {
     });
 
     const result = await getFeed(primitives, { count: 1 });
-    expect(result.tweets).toHaveLength(1);
-    expect(result.tweets[0].text).toBe('Test tweet');
-    expect(result.tweets[0].author.handle).toBe('testuser');
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].text).toBe('Test tweet');
+    expect(result.items[0].author.handle).toBe('testuser');
     expect(result.meta.coveredUsers).toContain('testuser');
   });
 });

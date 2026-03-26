@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { formatTweetText } from '../../src/sites/twitter/format.js';
-import type { SearchResultItem } from '../../src/storage/types.js';
+import { formatTweetText } from '../format.js';
+import type { SearchResultItem } from '../../../storage/types.js';
 
 describe('formatTweetText', () => {
   it('formats original tweet', () => {

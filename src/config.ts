@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import 'dotenv/config';
@@ -79,6 +80,48 @@ function envBool(key: string, defaultValue: boolean): boolean {
   const val = process.env[key];
   if (val === undefined) return defaultValue;
   return val !== 'false' && val !== '0';
+}
+
+export interface PluginsConfig {
+  plugins: string[];
+  resolvedPluginPaths: string[];
+}
+
+export function getPluginsConfig(configDir: string): PluginsConfig {
+  const configPath = path.join(configDir, 'config.json');
+
+  if (!fs.existsSync(configPath)) {
+    return { plugins: [], resolvedPluginPaths: [] };
+  }
+
+  let raw: string;
+  try {
+    raw = fs.readFileSync(configPath, 'utf-8');
+  } catch {
+    return { plugins: [], resolvedPluginPaths: [] };
+  }
+
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(raw) as Record<string, unknown>;
+  } catch (err) {
+    throw new Error(
+      `Failed to parse config.json at ${configPath}: ${(err as Error).message}`,
+    );
+  }
+
+  const plugins = Array.isArray(parsed.plugins)
+    ? (parsed.plugins as string[])
+    : [];
+
+  const resolvedPluginPaths = plugins.map((spec) => {
+    if (spec.startsWith('./') || spec.startsWith('../')) {
+      return path.join(configDir, spec);
+    }
+    return spec;
+  });
+
+  return { plugins, resolvedPluginPaths };
 }
 
 export function getClickEnhancementConfig(): ClickEnhancementConfig {

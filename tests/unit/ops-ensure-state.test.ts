@@ -1,29 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
-import type { Primitives, SnapshotNode, Snapshot } from '../../src/primitives/types.js';
 import { ElementNotFound, StateTransitionFailed } from '../../src/errors.js';
 import { makeEnsureState } from '../../src/ops/ensure-state.js';
-
-function createMockPrimitives(overrides: Partial<Primitives> = {}): Primitives {
-  return {
-    navigate: vi.fn().mockResolvedValue(undefined),
-    takeSnapshot: vi.fn().mockResolvedValue({ idToNode: new Map() }),
-    click: vi.fn().mockResolvedValue(undefined),
-    type: vi.fn().mockResolvedValue(undefined),
-    scroll: vi.fn().mockResolvedValue(undefined),
-    scrollIntoView: vi.fn().mockResolvedValue(undefined),
-    evaluate: vi.fn().mockResolvedValue(undefined),
-    screenshot: vi.fn().mockResolvedValue('base64png'),
-    interceptRequest: vi.fn().mockResolvedValue(() => {}),
-    getRawPage: vi.fn().mockResolvedValue({}),
-    ...overrides,
-  };
-}
-
-function buildSnapshot(nodes: SnapshotNode[]): Snapshot {
-  const idToNode = new Map<string, SnapshotNode>();
-  for (const node of nodes) idToNode.set(node.uid, node);
-  return { idToNode };
-}
+import { createMockPrimitives, buildSnapshot } from '../../src/testing/index.js';
 
 describe('ensureState — URL only', () => {
   it('skips navigate when URL already matches', async () => {
@@ -31,7 +9,7 @@ describe('ensureState — URL only', () => {
       evaluate: vi.fn().mockResolvedValue('https://x.com/home'),
       takeSnapshot: vi.fn().mockResolvedValue(buildSnapshot([])),
     });
-    const ensure = makeEnsureState(primitives, 'twitter');
+    const ensure = makeEnsureState(primitives);
 
     const result = await ensure({ url: 'https://x.com/home' });
 
@@ -45,11 +23,11 @@ describe('ensureState — URL only', () => {
       evaluate: vi.fn().mockResolvedValue('https://x.com/explore'),
       takeSnapshot: vi.fn().mockResolvedValue(buildSnapshot([])),
     });
-    const ensure = makeEnsureState(primitives, 'twitter');
+    const ensure = makeEnsureState(primitives);
 
     const result = await ensure({ url: 'https://x.com/home' });
 
-    expect(primitives.navigate).toHaveBeenCalledWith('https://x.com/home', 'twitter');
+    expect(primitives.navigate).toHaveBeenCalledWith('https://x.com/home');
     expect(result.action).toBe('transitioned');
   });
 
@@ -58,7 +36,7 @@ describe('ensureState — URL only', () => {
       evaluate: vi.fn().mockResolvedValue('https://x.com/home/following'),
       takeSnapshot: vi.fn().mockResolvedValue(buildSnapshot([])),
     });
-    const ensure = makeEnsureState(primitives, 'twitter');
+    const ensure = makeEnsureState(primitives);
 
     const result = await ensure({ url: 'x.com/home' });
 
@@ -71,7 +49,7 @@ describe('ensureState — URL only', () => {
       evaluate: vi.fn().mockResolvedValue('https://x.com/home'),
       takeSnapshot: vi.fn().mockResolvedValue(buildSnapshot([])),
     });
-    const ensure = makeEnsureState(primitives, 'twitter');
+    const ensure = makeEnsureState(primitives);
 
     const result = await ensure({ url: /x\.com\/home/ });
 
@@ -83,7 +61,7 @@ describe('ensureState — URL only', () => {
     const primitives = createMockPrimitives({
       evaluate: vi.fn().mockResolvedValue('https://x.com/explore'),
     });
-    const ensure = makeEnsureState(primitives, 'twitter');
+    const ensure = makeEnsureState(primitives);
 
     await expect(
       ensure({ url: /x\.com\/home/ }),
@@ -99,7 +77,7 @@ describe('ensureState — element state', () => {
     const primitives = createMockPrimitives({
       takeSnapshot: vi.fn().mockResolvedValue(snapshot),
     });
-    const ensure = makeEnsureState(primitives, 'twitter');
+    const ensure = makeEnsureState(primitives);
 
     const result = await ensure({ role: 'tab', name: 'Following', selected: true });
 
@@ -119,11 +97,11 @@ describe('ensureState — element state', () => {
         .mockResolvedValueOnce(beforeSnapshot)   // initial check
         .mockResolvedValueOnce(afterSnapshot),    // poll verification
     });
-    const ensure = makeEnsureState(primitives, 'twitter');
+    const ensure = makeEnsureState(primitives);
 
     const result = await ensure({ role: 'tab', name: 'Following', selected: true });
 
-    expect(primitives.click).toHaveBeenCalledWith('1', 'twitter');
+    expect(primitives.click).toHaveBeenCalledWith('1');
     expect(result.action).toBe('transitioned');
     expect(result.snapshot).toBe(afterSnapshot);
   });
@@ -136,7 +114,7 @@ describe('ensureState — element state', () => {
     const primitives = createMockPrimitives({
       takeSnapshot: vi.fn().mockResolvedValue(snapshot),
     });
-    const ensure = makeEnsureState(primitives, 'twitter');
+    const ensure = makeEnsureState(primitives);
 
     const promise = ensure({ role: 'tab', name: 'Following', selected: true });
     const assertion = expect(promise).rejects.toThrow(ElementNotFound);
@@ -155,7 +133,7 @@ describe('ensureState — element state', () => {
     const primitives = createMockPrimitives({
       takeSnapshot: vi.fn().mockResolvedValue(stuckSnapshot),
     });
-    const ensure = makeEnsureState(primitives, 'twitter');
+    const ensure = makeEnsureState(primitives);
 
     const promise = ensure({ role: 'tab', name: 'Following', selected: true });
     // Attach rejection handler immediately to avoid unhandled rejection warning
@@ -178,7 +156,7 @@ describe('ensureState — URL + element combined', () => {
       evaluate: vi.fn().mockResolvedValue('https://x.com/explore'),
       takeSnapshot: vi.fn().mockResolvedValue(snapshot),
     });
-    const ensure = makeEnsureState(primitives, 'twitter');
+    const ensure = makeEnsureState(primitives);
 
     const result = await ensure({
       url: 'https://x.com/home',
@@ -187,7 +165,7 @@ describe('ensureState — URL + element combined', () => {
       selected: true,
     });
 
-    expect(primitives.navigate).toHaveBeenCalledWith('https://x.com/home', 'twitter');
+    expect(primitives.navigate).toHaveBeenCalledWith('https://x.com/home');
     expect(result.action).toBe('transitioned');
   });
 });
@@ -203,7 +181,7 @@ describe('ensureState — multiple descriptors', () => {
       navigate: vi.fn().mockImplementation(async () => { callOrder.push('navigate'); }),
       takeSnapshot: vi.fn().mockResolvedValue(snapshot),
     });
-    const ensure = makeEnsureState(primitives, 'twitter');
+    const ensure = makeEnsureState(primitives);
 
     const result = await ensure([
       { url: 'https://x.com/home' },

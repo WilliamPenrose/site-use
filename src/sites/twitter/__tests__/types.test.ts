@@ -5,7 +5,7 @@ import {
   FeedMetaSchema,
   FeedResultSchema,
   RawTweetDataSchema,
-} from '../../src/sites/twitter/types.js';
+} from '../types.js';
 
 describe('TweetAuthorSchema', () => {
   it('accepts valid author', () => {

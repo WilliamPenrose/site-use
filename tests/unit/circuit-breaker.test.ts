@@ -1,60 +1,116 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { CircuitBreaker } from '../../src/runtime/circuit-breaker.js';
 
-vi.mock('../../src/browser/browser.js', () => ({
-  ensureBrowser: vi.fn(),
-  isBrowserConnected: vi.fn().mockReturnValue(true),
-}));
+describe('CircuitBreaker', () => {
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); });
 
-import {
-  formatToolError,
-  resetErrorStreak,
-  _setPrimitivesForTest,
-  _getErrorStreak,
-} from '../../src/server.js';
-import {
-  NavigationFailed,
-  BrowserDisconnected,
-  RateLimited,
-} from '../../src/errors.js';
-
-beforeEach(() => {
-  _setPrimitivesForTest(null);
-  resetErrorStreak();
-});
-
-describe('circuit breaker', () => {
-  it('throws RateLimited after 5 consecutive errors, preserving last error info', async () => {
-    for (let i = 0; i < 4; i++) {
-      await formatToolError(new NavigationFailed('timeout'));
-    }
-    const result = await formatToolError(new NavigationFailed('timeout'));
-    const payload = JSON.parse((result.content[0] as any).text);
-    expect(payload.type).toBe('RateLimited');
-    expect(payload.context.hint).toContain('circuit breaker');
-    expect(payload.message).toContain('NavigationFailed');
-    expect(payload.context.hint).toContain('timeout');
+  // ── closed state ───────────────────────────────────────────
+  it('starts in closed state', () => {
+    const cb = new CircuitBreaker();
+    expect(cb.state).toBe('closed');
+    expect(cb.isTripped).toBe(false);
   });
 
-  it('resets counter on success', async () => {
-    for (let i = 0; i < 3; i++) {
-      await formatToolError(new NavigationFailed('timeout'));
-    }
-    resetErrorStreak();
-    for (let i = 0; i < 4; i++) {
-      await formatToolError(new NavigationFailed('timeout'));
-    }
-    expect(_getErrorStreak()).toBe(4);
+  it('stays closed below threshold', () => {
+    const cb = new CircuitBreaker(5);
+    for (let i = 0; i < 4; i++) cb.recordError();
+    expect(cb.state).toBe('closed');
+    expect(cb.isTripped).toBe(false);
   });
 
-  it('does not count BrowserDisconnected', async () => {
-    for (let i = 0; i < 10; i++) {
-      await formatToolError(new BrowserDisconnected('crashed'));
-    }
-    expect(_getErrorStreak()).toBe(0);
+  it('resets streak on success in closed state', () => {
+    const cb = new CircuitBreaker(5);
+    cb.recordError();
+    cb.recordError();
+    cb.recordError();
+    cb.recordSuccess();
+    expect(cb.streak).toBe(0);
+    expect(cb.state).toBe('closed');
   });
 
-  it('does not count RateLimited (avoid re-triggering)', async () => {
-    await formatToolError(new RateLimited('already limited'));
-    expect(_getErrorStreak()).toBe(0);
+  // ── closed → open transition ───────────────────────────────
+  it('transitions to open at threshold', () => {
+    const cb = new CircuitBreaker(5);
+    for (let i = 0; i < 5; i++) cb.recordError();
+    expect(cb.state).toBe('open');
+    expect(cb.isTripped).toBe(true);
+  });
+
+  it('blocks requests while open (within cooldown)', () => {
+    const cb = new CircuitBreaker(3, 60_000);
+    for (let i = 0; i < 3; i++) cb.recordError();
+    expect(cb.isTripped).toBe(true);
+    vi.advanceTimersByTime(30_000);
+    expect(cb.isTripped).toBe(true);
+    expect(cb.state).toBe('open');
+  });
+
+  // ── open → half-open transition ────────────────────────────
+  it('transitions to half-open after cooldown expires', () => {
+    const cb = new CircuitBreaker(3, 60_000);
+    for (let i = 0; i < 3; i++) cb.recordError();
+    expect(cb.state).toBe('open');
+    vi.advanceTimersByTime(60_001);
+    expect(cb.isTripped).toBe(false);
+    expect(cb.state).toBe('half-open');
+  });
+
+  // ── half-open → closed (probe success) ─────────────────────
+  it('transitions to closed on success in half-open', () => {
+    const cb = new CircuitBreaker(3, 60_000);
+    for (let i = 0; i < 3; i++) cb.recordError();
+    vi.advanceTimersByTime(60_001);
+    expect(cb.state).toBe('half-open');
+    cb.recordSuccess();
+    expect(cb.state).toBe('closed');
+    expect(cb.streak).toBe(0);
+    expect(cb.isTripped).toBe(false);
+  });
+
+  // ── half-open → open (probe failure) ───────────────────────
+  it('transitions back to open on error in half-open', () => {
+    const cb = new CircuitBreaker(3, 60_000);
+    for (let i = 0; i < 3; i++) cb.recordError();
+    vi.advanceTimersByTime(60_001);
+    expect(cb.state).toBe('half-open');
+    cb.recordError();
+    expect(cb.state).toBe('open');
+    expect(cb.isTripped).toBe(true);
+    // Cooldown restarts from now
+    vi.advanceTimersByTime(59_999);
+    expect(cb.isTripped).toBe(true);
+    vi.advanceTimersByTime(2);
+    expect(cb.isTripped).toBe(false);
+  });
+
+  // ── reset ──────────────────────────────────────────────────
+  it('reset() returns to closed regardless of state', () => {
+    const cb = new CircuitBreaker(3);
+    for (let i = 0; i < 3; i++) cb.recordError();
+    expect(cb.state).toBe('open');
+    cb.reset();
+    expect(cb.state).toBe('closed');
+    expect(cb.streak).toBe(0);
+  });
+
+  // ── defaults ───────────────────────────────────────────────
+  it('uses default threshold of 5 and cooldown of 60s', () => {
+    const cb = new CircuitBreaker();
+    for (let i = 0; i < 5; i++) cb.recordError();
+    expect(cb.state).toBe('open');
+    vi.advanceTimersByTime(59_999);
+    expect(cb.isTripped).toBe(true);
+    vi.advanceTimersByTime(2);
+    expect(cb.isTripped).toBe(false);
+  });
+
+  it('exposes current streak count', () => {
+    const cb = new CircuitBreaker(3);
+    expect(cb.streak).toBe(0);
+    cb.recordError();
+    expect(cb.streak).toBe(1);
+    cb.recordError();
+    expect(cb.streak).toBe(2);
   });
 });

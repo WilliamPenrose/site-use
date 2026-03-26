@@ -3,7 +3,6 @@ import type { Tweet, TweetMedia, RawTweetData, RawTweetMedia, FeedMeta } from '.
 
 const GRAPHQL_TIMELINE_PATTERN = /\/i\/api\/graphql\/.*\/Home.*Timeline/;
 const MAX_STALE_ROUNDS = 3;
-const TWITTER_SITE = 'twitter';
 
 /** Decode common HTML entities found in Twitter GraphQL full_text. */
 const HTML_ENTITIES: Record<string, string> = {
@@ -412,7 +411,7 @@ export async function collectTweetsFromTimeline(
     }
 
     prevTotal = interceptedRaw.length;
-    await primitives.scroll({ direction: 'down' }, TWITTER_SITE);
+    await primitives.scroll({ direction: 'down' });
     await wait(1500);
   }
 

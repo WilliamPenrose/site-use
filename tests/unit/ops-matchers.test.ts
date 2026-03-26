@@ -1,12 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import type { Snapshot, SnapshotNode } from '../../src/primitives/types.js';
+import type { SnapshotNode } from '../../src/primitives/types.js';
 import { matchByRule, matchAllByRule, findByDescriptor, meetsCondition } from '../../src/ops/matchers.js';
-
-function buildSnapshot(nodes: SnapshotNode[]): Snapshot {
-  const idToNode = new Map<string, SnapshotNode>();
-  for (const node of nodes) idToNode.set(node.uid, node);
-  return { idToNode };
-}
+import { buildSnapshot } from '../../src/testing/index.js';
 
 describe('matchByRule', () => {
   it('returns uid when role and exact name match', () => {

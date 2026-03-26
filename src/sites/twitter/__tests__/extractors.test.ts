@@ -1,13 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   parseTweet,
   buildFeedMeta,
   parseGraphQLTimeline,
   processFullText,
-} from '../../src/sites/twitter/extractors.js';
-import type { RawTweetData } from '../../src/sites/twitter/types.js';
+} from '../extractors.js';
+import type { RawTweetData } from '../types.js';
 
 const RAW_TWEET: RawTweetData = {
   authorHandle: 'karpathy',
@@ -231,7 +232,7 @@ interface FixtureEntry {
   tweet_results: { result: Record<string, unknown> };
 }
 
-const fixturesPath = path.resolve('tests/fixtures/twitter-graphql/tweet-variants.json');
+const fixturesPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'fixtures/tweet-variants.json');
 const allFixtures: FixtureEntry[] = JSON.parse(fs.readFileSync(fixturesPath, 'utf-8'));
 
 function wrapAsTimeline(itemContent: FixtureEntry | Record<string, unknown>): string {

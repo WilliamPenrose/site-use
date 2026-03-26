@@ -1,379 +1,38 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { z } from 'zod';
-import { checkLogin, getFeed } from './sites/twitter/workflows.js';
-import { twitterSiteConfig } from './sites/twitter/site.js';
-import type { Primitives } from './primitives/types.js';
-import { ensureBrowser, isBrowserConnected } from './browser/browser.js';
-import { buildPrimitivesStack, type PrimitivesStack } from './primitives/factory.js';
-import { getConfig } from './config.js';
-import { Mutex } from './mutex.js';
-import { withLock } from './lock.js';
-import path from 'node:path';
-import fs from 'node:fs';
-import { SiteUseError, BrowserDisconnected, RateLimited } from './errors.js';
-import { createStore, type KnowledgeStore } from './storage/index.js';
-import { SEARCH_FIELDS } from './storage/types.js';
-import { getAllTimestamps, setLastFetchTime } from './fetch-timestamps.js';
+import { discoverPlugins } from './registry/discovery.js';
+import { generateMcpTools } from './registry/codegen.js';
+import { SiteRuntimeManager } from './runtime/manager.js';
+import { registerGlobalTools } from './server-global-tools.js';
 import { BUILD_HASH, BUILD_DATE } from './build-info.js';
-
-// ---------------------------------------------------------------------------
-// Primitives singleton + lazy Chrome + disconnect recovery
-// ---------------------------------------------------------------------------
-
-let stack: PrimitivesStack | null = null;
-
-async function getPrimitives(): Promise<PrimitivesStack> {
-  if (stack && isBrowserConnected()) {
-    return stack;
-  }
-
-  // Disconnected or first call — (re)create everything
-  stack = null;
-
-  const browser = await ensureBrowser({ autoLaunch: true });
-  stack = buildPrimitivesStack(browser, [twitterSiteConfig]);
-  return stack;
-}
-
-// ---------------------------------------------------------------------------
-// Knowledge store singleton
-// ---------------------------------------------------------------------------
-
-let storeInstance: KnowledgeStore | null = null;
-
-function getOrCreateStore(): KnowledgeStore {
-  if (!storeInstance) {
-    const config = getConfig();
-    const dbPath = path.join(config.dataDir, 'data', 'knowledge.db');
-    fs.mkdirSync(path.dirname(dbPath), { recursive: true });
-    storeInstance = createStore(dbPath);
-  }
-  return storeInstance;
-}
-
-// ---------------------------------------------------------------------------
-// Circuit breaker — trip after N consecutive non-trivial errors
-// ---------------------------------------------------------------------------
-
-const CIRCUIT_BREAKER_THRESHOLD = 5;
-let errorStreak = 0;
-
-export function resetErrorStreak(): void {
-  errorStreak = 0;
-}
-
-export function _getErrorStreak(): number {
-  return errorStreak;
-}
-
-// ---------------------------------------------------------------------------
-// Error formatting — structured JSON + isError for MCP
-// ---------------------------------------------------------------------------
-
-interface ToolResult {
-  [key: string]: unknown;
-  content: Array<{ type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string }>;
-  isError?: boolean;
-}
-
-export async function formatToolError(err: unknown, primitives?: Primitives): Promise<ToolResult> {
-  if (err instanceof BrowserDisconnected) {
-    // Force reconnect on next tool call
-    stack = null;
-    // Don't count browser crashes toward the circuit breaker
-  } else if (err instanceof RateLimited) {
-    // Already rate limited — don't count to avoid re-triggering
-  } else {
-    errorStreak++;
-    if (errorStreak >= CIRCUIT_BREAKER_THRESHOLD) {
-      errorStreak = 0;
-      const lastErrorType = err instanceof SiteUseError ? err.type : 'unknown';
-      const lastErrorMsg = err instanceof Error ? err.message : String(err);
-      const cbErr = new RateLimited(
-        `${CIRCUIT_BREAKER_THRESHOLD} consecutive operation failures — circuit breaker triggered (last: ${lastErrorType})`,
-        {
-          step: 'circuitBreaker',
-          hint: `circuit breaker: ${CIRCUIT_BREAKER_THRESHOLD} operations failed in a row (last error: ${lastErrorMsg}). The site may be rate-limiting or experiencing issues. Wait a few minutes before retrying.`,
-        },
-      );
-      return {
-        content: [{
-          type: 'text',
-          text: JSON.stringify({ type: cbErr.type, message: cbErr.message, context: cbErr.context }),
-        }],
-        isError: true,
-      };
-    }
-  }
-
-  if (err instanceof SiteUseError) {
-    // Auto-screenshot (skip for BrowserDisconnected — browser is gone)
-    if (primitives && !(err instanceof BrowserDisconnected)) {
-      try {
-        const screenshot = await primitives.screenshot();
-        err.context.screenshotBase64 = screenshot;
-      } catch {
-        // Screenshot failed — don't mask the original error
-      }
-    }
-
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify({
-          type: err.type,
-          message: err.message,
-          context: err.context,
-        }),
-      }],
-      isError: true,
-    };
-  }
-
-  // Unknown / internal error
-  return {
-    content: [{
-      type: 'text',
-      text: JSON.stringify({
-        type: 'InternalError',
-        message: err instanceof Error ? err.message : String(err),
-        context: {},
-      }),
-    }],
-    isError: true,
-  };
-}
-
-// ---------------------------------------------------------------------------
-// MCP Server factory
-// ---------------------------------------------------------------------------
-
-const mutex = new Mutex();
 
 function getVersion(): string {
   if (BUILD_HASH === 'dev') return 'dev';
   return `${BUILD_DATE}+${BUILD_HASH}`;
 }
 
-export function createServer(): McpServer {
+export async function createServer(): Promise<McpServer> {
   const server = new McpServer({
     name: 'site-use',
     version: getVersion(),
   });
 
-  // -- twitter_check_login --------------------------------------------------
+  // Discover all plugins (built-in + external), validate
+  const plugins = await discoverPlugins();
 
-  server.registerTool(
-    'twitter_check_login',
-    { description: 'Check if the user is logged in to Twitter/X' },
-    async () => {
-      return withLock(async () => {
-        return mutex.run(async () => {
-          try {
-            const s = await getPrimitives();
-            const result = await checkLogin(s.throttled);
-            resetErrorStreak();
-            return {
-              content: [{ type: 'text' as const, text: JSON.stringify(result) }],
-            };
-          } catch (err) {
-            return await formatToolError(err, stack?.guarded);
-          }
-        });
-      });
-    },
-  );
+  // Create runtime manager (lazy per-site isolation)
+  const runtimeManager = new SiteRuntimeManager(plugins);
 
-  // -- twitter_feed ----------------------------------------------------------
+  // Generate and register site-specific MCP tools
+  const tools = generateMcpTools(plugins, runtimeManager);
+  for (const tool of tools) {
+    server.registerTool(tool.name, tool.config, tool.handler);
+  }
 
-  server.registerTool(
-    'twitter_feed',
-    {
-      description: 'Collect tweets from the Twitter/X home feed. This launches a browser and takes 10-30s. Call the stats tool first to check when data was last collected — if recent enough, use search instead.',
-      inputSchema: {
-        count: z.number().min(1).max(100).default(20)
-          .describe('Number of tweets to collect'),
-        tab: z.enum(['following', 'for_you']).default('following')
-          .describe('Which feed tab to read: "following" (chronological) or "for_you" (algorithmic)'),
-        debug: z.boolean().default(false)
-          .describe('Include diagnostic info (tab action, reload fallback, GraphQL counts, timing)'),
-        dump_raw: z.string().optional()
-          .describe('Directory path to dump raw GraphQL responses for debugging'),
-      },
-    },
-    async ({ count, tab, debug, dump_raw }) => {
-      return withLock(async () => {
-        return mutex.run(async () => {
-          try {
-            const s = await getPrimitives();
-            const store = getOrCreateStore();
-            const result = await getFeed(s.guarded, { count, tab, debug, store, dumpRaw: dump_raw });
-            resetErrorStreak();
-            const cfg = getConfig();
-            setLastFetchTime(path.join(cfg.dataDir, 'fetch-timestamps.json'), 'twitter', tab);
-            return {
-              content: [{ type: 'text' as const, text: JSON.stringify(result) }],
-            };
-          } catch (err) {
-            return await formatToolError(err, stack?.guarded);
-          }
-        });
-      });
-    },
-  );
-
-  // -- screenshot -----------------------------------------------------------
-
-  server.registerTool(
-    'screenshot',
-    {
-      description: 'Take a screenshot of the current browser page, returned as base64 PNG',
-      inputSchema: {
-        site: z.string().optional()
-          .describe('Site key (defaults to the most recently used page)'),
-      },
-    },
-    async ({ site }) => {
-      return withLock(async () => {
-        return mutex.run(async () => {
-          try {
-            const s = await getPrimitives();
-            const data = await s.guarded.screenshot(site);
-            resetErrorStreak();
-            return {
-              content: [{ type: 'image' as const, data, mimeType: 'image/png' }],
-            };
-          } catch (err) {
-            return await formatToolError(err, stack?.guarded);
-          }
-        });
-      });
-    },
-  );
-
-  // -- search ---------------------------------------------------------------
-
-  server.registerTool(
-    'search',
-    {
-      description: 'Search the local knowledge base of collected social media posts',
-      inputSchema: {
-        query: z.string().optional()
-          .describe('Full-text search query'),
-        author: z.string().optional()
-          .describe('Filter by author handle (without @ prefix)'),
-        start_date: z.string().optional()
-          .describe('Return items after this date (ISO 8601, e.g. 2026-03-01T00:00:00Z)'),
-        end_date: z.string().optional()
-          .describe('Return items before this date (ISO 8601, e.g. 2026-03-24T00:00:00Z)'),
-        max_results: z.number().min(1).max(100).default(20)
-          .describe('Maximum number of results to return'),
-        hashtag: z.string().optional()
-          .describe('Filter by hashtag (without # prefix)'),
-        mention: z.string().optional()
-          .describe('Filter by mentioned handle (without @ prefix)'),
-        min_likes: z.number().optional()
-          .describe('Minimum likes threshold'),
-        min_retweets: z.number().optional()
-          .describe('Minimum retweets threshold'),
-        surface_reason: z.enum(['original', 'retweet', 'quote', 'reply']).optional()
-          .describe('Filter by how the tweet appeared in the feed: original, retweet, quote, or reply'),
-        fields: z.array(z.enum(SEARCH_FIELDS)).optional()
-          .describe('Fields to include in results. Defaults to all fields.'),
-      },
-    },
-    async ({ query, author, start_date, end_date, max_results, hashtag, mention, min_likes, min_retweets, surface_reason, fields }) => {
-      try {
-        const store = getOrCreateStore();
-        const metricFilters: Array<{ metric: string; op: '>=' | '<=' | '='; numValue?: number; strValue?: string }> = [];
-        if (min_likes != null) metricFilters.push({ metric: 'likes', op: '>=', numValue: min_likes });
-        if (min_retweets != null) metricFilters.push({ metric: 'retweets', op: '>=', numValue: min_retweets });
-        if (surface_reason != null) metricFilters.push({ metric: 'surface_reason', op: '=', strValue: surface_reason });
-        const result = await store.search({
-          query, author, start_date, end_date, max_results, hashtag, mention,
-          metricFilters: metricFilters.length > 0 ? metricFilters : undefined,
-          fields,
-        });
-
-        return {
-          content: [{ type: 'text' as const, text: JSON.stringify(result) }],
-        };
-      } catch (err) {
-        return {
-          content: [{ type: 'text' as const, text: JSON.stringify({ error: String(err) }) }],
-          isError: true,
-        };
-      }
-    },
-  );
-
-  // -- stats ----------------------------------------------------------------
-
-  server.registerTool(
-    'stats',
-    {
-      description:
-        'Show knowledge base statistics per site: post counts, content time range, ' +
-        'and when each feed tab was last collected. ' +
-        'Use this to decide whether to fetch fresh data or query existing data with search.',
-      inputSchema: {
-        site: z.string().optional()
-          .describe('Only return stats for this site (e.g. "twitter"). Omit for all sites.'),
-      },
-    },
-    async ({ site }) => {
-      try {
-        const store = getOrCreateStore();
-        const dbStats = await store.statsBySite(site);
-
-        // Merge collection timestamps from fetch-timestamps.json
-        const cfg = getConfig();
-        const tsPath = path.join(cfg.dataDir, 'fetch-timestamps.json');
-        const allTimestamps = getAllTimestamps(tsPath);
-
-        const result: Record<string, unknown> = {};
-        for (const [siteName, siteStats] of Object.entries(dbStats)) {
-          result[siteName] = {
-            ...siteStats,
-            lastCollected: allTimestamps[siteName] ?? {},
-          };
-        }
-
-        // Include sites that have timestamps but no DB data yet
-        for (const [siteName, variants] of Object.entries(allTimestamps)) {
-          if (!result[siteName] && (!site || siteName === site)) {
-            result[siteName] = {
-              totalPosts: 0,
-              uniqueAuthors: 0,
-              oldestPost: null,
-              newestPost: null,
-              lastCollected: variants,
-            };
-          }
-        }
-
-        return {
-          content: [{ type: 'text' as const, text: JSON.stringify(result) }],
-        };
-      } catch (err) {
-        return {
-          content: [{ type: 'text' as const, text: JSON.stringify({ error: String(err) }) }],
-          isError: true,
-        };
-      }
-    },
-  );
+  // Register global tools (screenshot, search, stats)
+  registerGlobalTools(server, runtimeManager);
 
   return server;
-}
-
-// ---------------------------------------------------------------------------
-// Test seam — allows injecting a mock primitives for contract tests
-// ---------------------------------------------------------------------------
-
-export function _setPrimitivesForTest(s: PrimitivesStack | null): void {
-  stack = s;
 }
 
 // ---------------------------------------------------------------------------
@@ -381,7 +40,7 @@ export function _setPrimitivesForTest(s: PrimitivesStack | null): void {
 // ---------------------------------------------------------------------------
 
 export async function main(): Promise<void> {
-  const server = createServer();
+  const server = await createServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }

@@ -53,34 +53,34 @@ export interface ThrottleConfig {
 
 export interface Primitives {
   /** Navigate to URL and wait for load. Aligned with devtools-mcp navigate_page. */
-  navigate(url: string, site?: string): Promise<void>;
+  navigate(url: string): Promise<void>;
 
   /**
    * Get accessibility tree snapshot. Aligned with devtools-mcp take_snapshot.
    * Returns uid-indexed node map. uid is snapshot-scoped (refreshed each call).
    */
-  takeSnapshot(site?: string): Promise<Snapshot>;
+  takeSnapshot(): Promise<Snapshot>;
 
   /** Click element by snapshot uid. Aligned with devtools-mcp click. */
-  click(uid: string, site?: string): Promise<void>;
+  click(uid: string): Promise<void>;
 
   /** Type text into element by snapshot uid. Aligned with devtools-mcp type. */
-  type(uid: string, text: string, site?: string): Promise<void>;
+  type(uid: string, text: string): Promise<void>;
 
   /** Scroll the page. Aligned with devtools-mcp scroll. */
-  scroll(options: ScrollOptions, site?: string): Promise<void>;
+  scroll(options: ScrollOptions): Promise<void>;
 
   /** Scroll element into view if not already visible. */
-  scrollIntoView(uid: string, site?: string): Promise<void>;
+  scrollIntoView(uid: string): Promise<void>;
 
   /**
    * Execute JS expression in browser context. Aligned with devtools-mcp evaluate_script.
    * Pass string expressions, not function references (runs in browser, no Node.js closures).
    */
-  evaluate<T = unknown>(expression: string, site?: string): Promise<T>;
+  evaluate<T = unknown>(expression: string): Promise<T>;
 
   /** Take screenshot, return base64 PNG. Aligned with devtools-mcp screenshot. */
-  screenshot(site?: string): Promise<string>;
+  screenshot(): Promise<string>;
 
   /**
    * Intercept network responses matching URL pattern.
@@ -90,12 +90,11 @@ export interface Primitives {
   interceptRequest(
     urlPattern: string | RegExp,
     handler: InterceptHandler,
-    site?: string,
   ): Promise<() => void>;
 
   /**
    * Escape hatch: get raw Puppeteer Page for operations Primitives can't cover.
    * Exception, not the norm. Used for proxy auth (page.authenticate).
    */
-  getRawPage(site?: string): Promise<Page>;
+  getRawPage(): Promise<Page>;
 }
