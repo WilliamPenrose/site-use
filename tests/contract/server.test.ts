@@ -1,13 +1,45 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Primitives } from '../../src/primitives/types.js';
-import { createServer, _setPrimitivesForTest } from '../../src/server.js';
+
+// Mock the runtime manager to return a mock runtime with mock primitives
+const mockPrimitives: Primitives = {
+  navigate: vi.fn().mockResolvedValue(undefined),
+  takeSnapshot: vi.fn().mockResolvedValue({ idToNode: new Map() }),
+  click: vi.fn().mockResolvedValue(undefined),
+  type: vi.fn().mockResolvedValue(undefined),
+  scroll: vi.fn().mockResolvedValue(undefined),
+  scrollIntoView: vi.fn().mockResolvedValue(undefined),
+  evaluate: vi.fn().mockResolvedValue(undefined),
+  screenshot: vi.fn().mockResolvedValue('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVQI12P4z8AAAAACAAHiIbwzAAAAAElFTkSuQmCC'),
+  interceptRequest: vi.fn().mockResolvedValue(() => {}),
+  getRawPage: vi.fn().mockResolvedValue({}),
+};
+
+const mockRuntime = {
+  plugin: { name: 'twitter' },
+  primitives: mockPrimitives,
+  page: {},
+  mutex: { run: async (fn: () => Promise<unknown>) => fn() },
+  circuitBreaker: { isTripped: false, recordSuccess: vi.fn(), recordError: vi.fn(), streak: 0 },
+  rateLimitDetector: {},
+  authState: { loggedIn: null, lastCheckedAt: null },
+};
+
+vi.mock('../../src/runtime/manager.js', () => ({
+  SiteRuntimeManager: vi.fn().mockImplementation(() => ({
+    get: vi.fn().mockResolvedValue(mockRuntime),
+    clearAll: vi.fn(),
+    has: vi.fn().mockReturnValue(false),
+  })),
+}));
 
 vi.mock('../../src/storage/index.js', () => ({
   createStore: vi.fn(() => ({
-    search: vi.fn().mockResolvedValue([]),
-    ingest: vi.fn().mockResolvedValue(undefined),
+    search: vi.fn().mockResolvedValue({ items: [] }),
+    ingest: vi.fn().mockResolvedValue({ inserted: 0, duplicates: 0 }),
     stats: vi.fn().mockResolvedValue({}),
     countItems: vi.fn().mockResolvedValue(0),
     statsBySite: vi.fn().mockImplementation(async (site?: string) => {
@@ -43,29 +75,13 @@ vi.mock('../../src/browser/browser.js', () => ({
   isBrowserConnected: vi.fn().mockReturnValue(true),
 }));
 
-function createMockPrimitives(): Primitives {
-  return {
-    navigate: vi.fn().mockResolvedValue(undefined),
-    takeSnapshot: vi.fn().mockResolvedValue({ idToNode: new Map() }),
-    click: vi.fn().mockResolvedValue(undefined),
-    type: vi.fn().mockResolvedValue(undefined),
-    scroll: vi.fn().mockResolvedValue(undefined),
-    scrollIntoView: vi.fn().mockResolvedValue(undefined),
-    evaluate: vi.fn().mockResolvedValue(undefined),
-    screenshot: vi.fn().mockResolvedValue('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVQI12P4z8AAAAACAAHiIbwzAAAAAElFTkSuQmCC'),
-    interceptRequest: vi.fn().mockResolvedValue(() => {}),
-    getRawPage: vi.fn().mockResolvedValue({}),
-  };
-}
-
 describe('MCP Server contract', () => {
   let client: Client;
-  let server: ReturnType<typeof createServer>;
+  let server: McpServer;
 
   beforeEach(async () => {
-    const mock = createMockPrimitives();
-    _setPrimitivesForTest({ guarded: mock, throttled: mock });
-    server = createServer();
+    const { createServer } = await import('../../src/server.js');
+    server = await createServer();
     const [clientTransport, serverTransport] =
       InMemoryTransport.createLinkedPair();
     await server.connect(serverTransport);
@@ -76,7 +92,6 @@ describe('MCP Server contract', () => {
   afterEach(async () => {
     await client.close();
     await server.close();
-    _setPrimitivesForTest(null);
   });
 
   it('responds to initialize with server info', () => {
@@ -117,7 +132,8 @@ describe('MCP Server contract', () => {
   });
 
   it('screenshot tool returns image content', async () => {
-    const result = await client.callTool({ name: 'screenshot', arguments: {} });
+    // screenshot now requires a site param
+    const result = await client.callTool({ name: 'screenshot', arguments: { site: 'twitter' } });
     const content = result.content as any[];
     expect(content).toHaveLength(1);
     expect(content[0].type).toBe('image');

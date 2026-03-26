@@ -9,7 +9,7 @@ import { getConfig } from '../config.js';
 import { withLock } from '../lock.js';
 import { createStore } from '../storage/index.js';
 import type { SearchParams } from '../storage/types.js';
-import { tweetToSearchResultItem, feedItemsToIngestItems } from '../sites/twitter/store-adapter.js';
+import { feedItemsToIngestItems } from '../sites/twitter/store-adapter.js';
 import { formatTweetText } from '../sites/twitter/format.js';
 import { setLastFetchTime } from '../fetch-timestamps.js';
 import { checkFreshness, formatAge } from './freshness.js';
