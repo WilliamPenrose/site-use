@@ -7,9 +7,16 @@ import { runWorkflowCli } from './cli/workflow.js';
 import { runCleanCli } from './cli/clean.js';
 import { ensureBrowser } from './browser/browser.js';
 import { runDiagnose } from './diagnose/runner.js';
+import { BUILD_HASH, BUILD_DATE } from './build-info.js';
+
+function getVersion(): string {
+  if (BUILD_HASH === 'dev') return 'dev';
+  return `${BUILD_DATE} (${BUILD_HASH})`;
+}
 
 const HELP = `\
-site-use — Site-level browser automation via MCP
+site-use ${getVersion()} — Site-level browser automation via MCP
+
 
 Usage: site-use <command> [subcommand]
 
@@ -182,6 +189,11 @@ Options:
       await runDiagnose(browser, { keepOpen });
       break;
     }
+
+    case '--version':
+    case '-v':
+      console.log(getVersion());
+      break;
 
     case 'help':
     case '--help':

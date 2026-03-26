@@ -1,10 +1,31 @@
 {
   "name": "site-use",
-  "version": "0.1.0",
+  "version": "2026.3.26",
   "description": "Site-level browser automation via MCP — deterministic workflows for Chrome, so AI can focus on content understanding.",
   "type": "module",
   "bin": {
     "site-use": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./browser": {
+      "import": "./dist/browser/browser.js",
+      "types": "./dist/browser/browser.d.ts"
+    },
+    "./primitives": {
+      "import": "./dist/primitives/factory.js",
+      "types": "./dist/primitives/factory.d.ts"
+    },
+    "./storage": {
+      "import": "./dist/storage/index.js",
+      "types": "./dist/storage/index.d.ts"
+    }
   },
   "scripts": {
     "build": "node scripts/build.mjs",
@@ -25,7 +46,7 @@
   ],
   "license": "MIT",
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.14.0"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.8.0",

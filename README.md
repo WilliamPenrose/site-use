@@ -1,114 +1,121 @@
 # site-use
 
-想让 AI 帮你盯着 Twitter timeline，又怕封号、又嫌贵？
+[中文](README.zh.md)
 
-site-use 让你的 agent 像真人一样刷推，自动缓存看过的内容，以最低成本把有价值的信息喂给你。
+Want your AI agent to monitor your Twitter timeline — but worried about getting banned, or burning tokens on every scroll?
 
-## 为什么用 site-use
+site-use lets your agent browse Twitter like a real person, automatically caches everything it sees, and delivers structured content at the lowest possible cost.
 
-### 不会封号
+## Why site-use
 
-你的 agent 不是在"爬"Twitter，而是像一个真人一样在刷推。
+### Won't get you banned
 
-site-use 使用你自己的 Chrome 浏览器，像真人一样浏览——滚动有加减速、鼠标移动有弧度、点击带抖动、操作之间会停顿。多年来，全网无数反检测项目和平台斗智斗勇，很多曾经有效的策略早已失效。我们持续追踪这场对抗，把当下仍然有效的策略融进 site-use，并内置诊断套件持续验证效果。
+Your agent isn't "scraping" Twitter — it's browsing like a human.
 
-### 最低成本
+site-use uses your own Chrome browser, mimicking real human behavior — variable-speed scrolling, mouse movements with natural curves, clicks with jitter, pauses between actions. Over the years, countless anti-detection projects have battled platforms, and many once-effective strategies have been patched out. We continuously track this arms race, incorporating only what still works today, with a built-in diagnostic suite to verify effectiveness.
 
-没有 site-use 时，你的 agent 为了滚动一下屏幕，需要：截屏 → 看网页 → 决定下一步操作 → 执行。这些辅助动作消耗的 token 远超推文内容本身。
+### Lowest cost
 
-site-use 把这些浏览动作预先封装好，执行时零 token 消耗。agent 只需要处理最终拿到的推文内容。
+Without site-use, your agent has to take a screenshot → read the page → decide what to do → execute — just to scroll down. These auxiliary actions consume far more tokens than the tweet content itself.
 
-一次 feed 抓取只需要几秒——稍有等待是因为刻意模拟真人浏览节奏。
+site-use bakes all browsing actions into deterministic code. Zero token cost at execution time. Your agent only processes the final tweet content.
 
-### 过目不忘
+A single feed collection takes just seconds — the slight wait is intentional, mimicking human browsing pace.
 
-所有抓取内容自动存入本地数据库，支持全文搜索，可按作者、日期、互动量、推文类型筛选。抓一次，永远能查。
+### Photographic memory
 
-对比其他方案：
+All collected content is automatically stored in a local database with full-text search. Filter by author, date, engagement metrics, or tweet type. Fetch once, query forever.
 
-- **普通爬虫/抓取器** 看不到你的专属 timeline，除非你把账号密码交给第三方
-- **让 agent 自己去看网页** 不仅贵，还不会帮你缓存，每次都要重新抓
-- **Twitter 官方 API** 是最佳选择，推荐有条件的用户优先使用以支持平台发展。site-use 是为暂时负担不起 $200/月的用户提供的替代方案
+Compared to alternatives:
 
-### 结构化语义
+- **Traditional scrapers** can't see your personalized timeline unless you hand over your credentials to a third party
+- **Letting your agent browse the web directly** is not only expensive, but doesn't cache anything — every session starts from scratch
+- **Twitter's official API** is the best option if you can afford it — we encourage subscribing to support the platform. site-use is for those who can't justify $200/month
 
-你的 agent 拿到的不是一大坨 HTML，而是有语义的结构化内容：
+### Structured semantics
 
-- **谁**发的（作者、关注关系）
-- **什么时候**发的
-- **以什么方式**（原创、转推、回复、引用）
-- **说了什么**（推文全文）
-- **互动数据**（点赞、转推、回复、浏览量）
+Your agent doesn't get a wall of HTML. It gets structured, meaningful content:
 
-如果把整个网页丢给大模型，上下文会被大量 HTML 标签占满，真正有价值的内容占比极低——不仅贵，还会让模型降智。site-use 只把有意义的内容喂给 agent。
+- **Who** posted (author, follow relationship)
+- **When** it was posted
+- **How** (original, retweet, reply, quote)
+- **What** they said (full text)
+- **Engagement** (likes, retweets, replies, views)
 
-## 快速上手
+Dumping raw HTML into a language model fills its context with low-value tags — the actual content is a tiny fraction. This is not only expensive but degrades model performance. site-use feeds only meaningful content to your agent.
 
-### 1. 安装
+## Quick start
+
+### 1. Install
 
 ```bash
-pnpm install && pnpm run build
+git clone https://github.com/WilliamPenrose/site-use.git
+cd site-use
+pnpm install
+pnpm run build
+npm link
 ```
 
-### 2. 配置 MCP 客户端
+After this, you can run `site-use --help` from any directory.
 
-以 Claude Desktop 为例，找到配置文件 `claude_desktop_config.json`（Settings → Developer → Edit Config），添加：
+### 2. Configure your MCP client
+
+For Claude Desktop, open `claude_desktop_config.json` (Settings → Developer → Edit Config) and add:
 
 ```json
 {
   "mcpServers": {
     "site-use": {
-      "command": "node",
-      "args": ["<安装路径>/dist/index.js", "mcp"]
+      "command": "site-use",
+      "args": ["mcp"]
     }
   }
 }
 ```
 
-### 3. 登录 Twitter
+### 3. Log in to Twitter
 
-首次使用时，site-use 会启动一个专属的 Chrome 浏览器，拥有独立的配置文件——你日常浏览器里的 cookie、密码、浏览记录，agent 一概看不到。在这个浏览器中登录你的 Twitter 账号，只需一次。Chrome 的安全机制天然保护了你的账号密码，agent 无法获取。
+On first launch, site-use starts a dedicated Chrome browser with its own profile — your regular browser's cookies, passwords, and history are completely invisible to the agent. Log in to your Twitter account in this browser, just once. Chrome's security model naturally protects your credentials from agent access.
 
-### 4. 开始使用
+### 4. Start using
 
-对你的 agent 说："帮我看一下 Twitter timeline"，agent 会通过 MCP 调用 site-use 自动完成抓取。
+Tell your agent: "Check my Twitter timeline" — it will call site-use via MCP to collect tweets automatically.
 
-你也可以直接用命令行：
+You can also use the CLI directly:
 
 ```bash
-site-use twitter feed             # 抓取 timeline，有缓存时自动使用缓存
-site-use search "关键词"          # 全文搜索
-site-use stats                   # 查看数据库统计
+site-use twitter feed             # Fetch timeline, uses cache when available
+site-use search "keyword"         # Full-text search
+site-use stats                    # Database statistics
 ```
 
-命令行操作绝对零 token 消耗。
+CLI operations cost zero tokens.
 
-## 架构
+## Architecture
 
 ```
-Browser 层 → Sites 层 → MCP Server + CLI
+Browser layer → Sites layer → MCP Server + CLI
 ```
 
-**Browser 层（安全基座）**
+**Browser layer (security foundation)**
 
-独立 Chrome 配置文件隔离用户隐私，启动参数级别的反指纹，行为级别的拟人化，三层防护从底层开始构建信任。
+Isolated Chrome profile protects user privacy. Anti-fingerprinting at the launch-parameter level. Human-like behavior at the interaction level. Three layers of defense built from the ground up.
 
-**Sites 层（封装 + 本地私有存储）**
+**Sites layer (workflows + local private storage)**
 
-Twitter 专属工作流，直接提取 Twitter 内部的完整数据，不丢失任何信息。抓取内容自动进入本地数据库，你的 Twitter 数据终身归你所有，不经过任何第三方。
+Twitter-specific workflows that extract full structured data directly from Twitter. All content flows into a local database — your Twitter data belongs to you permanently, never passing through any third party.
 
-**MCP Server + CLI（两种使用方式）**
+**MCP Server + CLI (two ways to use)**
 
-想方便就让 agent 通过 MCP 操作，花一点 token 换省心；常规操作不想烧 token 就自己用命令行，同一套数据，丰俭由人。
+Want convenience? Let your agent operate via MCP, spending a few tokens for hands-free automation. Want zero cost? Use the CLI yourself. Same data, your choice.
 
-## 路线图
+## Roadmap
 
-- [x] Twitter timeline 抓取与本地缓存
-- [x] 全文搜索与结构化筛选
-- [x] 反检测诊断套件
-- [ ] Reddit 支持
-- [ ] 小红书支持
-- [ ] 更多站点（欢迎在 Issues 中投票）
+- [x] Twitter timeline collection and local caching
+- [x] Full-text search with structured filters
+- [x] Anti-detection diagnostic suite
+- [ ] Reddit support
+- [ ] More sites (vote in Issues)
 
 ## License
 

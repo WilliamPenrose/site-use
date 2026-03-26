@@ -26,7 +26,7 @@ function run(cmd, label) {
 // Step 1: Main TypeScript compilation
 run('npx tsc', 'tsc (main)');
 
-// Step 1.5: Stamp BUILD_HASH and BUILD_DATE into compiled output
+// Step 1.5: Stamp BUILD_HASH, BUILD_DATE, and package.json version
 try {
   const hash = execSync('git rev-parse --short HEAD', { cwd: ROOT, encoding: 'utf-8' }).trim();
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, '.');
@@ -36,6 +36,17 @@ try {
   );
   console.log(`[build] BUILD_HASH: ${hash}`);
   console.log(`[build] BUILD_DATE: ${today}`);
+
+  // Update package.json version to CalVer (YYYY.M.D)
+  const d = new Date();
+  const calver = `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`;
+  const pkgPath = path.join(ROOT, 'package.json');
+  const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+  if (pkg.version !== calver) {
+    pkg.version = calver;
+    fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n', 'utf-8');
+    console.log(`[build] package.json version: ${calver}`);
+  }
 } catch {
   console.log('[build] BUILD_HASH: dev (not in git repo)');
 }
