@@ -1,29 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
-import type { Primitives, SnapshotNode, Snapshot } from '../../src/primitives/types.js';
 import { ElementNotFound, StateTransitionFailed } from '../../src/errors.js';
 import { makeEnsureState } from '../../src/ops/ensure-state.js';
-
-function createMockPrimitives(overrides: Partial<Primitives> = {}): Primitives {
-  return {
-    navigate: vi.fn().mockResolvedValue(undefined),
-    takeSnapshot: vi.fn().mockResolvedValue({ idToNode: new Map() }),
-    click: vi.fn().mockResolvedValue(undefined),
-    type: vi.fn().mockResolvedValue(undefined),
-    scroll: vi.fn().mockResolvedValue(undefined),
-    scrollIntoView: vi.fn().mockResolvedValue(undefined),
-    evaluate: vi.fn().mockResolvedValue(undefined),
-    screenshot: vi.fn().mockResolvedValue('base64png'),
-    interceptRequest: vi.fn().mockResolvedValue(() => {}),
-    getRawPage: vi.fn().mockResolvedValue({}),
-    ...overrides,
-  };
-}
-
-function buildSnapshot(nodes: SnapshotNode[]): Snapshot {
-  const idToNode = new Map<string, SnapshotNode>();
-  for (const node of nodes) idToNode.set(node.uid, node);
-  return { idToNode };
-}
+import { createMockPrimitives, buildSnapshot } from '../../src/testing/index.js';
 
 describe('ensureState — URL only', () => {
   it('skips navigate when URL already matches', async () => {

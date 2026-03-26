@@ -5,22 +5,7 @@ import {
   createAuthGuardedPrimitives,
   type AuthGuardConfig,
 } from '../../src/primitives/auth-guard.js';
-
-function createMockPrimitives(overrides: Partial<Primitives> = {}): Primitives {
-  return {
-    navigate: vi.fn().mockResolvedValue(undefined),
-    takeSnapshot: vi.fn().mockResolvedValue({ idToNode: new Map() }),
-    click: vi.fn().mockResolvedValue(undefined),
-    type: vi.fn().mockResolvedValue(undefined),
-    scroll: vi.fn().mockResolvedValue(undefined),
-    scrollIntoView: vi.fn().mockResolvedValue(undefined),
-    evaluate: vi.fn().mockResolvedValue(undefined),
-    screenshot: vi.fn().mockResolvedValue('base64png'),
-    interceptRequest: vi.fn().mockResolvedValue(() => {}),
-    getRawPage: vi.fn().mockResolvedValue({}),
-    ...overrides,
-  };
-}
+import { createMockPrimitives } from '../../src/testing/index.js';
 
 const twitterConfig: AuthGuardConfig = {
   site: 'twitter',
