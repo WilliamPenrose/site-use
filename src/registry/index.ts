@@ -15,3 +15,4 @@ export type {
 } from './types.js';
 
 export { validatePlugins } from './validation.js';
+export { discoverPlugins, mergePlugins } from './discovery.js';
