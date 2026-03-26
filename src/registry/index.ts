@@ -13,3 +13,5 @@ export type {
   ExposeTarget,
   CliConfig,
 } from './types.js';
+
+export { validatePlugins } from './validation.js';
