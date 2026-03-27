@@ -84,6 +84,38 @@ export function upsertCaptured(capturedDir: string, domain: string, entries: Fix
 }
 
 /**
+ * Promote all captured variants for a domain into golden.
+ * Upserts by _variant key. Deletes the captured file after promotion.
+ */
+export function promoteDomain(goldenDirPath: string, capturedDir: string, domain: string): void {
+  const capturedFile = path.join(capturedDir, `${domain}-variants.json`);
+  if (!fs.existsSync(capturedFile)) {
+    throw new Error(`No captured file found: ${capturedFile}`);
+  }
+
+  const captured = JSON.parse(fs.readFileSync(capturedFile, 'utf-8')) as FixtureEntry[];
+  const goldenFile = path.join(goldenDirPath, `${domain}-variants.json`);
+
+  let golden: FixtureEntry[] = [];
+  if (fs.existsSync(goldenFile)) {
+    golden = JSON.parse(fs.readFileSync(goldenFile, 'utf-8')) as FixtureEntry[];
+  }
+
+  for (const entry of captured) {
+    const idx = golden.findIndex(g => g._variant === entry._variant);
+    if (idx >= 0) {
+      golden[idx] = entry;
+    } else {
+      golden.push(entry);
+    }
+  }
+
+  fs.mkdirSync(path.dirname(goldenFile), { recursive: true });
+  fs.writeFileSync(goldenFile, JSON.stringify(golden, null, 2));
+  fs.unlinkSync(capturedFile);
+}
+
+/**
  * Promote a fixture from captured/quarantine into golden.
  * Domain is inferred from the filename prefix (e.g. "timeline-2026-03-27-abc.json" -> "timeline").
  * If a variant with the same _variant string exists in golden, it is replaced. Otherwise appended.

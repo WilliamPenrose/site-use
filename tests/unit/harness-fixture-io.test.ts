@@ -8,6 +8,7 @@ import {
   saveCaptured,
   promoteFixture,
   upsertCaptured,
+  promoteDomain,
   goldenDir,
   harnessDataDir,
 } from '../../src/harness/fixture-io.js';
@@ -162,6 +163,48 @@ describe('upsertCaptured', () => {
     const filePath = upsertCaptured(capturedDir, 'timeline', []);
     expect(filePath).toContain('timeline-variants.json');
     expect(fs.existsSync(filePath)).toBe(false);
+  });
+});
+
+describe('promoteDomain', () => {
+  it('merges captured variants into golden and deletes captured file', () => {
+    const goldenDirPath = path.join(tmpDir, 'golden');
+    const capturedDir = path.join(tmpDir, 'captured');
+    fs.mkdirSync(goldenDirPath, { recursive: true });
+    fs.mkdirSync(capturedDir, { recursive: true });
+
+    const golden = [{ _variant: 'existing', data: 'old' }];
+    fs.writeFileSync(path.join(goldenDirPath, 'timeline-variants.json'), JSON.stringify(golden));
+
+    const captured = [
+      { _variant: 'existing', data: 'updated' },
+      { _variant: 'new|variant', data: 'fresh' },
+    ];
+    fs.writeFileSync(path.join(capturedDir, 'timeline-variants.json'), JSON.stringify(captured));
+
+    promoteDomain(goldenDirPath, capturedDir, 'timeline');
+
+    const result = JSON.parse(fs.readFileSync(path.join(goldenDirPath, 'timeline-variants.json'), 'utf-8'));
+    expect(result).toHaveLength(2);
+    expect(result.find((e: any) => e._variant === 'existing').data).toBe('updated');
+    expect(result.find((e: any) => e._variant === 'new|variant').data).toBe('fresh');
+
+    expect(fs.existsSync(path.join(capturedDir, 'timeline-variants.json'))).toBe(false);
+  });
+
+  it('creates golden file if none exists', () => {
+    const goldenDirPath = path.join(tmpDir, 'golden');
+    const capturedDir = path.join(tmpDir, 'captured');
+    fs.mkdirSync(goldenDirPath, { recursive: true });
+    fs.mkdirSync(capturedDir, { recursive: true });
+
+    const captured = [{ _variant: 'new', data: 'x' }];
+    fs.writeFileSync(path.join(capturedDir, 'timeline-variants.json'), JSON.stringify(captured));
+
+    promoteDomain(goldenDirPath, capturedDir, 'timeline');
+
+    const result = JSON.parse(fs.readFileSync(path.join(goldenDirPath, 'timeline-variants.json'), 'utf-8'));
+    expect(result).toHaveLength(1);
   });
 });
 
