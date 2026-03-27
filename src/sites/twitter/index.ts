@@ -34,7 +34,7 @@ export const plugin: SitePlugin = {
         'media, and thread context.',
       cli: {
         description: 'Collect tweets from the home timeline',
-        help: `Options:\n  --count <n>            Number of tweets (1-100, default: 20)\n  --tab <name>           Feed tab: following | for_you (default: for_you)\n  --debug                Include diagnostic info\n  --dump-raw <dir>       Dump raw GraphQL responses to directory`,
+        help: `Options:\n  --count <n>            Number of tweets (1-100, default: 20)\n  --tab <name>           Feed tab: following | for_you (default: for_you)\n  --debug                Include diagnostic info`,
       },
     },
   },

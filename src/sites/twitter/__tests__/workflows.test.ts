@@ -211,14 +211,15 @@ describe('getFeed', () => {
     expect(result.meta.coveredUsers).toContain('testuser');
   });
 
-  it('MCP schema param names match GetFeedOptions (dumpRaw passthrough)', async () => {
+  it('MCP schema param names match GetFeedOptions', async () => {
     // Simulate the exact data flow: MCP schema parse → plugin.collect → getFeed
-    const mcpInput = { count: 1, tab: 'following' as const, dumpRaw: '/tmp/test-dump' };
+    const mcpInput = { count: 1, tab: 'following' as const };
     const parsed = TwitterFeedParamsSchema.parse(mcpInput);
 
-    // getFeed receives the parsed object — dumpRaw must be accessible
+    // getFeed receives the parsed object — check plugin-level params
     const opts = parsed as NonNullable<Parameters<typeof getFeed>[1]>;
-    expect(opts.dumpRaw).toBe('/tmp/test-dump');
+    expect(opts.count).toBe(1);
+    expect(opts.tab).toBe('following');
   });
 
   it('debug: true produces debug field in result', { timeout: 15000 }, async () => {
