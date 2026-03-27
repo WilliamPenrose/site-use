@@ -58,6 +58,31 @@ export function saveCaptured(capturedDir: string, domain: string, entry: Fixture
   return filePath;
 }
 
+/** Upsert entries into a single captured file per domain. Returns file path. */
+export function upsertCaptured(capturedDir: string, domain: string, entries: FixtureEntry[]): string {
+  const filePath = path.join(capturedDir, `${domain}-variants.json`);
+  if (entries.length === 0) return filePath;
+
+  fs.mkdirSync(capturedDir, { recursive: true });
+
+  let existing: FixtureEntry[] = [];
+  if (fs.existsSync(filePath)) {
+    existing = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as FixtureEntry[];
+  }
+
+  for (const entry of entries) {
+    const idx = existing.findIndex(e => e._variant === entry._variant);
+    if (idx >= 0) {
+      existing[idx] = entry;
+    } else {
+      existing.push(entry);
+    }
+  }
+
+  fs.writeFileSync(filePath, JSON.stringify(existing, null, 2));
+  return filePath;
+}
+
 /**
  * Promote a fixture from captured/quarantine into golden.
  * Domain is inferred from the filename prefix (e.g. "timeline-2026-03-27-abc.json" -> "timeline").

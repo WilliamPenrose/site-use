@@ -7,6 +7,7 @@ import {
   loadFixtureDir,
   saveCaptured,
   promoteFixture,
+  upsertCaptured,
   goldenDir,
   harnessDataDir,
 } from '../../src/harness/fixture-io.js';
@@ -112,6 +113,55 @@ describe('promoteFixture', () => {
     expect(golden).toHaveLength(1);
     expect(golden[0].data).toBe('updated');
     expect(fs.existsSync(sourceFile)).toBe(false);
+  });
+});
+
+describe('upsertCaptured', () => {
+  it('creates new file when none exists', () => {
+    const capturedDir = path.join(tmpDir, 'captured');
+    const entries = [
+      { _variant: 'direct|original', data: 'a' },
+      { _variant: 'direct|retweet', data: 'b' },
+    ];
+    const filePath = upsertCaptured(capturedDir, 'timeline', entries);
+    expect(fs.existsSync(filePath)).toBe(true);
+    const written = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    expect(written).toHaveLength(2);
+    expect(written[0]._variant).toBe('direct|original');
+  });
+
+  it('merges into existing file, replacing same variant', () => {
+    const capturedDir = path.join(tmpDir, 'captured');
+    fs.mkdirSync(capturedDir, { recursive: true });
+    const existing = [
+      { _variant: 'direct|original', data: 'old' },
+      { _variant: 'direct|quote', data: 'keep' },
+    ];
+    fs.writeFileSync(
+      path.join(capturedDir, 'timeline-variants.json'),
+      JSON.stringify(existing),
+    );
+
+    const entries = [
+      { _variant: 'direct|original', data: 'new' },
+      { _variant: 'direct|retweet', data: 'added' },
+    ];
+    upsertCaptured(capturedDir, 'timeline', entries);
+
+    const result = JSON.parse(
+      fs.readFileSync(path.join(capturedDir, 'timeline-variants.json'), 'utf-8'),
+    );
+    expect(result).toHaveLength(3);
+    expect(result.find((e: any) => e._variant === 'direct|original').data).toBe('new');
+    expect(result.find((e: any) => e._variant === 'direct|quote').data).toBe('keep');
+    expect(result.find((e: any) => e._variant === 'direct|retweet').data).toBe('added');
+  });
+
+  it('handles empty entries array without creating file', () => {
+    const capturedDir = path.join(tmpDir, 'captured');
+    const filePath = upsertCaptured(capturedDir, 'timeline', []);
+    expect(filePath).toContain('timeline-variants.json');
+    expect(fs.existsSync(filePath)).toBe(false);
   });
 });
 
