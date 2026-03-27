@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Primitives, SnapshotNode, Snapshot } from '../../../primitives/types.js';
-import { SessionExpired } from '../../../errors.js';
 import { TwitterFeedParamsSchema } from '../types.js';
 
 function createMockPrimitives(overrides: Partial<Primitives> = {}): Primitives {
@@ -26,13 +25,11 @@ function buildSnapshot(nodes: SnapshotNode[]): Snapshot {
 }
 
 let checkLogin: typeof import('../workflows.js').checkLogin;
-let requireLogin: typeof import('../workflows.js').requireLogin;
 let getFeed: typeof import('../workflows.js').getFeed;
 
 beforeEach(async () => {
   const mod = await import('../workflows.js');
   checkLogin = mod.checkLogin;
-  requireLogin = mod.requireLogin;
   getFeed = mod.getFeed;
 });
 
@@ -82,28 +79,6 @@ describe('checkLogin', () => {
     });
     await checkLogin(primitives);
     expect(primitives.navigate).toHaveBeenCalledWith('https://x.com/home');
-  });
-});
-
-describe('requireLogin', () => {
-  it('resolves when logged in', async () => {
-    const primitives = createMockPrimitives({
-      evaluate: vi.fn().mockResolvedValue('https://x.com/home'),
-      takeSnapshot: vi.fn().mockResolvedValue(
-        buildSnapshot([
-          { uid: '1', role: 'link', name: 'Home' },
-          { uid: '10', role: 'tab', name: 'Following', selected: true },
-        ]),
-      ),
-    });
-    await expect(requireLogin(primitives)).resolves.toBeUndefined();
-  });
-
-  it('throws SessionExpired when not logged in', async () => {
-    const primitives = createMockPrimitives({
-      evaluate: vi.fn().mockResolvedValue('https://x.com/i/flow/login'),
-    });
-    await expect(requireLogin(primitives)).rejects.toThrow(SessionExpired);
   });
 });
 
