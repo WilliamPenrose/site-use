@@ -4,7 +4,7 @@ import type { FeedResult } from '../registry/types.js';
 import { ensureBrowser } from '../browser/browser.js';
 import { plugin as twitterPlugin } from '../sites/twitter/index.js';
 import { buildSiteStack } from '../runtime/build-site-stack.js';
-import { getFeed, type TimelineFeed } from '../sites/twitter/workflows.js';
+import { checkLogin, getFeed, type TimelineFeed } from '../sites/twitter/workflows.js';
 import { getConfig } from '../config.js';
 import { withLock } from '../lock.js';
 import { createStore } from '../storage/index.js';
@@ -241,6 +241,30 @@ async function runFetchFromBrowser(parsed: FeedArgs, config: ReturnType<typeof g
   }
 }
 
+async function runTwitterCheckLogin(): Promise<void> {
+  try {
+    await withLock(async () => {
+      const browser = await ensureBrowser({ autoLaunch: true });
+      const primitives = await buildPrimitives(browser);
+      try {
+        const result = await checkLogin(primitives);
+        if (result.loggedIn) {
+          console.log('Logged in to Twitter.');
+        } else {
+          console.log('Not logged in to Twitter.');
+        }
+      } finally {
+        browser.disconnect();
+      }
+    });
+  } catch (err) {
+    const errName = err instanceof Error ? err.constructor.name : 'UnknownError';
+    const errMsg = err instanceof Error ? err.message : String(err);
+    const hint = (err as { context?: { hint?: string } })?.context?.hint ?? 'Check Chrome status and try again.';
+    writeError(errName, errMsg, hint);
+  }
+}
+
 async function runTwitterFeed(args: string[]): Promise<void> {
   if (args.includes('--help') || args.includes('-h') || args.includes('help')) {
     console.log(FEED_HELP);
@@ -316,6 +340,9 @@ export async function runWorkflowCli(site: string, args: string[]): Promise<void
         case 'feed':
           await runTwitterFeed(args.slice(1));
           break;
+        case 'check-login':
+          await runTwitterCheckLogin();
+          break;
         case undefined:
         case 'help':
         case '--help':
@@ -323,7 +350,8 @@ export async function runWorkflowCli(site: string, args: string[]): Promise<void
           console.log(`site-use twitter — Twitter workflow commands
 
 Subcommands:
-  feed    Collect tweets from the home timeline
+  feed          Collect tweets from the home timeline
+  check-login   Check if logged in to Twitter
 
 Options (feed):
   --count <n>            Number of tweets (default: 20)
@@ -336,7 +364,7 @@ Options (feed):
 `);
           break;
         default:
-          writeError('UnknownAction', `Unknown twitter action: ${action}`, 'Available actions: feed');
+          writeError('UnknownAction', `Unknown twitter action: ${action}`, 'Available actions: feed, check-login');
       }
       break;
     }
