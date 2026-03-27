@@ -1,9 +1,11 @@
 import { loadHarness, runDomain } from '../harness/runner.js';
-import { loadGoldenVariants, loadFixtureDir, promoteFixture, goldenDir, harnessDataDir, type FixtureEntry } from '../harness/fixture-io.js';
+import { loadGoldenVariants, loadFixtureDir, promoteDomain, goldenDir, harnessDataDir, type FixtureEntry } from '../harness/fixture-io.js';
+import { captureForHarness } from '../harness/capture.js';
 import { formatReport, formatSummary } from '../harness/report.js';
 import type { HarnessReport } from '../harness/types.js';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 
 const HARNESS_HELP = `\
 site-use harness — Diagnostic harness for schema drift detection
@@ -14,8 +16,8 @@ Subcommands:
     --captured                    Run captured/ fixtures instead of golden
     --quarantine                  Run quarantine/ fixtures instead of golden
 
-  capture <site>                  Manual capture: launch browser, collect feed, save new variants to captured/
-  promote <site> <file>           Promote captured/quarantine fixture to golden
+  capture <site>                  Read dump files, extract and diff against golden, save novel variants
+  promote <site> [domain]         Promote captured variants to golden (all domains if omitted)
   status <site>                   Show fixture counts per partition
 `;
 
@@ -56,12 +58,17 @@ async function runHarnessRun(site: string, args: string[]): Promise<void> {
     if (useCaptured || useQuarantine) {
       source = useCaptured ? 'captured' : 'quarantine';
       const dir = harnessDataDir(site, source);
-      const entries = loadFixtureDir(dir);
-      // Filter by domain prefix
-      const filtered = entries.filter(({ filePath }) =>
-        path.basename(filePath).startsWith(domainName + '-'),
-      );
-      variants = filtered.map(({ entry }) => entry);
+      if (source === 'captured') {
+        // New format: {domain}-variants.json
+        variants = loadGoldenVariants(dir, domainName);
+      } else {
+        // Quarantine still uses old per-file format
+        const entries = loadFixtureDir(dir);
+        const filtered = entries.filter(({ filePath }) =>
+          path.basename(filePath).startsWith(domainName + '-'),
+        );
+        variants = filtered.map(({ entry }) => entry);
+      }
       if (variants.length === 0) {
         console.log(`[harness] No ${source} fixtures found for ${site}/${domainName}`);
         continue;
@@ -90,30 +97,72 @@ async function runHarnessRun(site: string, args: string[]): Promise<void> {
 }
 
 async function runHarnessCapture(site: string): Promise<void> {
-  console.log(`[harness] Manual capture for site: ${site}`);
-  console.log('');
-  console.log('To capture new fixtures:');
-  console.log(`  1. Run: site-use ${site} feed --dump-raw`);
-  console.log(`     This writes raw JSON entries to stdout.`);
-  console.log(`  2. Redirect output and place entries in:`);
-  console.log(`     ~/.site-use/harness/${site}/captured/`);
-  console.log(`  3. Name files as: <domain>-<date>-<id>.json`);
-  console.log(`     Example: timeline-2026-03-27-abc123.json`);
-  console.log(`  4. Each file must contain a single JSON object with a "_variant" field.`);
-  console.log('');
-  console.log(`  Once captured, run: site-use harness run ${site} --captured`);
-  console.log(`  Then promote passing fixtures: site-use harness promote ${site} <file>`);
-}
-
-async function runHarnessPromote(site: string, file: string): Promise<void> {
-  if (!fs.existsSync(file)) {
-    writeError('file_not_found', `File not found: ${file}`);
+  const descriptor = await loadHarness(site);
+  if (!descriptor) {
+    writeError('harness_not_found', `No harness descriptor found for site: ${site}`);
     return;
   }
 
-  const golden = goldenDir(site);
-  promoteFixture(golden, file);
-  console.log(`[harness] Promoted ${path.basename(file)} to golden for site: ${site}`);
+  const dataDir = process.env.SITE_USE_DATA_DIR || path.join(os.homedir(), '.site-use');
+  const dumpDir = path.join(dataDir, 'dump', site);
+
+  if (!fs.existsSync(dumpDir)) {
+    writeError('no_dump_files', `No dump files found. Run "site-use ${site} feed --dump-raw" first.`);
+    return;
+  }
+
+  const dumpFiles = fs.readdirSync(dumpDir)
+    .filter(f => f.endsWith('.json') && !f.endsWith('.prev.json'));
+
+  if (dumpFiles.length === 0) {
+    writeError('no_dump_files', `No dump files found. Run "site-use ${site} feed --dump-raw" first.`);
+    return;
+  }
+
+  const goldenDirPath = goldenDir(site);
+  const capturedDirPath = harnessDataDir(site, 'captured');
+  let totalCaptured = 0;
+  let totalSkipped = 0;
+
+  for (const file of dumpFiles) {
+    const responseBody = fs.readFileSync(path.join(dumpDir, file), 'utf-8');
+    for (const [domainName, domain] of Object.entries(descriptor.domains)) {
+      const result = await captureForHarness(responseBody, domain, domainName, goldenDirPath, capturedDirPath);
+      totalCaptured += result.captured;
+      totalSkipped += result.skipped;
+    }
+  }
+
+  console.log(`[harness] Captured ${totalCaptured}, skipped ${totalSkipped}.`);
+  if (totalCaptured > 0) {
+    console.log(`  Files in ${capturedDirPath}`);
+  }
+}
+
+async function runHarnessPromote(site: string, domain?: string): Promise<void> {
+  const goldenDirPath = goldenDir(site);
+  const capturedDir = harnessDataDir(site, 'captured');
+
+  if (!fs.existsSync(capturedDir)) {
+    writeError('no_captured', `No captured fixtures found for site: ${site}`);
+    return;
+  }
+
+  const domains = domain
+    ? [domain]
+    : fs.readdirSync(capturedDir)
+        .filter(f => f.endsWith('-variants.json'))
+        .map(f => f.replace('-variants.json', ''));
+
+  if (domains.length === 0) {
+    writeError('no_captured', `No captured fixtures found for site: ${site}`);
+    return;
+  }
+
+  for (const d of domains) {
+    promoteDomain(goldenDirPath, capturedDir, d);
+    console.log(`[harness] Promoted ${d} variants to golden for site: ${site}`);
+  }
 }
 
 async function runHarnessStatus(site: string): Promise<void> {
@@ -141,10 +190,19 @@ async function runHarnessStatus(site: string): Promise<void> {
     console.log('  golden/       (not found)');
   }
 
-  // Captured: count JSON files
+  // Captured: count variants per domain file (same format as golden)
   if (fs.existsSync(capturedDir)) {
-    const files = fs.readdirSync(capturedDir).filter((f) => f.endsWith('.json'));
-    console.log(`  captured/     ${files.length} file(s)`);
+    const capturedFiles = fs.readdirSync(capturedDir).filter(f => f.endsWith('-variants.json'));
+    if (capturedFiles.length === 0) {
+      console.log('  captured/     (empty)');
+    } else {
+      console.log('  captured/');
+      for (const f of capturedFiles.sort()) {
+        const domain = f.replace('-variants.json', '');
+        const entries = JSON.parse(fs.readFileSync(path.join(capturedDir, f), 'utf-8')) as unknown[];
+        console.log(`    ${domain}: ${entries.length} variant(s)`);
+      }
+    }
   } else {
     console.log('  captured/     (empty)');
   }
@@ -191,12 +249,12 @@ export async function runHarnessCli(args: string[]): Promise<void> {
 
     case 'promote': {
       const site = args[1];
-      const file = args[2];
-      if (!site || !file) {
-        writeError('missing_args', 'Usage: site-use harness promote <site> <file>');
+      if (!site) {
+        writeError('missing_args', 'Usage: site-use harness promote <site> [domain]');
         return;
       }
-      await runHarnessPromote(site, file);
+      const domain = args[2]; // optional
+      await runHarnessPromote(site, domain);
       break;
     }
 
