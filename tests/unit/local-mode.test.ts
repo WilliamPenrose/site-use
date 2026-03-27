@@ -515,8 +515,8 @@ describe('local mode: CLI integration', () => {
 
   beforeEach(async () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'local-cli-'));
-    fs.mkdirSync(path.join(tmpDir, 'data'), { recursive: true });
-    dbPath = path.join(tmpDir, 'data', 'knowledge.db');
+    // DB lives at {dataDir}/knowledge.db (same as codegen path in getConfig)
+    dbPath = path.join(tmpDir, 'knowledge.db');
     const store = createStore(dbPath);
     await store.ingest(feedItemsToIngestItems(ALL_ITEMS));
     store.close();
@@ -546,57 +546,61 @@ describe('local mode: CLI integration', () => {
     return { stdout: proc.stdout ?? '', stderr: proc.stderr ?? '', status: proc.status ?? 0 };
   };
 
-  it('--local returns cached tweets as formatted text', () => {
+  it('--local returns cached tweets as JSON FeedResult', () => {
     const output = run(['--local']);
     // Default tab is "for_you" → all tweets (no filter)
-    expect(output).toContain('Following tweet 1');
-    expect(output).toContain('For you tweet 1');
-    expect(output).toContain('cached');
+    // Output is a FeedResult object, always JSON
+    const result = JSON.parse(output);
+    expect(result).toHaveProperty('items');
+    expect(result).toHaveProperty('meta');
+    const texts = result.items.map((i: { text: string }) => i.text);
+    expect(texts.some((t: string) => t.includes('Following tweet 1'))).toBe(true);
+    expect(texts.some((t: string) => t.includes('For you tweet 1'))).toBe(true);
   });
 
-  it('--local --json outputs valid JSON array', () => {
-    const output = run(['--local', '--json', '--tab', 'for_you']);
-    const items = JSON.parse(output);
-    expect(Array.isArray(items)).toBe(true);
-    expect(items.length).toBe(6);
-    // Each item has expected fields
-    for (const item of items) {
+  it('--local outputs valid FeedResult with items array', () => {
+    const output = run(['--local', '--tab', 'for_you']);
+    const result = JSON.parse(output);
+    expect(result).toHaveProperty('items');
+    expect(Array.isArray(result.items)).toBe(true);
+    expect(result.items.length).toBe(6);
+    // Each item has expected FeedItem fields
+    for (const item of result.items) {
       expect(item).toHaveProperty('id');
-      expect(item).toHaveProperty('site', 'twitter');
       expect(item).toHaveProperty('text');
       expect(item).toHaveProperty('author');
     }
   });
 
   it('--local --count 2 limits output to 2 items', () => {
-    const output = run(['--local', '--json', '--count', '2', '--tab', 'for_you']);
-    const items = JSON.parse(output);
-    expect(items).toHaveLength(2);
+    const output = run(['--local', '--count', '2', '--tab', 'for_you']);
+    const result = JSON.parse(output);
+    expect(result.items).toHaveLength(2);
   });
 
   it('--local --count 2 returns the 2 most recent tweets', () => {
-    const output = run(['--local', '--json', '--count', '2', '--tab', 'for_you']);
-    const items = JSON.parse(output);
+    const output = run(['--local', '--count', '2', '--tab', 'for_you']);
+    const result = JSON.parse(output);
     // Most recent: fy1 (14:30), f1 (14:00)
-    const ids = items.map((i: { id: string }) => i.id);
+    const ids = result.items.map((i: { id: string }) => i.id);
     expect(ids).toEqual(['fy1', 'f1']);
   });
 
-  it('--local --json items include siteMeta with metrics', () => {
-    const output = run(['--local', '--json', '--count', '1', '--tab', 'for_you']);
-    const items = JSON.parse(output);
-    const item = items[0];
+  it('--local items include siteMeta with metrics', () => {
+    const output = run(['--local', '--count', '1', '--tab', 'for_you']);
+    const result = JSON.parse(output);
+    const item = result.items[0];
     expect(item.siteMeta).toBeDefined();
     expect(typeof item.siteMeta.likes).toBe('number');
     expect(typeof item.siteMeta.retweets).toBe('number');
   });
 
   it('--local --tab following returns only followed authors', () => {
-    const output = run(['--local', '--json', '--tab', 'following']);
-    const items = JSON.parse(output);
+    const output = run(['--local', '--tab', 'following']);
+    const result = JSON.parse(output);
     // Only the 3 tweets from followed authors (alice, bob, carol)
-    expect(items).toHaveLength(3);
-    const authors = items.map((i: { author: string }) => i.author);
+    expect(result.items).toHaveLength(3);
+    const authors = result.items.map((i: { author: { handle: string } }) => i.author.handle);
     expect(authors).toContain('alice');
     expect(authors).toContain('bob');
     expect(authors).toContain('carol');
@@ -605,28 +609,28 @@ describe('local mode: CLI integration', () => {
   });
 
   it('--local --tab for_you returns all tweets', () => {
-    const output = run(['--local', '--json', '--tab', 'for_you']);
-    const items = JSON.parse(output);
-    expect(items).toHaveLength(6);
+    const output = run(['--local', '--tab', 'for_you']);
+    const result = JSON.parse(output);
+    expect(result.items).toHaveLength(6);
   });
 
   it('--local default tab (for_you) returns all tweets', () => {
     // Default tab is "for_you", so --local without --tab returns all tweets
-    const output = run(['--local', '--json']);
-    const items = JSON.parse(output);
-    expect(items).toHaveLength(6);
+    const output = run(['--local']);
+    const result = JSON.parse(output);
+    expect(result.items).toHaveLength(6);
   });
 
   it('--local shows hint message on stderr', () => {
     const { stderr } = runWithStderr(['--local']);
-    expect(stderr).toContain('Using local data (--local)');
+    // codegen path outputs "Using cached data (Xmin old)." for local queries
+    expect(stderr).toContain('cached');
   });
 
-  it('--local with empty DB shows NoResults error', async () => {
-    // Create a fresh empty DB
+  it('--local with empty DB shows no local data error', async () => {
+    // Create a fresh empty DB — hasLocalData returns false → throws "No local data found"
     const emptyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'local-empty-'));
-    fs.mkdirSync(path.join(emptyDir, 'data'), { recursive: true });
-    const emptyDbPath = path.join(emptyDir, 'data', 'knowledge.db');
+    const emptyDbPath = path.join(emptyDir, 'knowledge.db');
     const store = createStore(emptyDbPath);
     store.close();
 
@@ -641,13 +645,13 @@ describe('local mode: CLI integration', () => {
     } catch (err: unknown) {
       const e = err as { status: number; stderr: string };
       expect(e.status).toBe(1);
-      expect(e.stderr).toContain('NoResults');
+      expect(e.stderr).toContain('No local data found');
     } finally {
       fs.rmSync(emptyDir, { recursive: true, force: true });
     }
   });
 
-  it('--local with missing DB shows DatabaseNotFound error', () => {
+  it('--local with missing DB shows no local data error', () => {
     const noDbDir = fs.mkdtempSync(path.join(os.tmpdir(), 'local-nodb-'));
     try {
       const { execFileSync } = require('node:child_process') as typeof import('node:child_process');
@@ -660,7 +664,7 @@ describe('local mode: CLI integration', () => {
     } catch (err: unknown) {
       const e = err as { status: number; stderr: string };
       expect(e.status).toBe(1);
-      expect(e.stderr).toContain('DatabaseNotFound');
+      expect(e.stderr).toContain('No local data found');
     } finally {
       fs.rmSync(noDbDir, { recursive: true, force: true });
     }
@@ -745,8 +749,8 @@ describe('local mode: smart default CLI integration', () => {
 
   beforeEach(async () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'smart-cli-'));
-    fs.mkdirSync(path.join(tmpDir, 'data'), { recursive: true });
-    dbPath = path.join(tmpDir, 'data', 'knowledge.db');
+    // DB lives at {dataDir}/knowledge.db (same as codegen path in getConfig)
+    dbPath = path.join(tmpDir, 'knowledge.db');
     const store = createStore(dbPath);
     await store.ingest(feedItemsToIngestItems(ALL_ITEMS));
     store.close();
@@ -758,20 +762,21 @@ describe('local mode: smart default CLI integration', () => {
 
   const bin = path.resolve('dist/index.js');
 
-  it('--local --json returns all tweets for default tab (for_you)', () => {
+  it('--local returns all tweets for default tab (for_you) as FeedResult', () => {
     const { execFileSync } = require('node:child_process') as typeof import('node:child_process');
-    const result = execFileSync('node', [bin, 'twitter', 'feed', '--local', '--json'], {
+    const output = execFileSync('node', [bin, 'twitter', 'feed', '--local'], {
       env: { ...process.env, SITE_USE_DATA_DIR: tmpDir },
       encoding: 'utf-8',
       timeout: 15_000,
     });
 
-    const items = JSON.parse(result);
-    expect(Array.isArray(items)).toBe(true);
-    expect(items.length).toBe(6);
+    const result = JSON.parse(output);
+    expect(result).toHaveProperty('items');
+    expect(Array.isArray(result.items)).toBe(true);
+    expect(result.items.length).toBe(6);
   });
 
-  it('--local stderr shows hint and tweet count', () => {
+  it('--local stderr shows cached data hint', () => {
     const { spawnSync } = require('node:child_process') as typeof import('node:child_process');
     const proc = spawnSync('node', [bin, 'twitter', 'feed', '--local'], {
       env: { ...process.env, SITE_USE_DATA_DIR: tmpDir },
@@ -779,6 +784,6 @@ describe('local mode: smart default CLI integration', () => {
       timeout: 15_000,
     });
 
-    expect(proc.stderr).toContain('local data');
+    expect(proc.stderr).toContain('cached');
   });
 });

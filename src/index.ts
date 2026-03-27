@@ -3,7 +3,6 @@ import { main as startServer } from './server.js';
 import { launchAndDetach, readChromeJson, closeBrowser, recoverOrphanChrome } from './browser/browser.js';
 import { getConfig } from './config.js';
 import { runKnowledgeCli } from './cli/knowledge.js';
-import { runWorkflowCli } from './cli/workflow.js';
 import { runCleanCli } from './cli/clean.js';
 import { ensureBrowser } from './browser/browser.js';
 import { runDiagnose } from './diagnose/runner.js';
@@ -176,12 +175,6 @@ The server communicates via stdin/stdout using the MCP protocol.
       break;
     }
 
-    // Keep the existing twitter workflow CLI for --local / --fetch / --max-age support.
-    // The codegen CLI commands don't support these smart freshness features yet.
-    case 'twitter':
-      await runWorkflowCli('twitter', args.slice(1));
-      break;
-
     case 'search':
     case 'stats':
     case 'rebuild':
@@ -233,7 +226,7 @@ Options:
     }
 
     default: {
-      // Dynamic site command dispatch for non-Twitter sites
+      // Dynamic site command dispatch
       if (siteNames.has(command)) {
         const subcommand = args[1];
         if (!subcommand || subcommand === '--help' || subcommand === '-h' || subcommand === 'help') {

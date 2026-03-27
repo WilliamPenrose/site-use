@@ -17,7 +17,7 @@ describe('CLI workflow', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('twitter feed --local with no database exits 1 with DatabaseNotFound', () => {
+  it('twitter feed --local with no database exits 1 with no local data message', () => {
     try {
       execFileSync('node', [bin, 'twitter', 'feed', '--local'], {
         env: { ...process.env, SITE_USE_DATA_DIR: tmpDir },
@@ -28,7 +28,7 @@ describe('CLI workflow', () => {
     } catch (err: unknown) {
       const e = err as { status: number; stderr: string };
       expect(e.status).toBe(1);
-      expect(e.stderr).toContain('DatabaseNotFound');
+      expect(e.stderr).toContain('No local data found');
     }
   });
 
@@ -42,7 +42,7 @@ describe('CLI workflow', () => {
       expect.unreachable('Expected process to exit with code 1');
     } catch (err: unknown) {
       const e = err as { status: number; stderr: string };
-      expect(e.stderr).toContain('Using local data (--local)');
+      expect(e.stderr).toContain('--local');
     }
   });
 
