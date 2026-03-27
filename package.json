@@ -1,6 +1,6 @@
 {
   "name": "site-use",
-  "version": "2026.3.26",
+  "version": "2026.3.27",
   "description": "Site-level browser automation via MCP — deterministic workflows for Chrome, so AI can focus on content understanding.",
   "type": "module",
   "bin": {

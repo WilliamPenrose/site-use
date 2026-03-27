@@ -258,6 +258,7 @@ function buildLaunchArgs(config: ReturnType<typeof getConfig>, extraArgs?: strin
     '--hide-crash-restore-bubble',
     '--disable-blink-features=AutomationControlled',
     '--window-size=1920,1080',
+    `--window-position=${30 + Math.floor(Math.random() * 120)},${20 + Math.floor(Math.random() * 80)}`,
     '--lang=en-US',
     '--accept-lang=en-US,en',
     '--restore-last-session',

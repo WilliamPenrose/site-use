@@ -49,7 +49,7 @@ export async function runDiagnose(
     });
 
     // Trigger scroll events for scroll checks
-    await humanScroll(page, 0, 600);
+    await humanScroll(page, 0, 600, { scrollSpeed: 50 });
 
     // Read collected wheel deltas from browser
     const scrollDeltas = await page.evaluate(() => {

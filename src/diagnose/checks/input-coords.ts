@@ -10,6 +10,7 @@ export const meta: CheckMeta & { runtime: 'browser' } = {
 
 let checked = false;
 let coordsLeak = false;
+let debugInfo = '';
 
 export function setup(): void {
   const events = ['mousedown', 'mouseup', 'click', 'mousemove'];
@@ -17,6 +18,9 @@ export function setup(): void {
     document.addEventListener(evt, (e: Event) => {
       const me = e as MouseEvent;
       checked = true;
+      if (!debugInfo) {
+        debugInfo = `page=(${me.pageX},${me.pageY}) screen=(${me.screenX},${me.screenY}) win=(${window.screenX},${window.screenY}) chrome=${window.outerHeight - window.innerHeight}`;
+      }
       if (
         me.pageY === me.screenY &&
         me.pageX === me.screenX &&
@@ -34,6 +38,7 @@ export function run(): CheckResult {
   }
   return {
     pass: !coordsLeak,
-    actual: coordsLeak ? 'pageX==screenX leak detected' : 'clean',
+    actual: coordsLeak ? `pageX==screenX leak detected` : 'clean',
+    detail: debugInfo,
   };
 }
