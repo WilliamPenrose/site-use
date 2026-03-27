@@ -22,10 +22,15 @@ function urlMatchesDomain(url: string, domains: string[]): boolean {
   }
 }
 
+const AUTH_CACHE_MS = 30_000; // 30s — skip re-check within this window
+
 export function createAuthGuardedPrimitives(
   inner: Primitives,
   configs: AuthGuardConfig[],
 ): Primitives {
+  // Per-site timestamp of last successful auth check
+  const lastAuthOk = new Map<string, number>();
+
   return {
     navigate: async (url: string) => {
       const navStart = Date.now();
@@ -35,10 +40,17 @@ export function createAuthGuardedPrimitives(
       // Check if this URL belongs to a protected site
       for (const config of configs) {
         if (urlMatchesDomain(url, config.domains)) {
+          // Skip check if recently verified
+          const lastOk = lastAuthOk.get(config.site) ?? 0;
+          if (Date.now() - lastOk < AUTH_CACHE_MS) {
+            break;
+          }
+
           const authStart = Date.now();
           const result = await config.check(inner);
           const authCheckMs = Date.now() - authStart;
           if (!result.loggedIn) {
+            lastAuthOk.delete(config.site);
             throw new SessionExpired(
               `${config.site} login required`,
               {
@@ -53,6 +65,7 @@ export function createAuthGuardedPrimitives(
               },
             );
           }
+          lastAuthOk.set(config.site, Date.now());
           break;
         }
       }
