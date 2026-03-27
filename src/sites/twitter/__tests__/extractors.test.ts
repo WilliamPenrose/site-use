@@ -232,7 +232,7 @@ interface FixtureEntry {
   tweet_results: { result: Record<string, unknown> };
 }
 
-const fixturesPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'fixtures/tweet-variants.json');
+const fixturesPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'fixtures/golden/timeline-variants.json');
 const allFixtures: FixtureEntry[] = JSON.parse(fs.readFileSync(fixturesPath, 'utf-8'));
 
 function wrapAsTimeline(itemContent: FixtureEntry | Record<string, unknown>): string {
