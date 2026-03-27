@@ -197,7 +197,7 @@ export function buildFeedMeta(tweets: Tweet[]): FeedMeta {
 }
 
 /** Extract a tweet from an itemContent object (shared by Item and Module paths). */
-function extractTweetFromItemContent(
+export function extractTweetFromItemContent(
   itemContent: any,
   results: RawTweetData[],
 ): void {
@@ -258,7 +258,7 @@ export function parseGraphQLTimeline(body: string): RawTweetData[] {
   return results;
 }
 
-function extractFromTweetResult(
+export function extractFromTweetResult(
   tweetResult: Record<string, unknown>,
 ): RawTweetData | null {
   const typename = (tweetResult as any).__typename;
