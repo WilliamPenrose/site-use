@@ -57,6 +57,7 @@ export interface SearchResultItem {
   author?: string;
   timestamp?: string;
   url?: string;
+  rawJson?: string;
   links?: string[];
   mentions?: string[];
   media?: Array<{ type: string; url: string; width: number; height: number; duration?: number }>;

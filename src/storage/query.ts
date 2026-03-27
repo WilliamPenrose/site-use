@@ -104,6 +104,7 @@ export function search(db: DatabaseSync, params: SearchParams): SearchResult {
       author: row.author as string,
       timestamp: row.timestamp as string,
       url: row.url as string,
+      rawJson,
     };
 
     // Resolve display-only data from raw_json via display schema

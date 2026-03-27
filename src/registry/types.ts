@@ -2,6 +2,7 @@ import type { ZodType } from 'zod';
 import type { Primitives } from '../primitives/types.js';
 import type { DetectFn } from '../primitives/rate-limit-detect.js';
 import type { IngestItem } from '../storage/types.js';
+import type { KnowledgeStore } from '../storage/index.js';
 
 // ── Expose target ──────────────────────────────────────────────
 
@@ -73,6 +74,12 @@ export interface CheckLoginResult {
 
 // ── Capabilities ───────────────────────────────────────────────
 
+export interface CacheConfig {
+  defaultMaxAge: number;
+  variantKey?: string;
+  defaultVariant?: string;
+}
+
 export interface AuthCapability {
   /** Full login check (navigates + checks). Used by check_login tool. */
   check: (primitives: Primitives) => Promise<CheckLoginResult>;
@@ -86,6 +93,8 @@ export interface AuthCapability {
 export interface FeedCapability {
   collect: (primitives: Primitives, params: unknown) => Promise<FeedResult>;
   params: ZodType;
+  localQuery?: (store: KnowledgeStore, params: unknown) => Promise<FeedResult>;
+  cache?: CacheConfig;
   description?: string;
   expose?: ExposeTarget[];
   cli?: CliConfig;
