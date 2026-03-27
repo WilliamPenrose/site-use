@@ -39,8 +39,11 @@ describe('captureForHarness', () => {
     const result = await captureForHarness(body, mockDomain, 'test', goldenDir, capturedDir);
 
     expect(result.captured).toBe(1);
-    const files = fs.readdirSync(capturedDir).filter(f => f.endsWith('.json'));
-    expect(files.length).toBe(1);
+    const filePath = path.join(capturedDir, 'test-variants.json');
+    expect(fs.existsSync(filePath)).toBe(true);
+    const entries = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    expect(entries).toHaveLength(1);
+    expect(entries[0]._variant).toBe('new|variant');
   });
 
   it('skips entry when variant already matches golden structure', async () => {
