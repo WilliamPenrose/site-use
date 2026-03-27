@@ -6,6 +6,7 @@ import { DEFAULT_TOOL_DESCRIPTIONS } from './default-descriptions.js';
 import { setLastFetchTime } from '../fetch-timestamps.js';
 import { getConfig, getKnowledgeDbPath } from '../config.js';
 import path from 'node:path';
+import os from 'node:os';
 import { withSmartCache, stripFrameworkFlags } from '../cli/smart-cache.js';
 import { createStore } from '../storage/index.js';
 import fs from 'node:fs';
@@ -234,9 +235,31 @@ export function generateCliCommands(
             return;
           }
 
+          // Extract --dump-raw before any branch
+          const { dumpRawDir, isDefaultDir, remainingArgs } = extractDumpRaw(args, plugin.name);
+
           if (hasCacheSupport) {
-            const { cacheFlags, pluginArgs } = stripFrameworkFlags(args, feedCap.cache!.defaultMaxAge);
+            const { cacheFlags, pluginArgs } = stripFrameworkFlags(remainingArgs, feedCap.cache!.defaultMaxAge);
+
+            // --dump-raw + --local are mutually exclusive
+            if (dumpRawDir && cacheFlags.forceLocal) {
+              throw new Error('--dump-raw and --local are mutually exclusive.');
+            }
+            // --dump-raw implies --fetch
+            if (dumpRawDir) {
+              cacheFlags.forceFetch = true;
+            }
+
+            // Backup rotation (default dir only)
+            if (dumpRawDir && isDefaultDir) {
+              rotateDumpFiles(dumpRawDir);
+            }
+
             const params = parseCliArgs(pluginArgs, paramsSchema);
+            if (dumpRawDir) {
+              (params as Record<string, unknown>).dumpRaw = dumpRawDir;
+            }
+
             const variantKey = feedCap.cache!.variantKey;
             const variant = variantKey
               ? ((params as Record<string, unknown>)[variantKey] as string | undefined) ?? feedCap.cache!.defaultVariant ?? 'default'
@@ -293,12 +316,29 @@ export function generateCliCommands(
             } else {
               console.error('Fetched from browser.');
             }
+
+            if (dumpRawDir) {
+              console.error(`Dumped to ${dumpRawDir}`);
+            }
           } else {
-            const params = parseCliArgs(args, paramsSchema);
+            // No cache support — always fetches
+            if (dumpRawDir && isDefaultDir) {
+              rotateDumpFiles(dumpRawDir);
+            }
+
+            const params = parseCliArgs(remainingArgs, paramsSchema);
+            if (dumpRawDir) {
+              (params as Record<string, unknown>).dumpRaw = dumpRawDir;
+            }
+
             const result = await wrappedFeed(params);
             const text = (result.content[0] as { text: string }).text;
             console.log(text);
             if (result.isError) process.exitCode = 1;
+
+            if (dumpRawDir) {
+              console.error(`Dumped to ${dumpRawDir}`);
+            }
           }
         },
       });
@@ -341,6 +381,50 @@ export function generateCliCommands(
   return commands;
 }
 
+export interface DumpRawResult {
+  dumpRawDir: string | null;
+  isDefaultDir: boolean;
+  remainingArgs: string[];
+}
+
+export function extractDumpRaw(args: string[], siteName: string): DumpRawResult {
+  const remainingArgs: string[] = [];
+  let dumpRawDir: string | null = null;
+  let isDefaultDir = false;
+
+  let i = 0;
+  while (i < args.length) {
+    if (args[i] === '--dump-raw') {
+      const next = args[i + 1];
+      if (next !== undefined && !next.startsWith('--')) {
+        dumpRawDir = next;
+        isDefaultDir = false;
+        i += 2;
+      } else {
+        const dataDir = process.env.SITE_USE_DATA_DIR || path.join(os.homedir(), '.site-use');
+        dumpRawDir = path.join(dataDir, 'dump', siteName);
+        isDefaultDir = true;
+        i++;
+      }
+    } else {
+      remainingArgs.push(args[i]);
+      i++;
+    }
+  }
+
+  return { dumpRawDir, isDefaultDir, remainingArgs };
+}
+
+function rotateDumpFiles(dir: string): void {
+  if (!fs.existsSync(dir)) return;
+  const files = fs.readdirSync(dir).filter(f => f.endsWith('.json') && !f.endsWith('.prev.json'));
+  for (const file of files) {
+    const src = path.join(dir, file);
+    const dest = path.join(dir, file.replace(/\.json$/, '.prev.json'));
+    fs.renameSync(src, dest);
+  }
+}
+
 function buildFeedHelp(
   siteName: string,
   cli: { description?: string; help?: string } | undefined,
@@ -355,6 +439,10 @@ function buildFeedHelp(
     lines.push(cli.help);
     lines.push('');
   }
+
+  lines.push('Dump options:');
+  lines.push('  --dump-raw [dir]       Dump raw responses to directory (default: ~/.site-use/dump/{site}/)');
+  lines.push('');
 
   if (hasCacheSupport) {
     lines.push('Cache options:');
