@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Primitives } from '../../primitives/types.js';
 import { SessionExpired } from '../../errors.js';
-import { matchByRule, rules } from './matchers.js';
+import { isLoggedIn } from './site.js';
 import { makeEnsureState } from '../../ops/ensure-state.js';
 import {
   collectTweetsFromTimeline,
@@ -44,23 +44,8 @@ export interface CheckLoginResult {
  */
 export async function checkLogin(primitives: Primitives): Promise<CheckLoginResult> {
   await primitives.navigate(TWITTER_HOME);
-
-  // Check URL for login redirect
-  const currentUrl = await primitives.evaluate<string>(
-    'window.location.href',
-  );
-  if (currentUrl.includes('/login') || currentUrl.includes('/i/flow/login')) {
-    return { loggedIn: false };
-  }
-
-  // Check accessibility tree for Home navigation link
-  const snapshot = await primitives.takeSnapshot();
-  const homeUid = matchByRule(snapshot, rules.homeNavLink);
-  if (homeUid) {
-    return { loggedIn: true };
-  }
-
-  return { loggedIn: false };
+  const { loggedIn } = await isLoggedIn(primitives);
+  return { loggedIn };
 }
 
 /** Auth guard. Throws SessionExpired if not logged in. */

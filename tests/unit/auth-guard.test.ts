@@ -10,13 +10,13 @@ import { createMockPrimitives } from '../../src/testing/index.js';
 const twitterConfig: AuthGuardConfig = {
   site: 'twitter',
   domains: ['x.com', 'twitter.com'],
-  check: vi.fn().mockResolvedValue(true),
+  check: vi.fn().mockResolvedValue({ loggedIn: true }),
 };
 
 describe('createAuthGuardedPrimitives', () => {
   it('calls inner.navigate then check on protected domain', async () => {
     const inner = createMockPrimitives();
-    const config = { ...twitterConfig, check: vi.fn().mockResolvedValue(true) };
+    const config = { ...twitterConfig, check: vi.fn().mockResolvedValue({ loggedIn: true }) };
     const guarded = createAuthGuardedPrimitives(inner, [config]);
 
     await guarded.navigate('https://x.com/home');
@@ -27,7 +27,7 @@ describe('createAuthGuardedPrimitives', () => {
 
   it('throws SessionExpired when check returns false', async () => {
     const inner = createMockPrimitives();
-    const config = { ...twitterConfig, check: vi.fn().mockResolvedValue(false) };
+    const config = { ...twitterConfig, check: vi.fn().mockResolvedValue({ loggedIn: false }) };
     const guarded = createAuthGuardedPrimitives(inner, [config]);
 
     await expect(guarded.navigate('https://x.com/home'))
@@ -36,7 +36,7 @@ describe('createAuthGuardedPrimitives', () => {
 
   it('does not check for non-protected URLs', async () => {
     const inner = createMockPrimitives();
-    const config = { ...twitterConfig, check: vi.fn().mockResolvedValue(true) };
+    const config = { ...twitterConfig, check: vi.fn().mockResolvedValue({ loggedIn: true }) };
     const guarded = createAuthGuardedPrimitives(inner, [config]);
 
     await guarded.navigate('https://google.com');
@@ -47,7 +47,7 @@ describe('createAuthGuardedPrimitives', () => {
 
   it('does not check for data: URLs', async () => {
     const inner = createMockPrimitives();
-    const config = { ...twitterConfig, check: vi.fn().mockResolvedValue(true) };
+    const config = { ...twitterConfig, check: vi.fn().mockResolvedValue({ loggedIn: true }) };
     const guarded = createAuthGuardedPrimitives(inner, [config]);
 
     await guarded.navigate('data:text/html,hello');
@@ -73,7 +73,7 @@ describe('createAuthGuardedPrimitives', () => {
       ...twitterConfig,
       check: vi.fn().mockImplementation(async (p: Primitives) => {
         receivedPrimitives = p;
-        return true;
+        return { loggedIn: true };
       }),
     };
     const guarded = createAuthGuardedPrimitives(inner, [config]);

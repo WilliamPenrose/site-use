@@ -1,10 +1,15 @@
 import type { Primitives } from './types.js';
 import { SessionExpired } from '../errors.js';
 
+export interface AuthGuardCheckResult {
+  loggedIn: boolean;
+  diagnostics?: unknown;
+}
+
 export interface AuthGuardConfig {
   site: string;
   domains: string[];
-  check: (innerPrimitives: Primitives) => Promise<boolean>;
+  check: (innerPrimitives: Primitives) => Promise<AuthGuardCheckResult>;
 }
 
 function urlMatchesDomain(url: string, domains: string[]): boolean {
@@ -23,18 +28,28 @@ export function createAuthGuardedPrimitives(
 ): Primitives {
   return {
     navigate: async (url: string) => {
+      const navStart = Date.now();
       await inner.navigate(url);
+      const navMs = Date.now() - navStart;
 
       // Check if this URL belongs to a protected site
       for (const config of configs) {
         if (urlMatchesDomain(url, config.domains)) {
-          const isLoggedIn = await config.check(inner);
-          if (!isLoggedIn) {
+          const authStart = Date.now();
+          const result = await config.check(inner);
+          const authCheckMs = Date.now() - authStart;
+          if (!result.loggedIn) {
             throw new SessionExpired(
               `${config.site} login required`,
               {
                 url,
                 step: 'authGuard',
+                diagnostics: {
+                  site: config.site,
+                  navigateMs: navMs,
+                  authCheckMs,
+                  authDetail: result.diagnostics,
+                },
               },
             );
           }

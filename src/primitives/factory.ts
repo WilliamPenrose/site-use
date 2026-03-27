@@ -49,7 +49,10 @@ export function buildPrimitivesStack(
   const authConfigs = sites.map((site) => ({
     site: site.name,
     domains: [...site.domains],
-    check: site.authCheck,
+    check: async (inner: Primitives) => {
+      const loggedIn = await site.authCheck(inner);
+      return { loggedIn };
+    },
   }));
   const guarded = createAuthGuardedPrimitives(throttled, authConfigs);
 

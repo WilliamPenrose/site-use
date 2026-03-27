@@ -74,7 +74,10 @@ export interface CheckLoginResult {
 // ── Capabilities ───────────────────────────────────────────────
 
 export interface AuthCapability {
+  /** Full login check (navigates + checks). Used by check_login tool. */
   check: (primitives: Primitives) => Promise<CheckLoginResult>;
+  /** Auth guard check (does NOT navigate — page already loaded). Used by auth guard layer. */
+  guard?: (primitives: Primitives) => Promise<{ loggedIn: boolean; diagnostics?: unknown }>;
   description?: string;
   expose?: ExposeTarget[];
   cli?: CliConfig;

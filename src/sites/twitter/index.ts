@@ -1,6 +1,6 @@
 import type { SitePlugin } from '../../registry/types.js';
 import type { Primitives } from '../../primitives/types.js';
-import { twitterDetect } from './site.js';
+import { twitterDetect, isLoggedIn } from './site.js';
 import { checkLogin, getFeed } from './workflows.js';
 import { feedItemsToIngestItems } from './store-adapter.js';
 import { TwitterFeedParamsSchema } from './types.js';
@@ -14,6 +14,7 @@ export const plugin: SitePlugin = {
   capabilities: {
     auth: {
       check: checkLogin,
+      guard: isLoggedIn,  // returns { loggedIn, diagnostics }
       description: 'Check if user is logged in to Twitter/X. Returns { loggedIn: boolean }.',
     },
     feed: {

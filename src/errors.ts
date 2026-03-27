@@ -5,6 +5,8 @@ export interface ErrorContext {
   screenshotBase64?: string;
   retryable?: boolean;
   hint?: string;
+  /** Structured diagnostic data from the operation that failed. */
+  diagnostics?: unknown;
 }
 
 export class SiteUseError extends Error {

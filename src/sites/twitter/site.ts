@@ -1,8 +1,20 @@
 /** Twitter site definition — single source of truth for site identity. */
 import type { DetectFn } from '../../primitives/rate-limit-detect.js';
 import type { SiteConfig } from '../../primitives/factory.js';
+import type { Primitives } from '../../primitives/types.js';
 import { matchByRule } from '../../ops/matchers.js';
 import type { MatcherRule } from '../../ops/matchers.js';
+
+export interface AuthCheckDiagnostic {
+  step: string;
+  elapsed: number;
+  [key: string]: unknown;
+}
+
+export interface AuthCheckResult {
+  loggedIn: boolean;
+  diagnostics: AuthCheckDiagnostic[];
+}
 
 export const twitterSite = {
   name: 'twitter',
@@ -66,26 +78,49 @@ export const twitterDetect: DetectFn = (response) => {
 
 const homeNavLink: MatcherRule = { role: 'link', name: /^Home$/i };
 
+export async function isLoggedIn(primitives: Primitives): Promise<AuthCheckResult> {
+  const diag: AuthCheckDiagnostic[] = [];
+  const t0 = Date.now();
+
+  // Phase 1: URL check
+  const currentUrl = await primitives.evaluate<string>('window.location.href');
+  const urlCheckMs = Date.now() - t0;
+  if (currentUrl.includes('/login') || currentUrl.includes('/i/flow/login')) {
+    diag.push({ step: 'urlCheck', elapsed: urlCheckMs, url: currentUrl, result: 'login_redirect' });
+    return { loggedIn: false, diagnostics: diag };
+  }
+  diag.push({ step: 'urlCheck', elapsed: urlCheckMs, url: currentUrl, result: 'ok' });
+
+  // Phase 2: Poll for Home link
+  // Twitter SPA: 'load' event fires before React mounts the nav tree.
+  // Poll for the Home link up to 10 seconds before concluding not logged in.
+  const pollStart = Date.now();
+  const deadline = pollStart + 10_000;
+  let attempts = 0;
+  while (Date.now() < deadline) {
+    attempts++;
+    const snapshot = await primitives.takeSnapshot();
+    if (matchByRule(snapshot, homeNavLink)) {
+      diag.push({ step: 'snapshotPoll', elapsed: Date.now() - pollStart, attempts, foundHome: true });
+      return { loggedIn: true, diagnostics: diag };
+    }
+    const url = await primitives.evaluate<string>('window.location.href');
+    if (url.includes('/login') || url.includes('/i/flow/login')) {
+      diag.push({ step: 'snapshotPoll', elapsed: Date.now() - pollStart, attempts, foundHome: false, reason: 'login_redirect', url });
+      return { loggedIn: false, diagnostics: diag };
+    }
+    await new Promise(r => setTimeout(r, 500));
+  }
+  diag.push({ step: 'snapshotPoll', elapsed: Date.now() - pollStart, attempts, foundHome: false, reason: 'timeout' });
+  return { loggedIn: false, diagnostics: diag };
+}
+
 export const twitterSiteConfig: SiteConfig = {
   name: twitterSite.name,
   domains: [...twitterSite.domains],
   detect: twitterDetect,
   authCheck: async (inner) => {
-    const currentUrl = await inner.evaluate<string>('window.location.href');
-    if (currentUrl.includes('/login') || currentUrl.includes('/i/flow/login')) {
-      return false;
-    }
-    // Twitter SPA: 'load' event fires before React mounts the nav tree.
-    // Poll for the Home link up to 10 seconds before concluding not logged in.
-    const deadline = Date.now() + 10_000;
-    while (Date.now() < deadline) {
-      const snapshot = await inner.takeSnapshot();
-      if (matchByRule(snapshot, homeNavLink)) return true;
-      // Re-check URL — Twitter may redirect to login after initial load
-      const url = await inner.evaluate<string>('window.location.href');
-      if (url.includes('/login') || url.includes('/i/flow/login')) return false;
-      await new Promise(r => setTimeout(r, 500));
-    }
-    return false;
+    const { loggedIn } = await isLoggedIn(inner);
+    return loggedIn;
   },
 };

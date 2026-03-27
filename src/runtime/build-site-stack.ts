@@ -44,14 +44,17 @@ export function buildSiteStack(
   const throttled = createThrottledPrimitives(backend);
 
   // Auth guard layer
-  const authConfigs = plugin.capabilities?.auth
+  const auth = plugin.capabilities?.auth;
+  const authConfigs = auth
     ? [{
         site: plugin.name,
         domains: plugin.domains,
-        check: async (inner: Primitives) => {
-          const result = await plugin.capabilities!.auth!.check(inner);
-          return result.loggedIn;
-        },
+        check: auth.guard
+          ? auth.guard
+          : async (inner: Primitives) => {
+              const result = await auth.check(inner);
+              return { loggedIn: result.loggedIn };
+            },
       }]
     : [];
 

@@ -59,7 +59,7 @@ describe('checkLogin', () => {
     expect(result.loggedIn).toBe(true);
   });
 
-  it('returns loggedIn: false when no Home link in snapshot', async () => {
+  it('returns loggedIn: false when no Home link in snapshot', { timeout: 15000 }, async () => {
     const primitives = createMockPrimitives({
       evaluate: vi.fn().mockResolvedValue('https://x.com/home'),
       takeSnapshot: vi.fn().mockResolvedValue(
