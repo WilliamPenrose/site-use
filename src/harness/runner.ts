@@ -6,6 +6,7 @@ import { search } from '../storage/query.js';
 import { resolveItem } from '../display/resolve.js';
 import type { FeedItem } from '../registry/types.js';
 import type { SearchResultItem } from '../storage/types.js';
+import type { FixtureEntry } from './fixture-io.js';
 import type {
   SiteHarnessDescriptor,
   DomainDescriptor,
@@ -42,16 +43,32 @@ export function matchAssertions(
 /**
  * Run a single variant through the full pipeline (Layer 0-5).
  * Uses an in-memory SQLite DB for Layer 3-4b to ensure isolation.
+ *
+ * Accepts either:
+ * - A raw entry (unknown) — variant name must be computed externally
+ * - A FixtureEntry object with `_variant` + raw data fields
  */
 export async function runVariant(
   descriptor: SiteHarnessDescriptor,
   domainName: string,
-  variant: string,
+  variant: string | FixtureEntry,
 ): Promise<VariantResult> {
+  // Split fixture entry into variant name and raw entry
+  let variantName: string;
+  let rawEntry: unknown;
+  if (typeof variant === 'string') {
+    variantName = variant;
+    rawEntry = variant;
+  } else {
+    variantName = variant._variant;
+    const { _variant, ...rest } = variant;
+    rawEntry = rest;
+  }
+
   const domain = descriptor.domains[domainName];
   if (!domain) {
     return {
-      variant,
+      variant: variantName,
       pass: false,
       failedLayer: 'Layer 0→1',
       message: `Domain "${domainName}" not found in descriptor`,
@@ -64,17 +81,17 @@ export async function runVariant(
   // Layer 0→1: parseEntry
   let parsed: unknown;
   try {
-    parsed = domain.parseEntry(variant);
+    parsed = domain.parseEntry(rawEntry);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     layers.push({ layer: 'Layer 0→1', pass: false, errors: [message] });
-    return { variant, pass: false, failedLayer: 'Layer 0→1', message, layers };
+    return { variant: variantName, pass: false, failedLayer: 'Layer 0→1', message, layers };
   }
 
   // Tombstone: parseEntry returned null → pass, stop
   if (parsed === null || parsed === undefined) {
     layers.push({ layer: 'Layer 0→1 (tombstone)', pass: true, output: null, errors: [] });
-    return { variant, pass: true, layers };
+    return { variant: variantName, pass: true, layers };
   }
 
   layers.push({ layer: 'Layer 0→1', pass: true, output: parsed, errors: [] });
@@ -86,16 +103,16 @@ export async function runVariant(
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     layers.push({ layer: 'Layer 1→2', pass: false, errors: [message] });
-    return { variant, pass: false, failedLayer: 'Layer 1→2', message, layers };
+    return { variant: variantName, pass: false, failedLayer: 'Layer 1→2', message, layers };
   }
   layers.push({ layer: 'Layer 1→2', pass: true, output: feedItem, errors: [] });
 
   // Layer 2 assertions: domain assertions on FeedItem
-  const domainAssertions = matchAssertions(domain.assertions, variant);
+  const domainAssertions = matchAssertions(domain.assertions, variantName);
   if (domainAssertions.length > 0) {
     const errors: string[] = [];
     for (const assertFn of domainAssertions) {
-      const ctx: AssertionContext = { variant, layer: 2, input: parsed, output: feedItem };
+      const ctx: AssertionContext = { variant: variantName, layer: 2, input: parsed, output: feedItem };
       const result = assertFn(ctx);
       if (!result.pass) {
         errors.push(result.message ?? 'Assertion failed');
@@ -103,7 +120,7 @@ export async function runVariant(
     }
     if (errors.length > 0) {
       layers.push({ layer: 'Layer 2 assertions', pass: false, errors });
-      return { variant, pass: false, failedLayer: 'Layer 2 assertions', message: errors[0], layers };
+      return { variant: variantName, pass: false, failedLayer: 'Layer 2 assertions', message: errors[0], layers };
     }
     layers.push({ layer: 'Layer 2 assertions', pass: true, errors: [] });
   }
@@ -114,12 +131,12 @@ export async function runVariant(
     ingestItems = descriptor.storeAdapter([feedItem]);
     if (!ingestItems || ingestItems.length === 0) {
       layers.push({ layer: 'Layer 2→3', pass: false, errors: ['storeAdapter returned empty'] });
-      return { variant, pass: false, failedLayer: 'Layer 2→3', message: 'storeAdapter returned empty', layers };
+      return { variant: variantName, pass: false, failedLayer: 'Layer 2→3', message: 'storeAdapter returned empty', layers };
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     layers.push({ layer: 'Layer 2→3', pass: false, errors: [message] });
-    return { variant, pass: false, failedLayer: 'Layer 2→3', message, layers };
+    return { variant: variantName, pass: false, failedLayer: 'Layer 2→3', message, layers };
   }
   layers.push({ layer: 'Layer 2→3', pass: true, output: ingestItems, errors: [] });
 
@@ -132,7 +149,7 @@ export async function runVariant(
     const message = err instanceof Error ? err.message : String(err);
     layers.push({ layer: 'Layer 3→4a', pass: false, errors: [message] });
     db?.close();
-    return { variant, pass: false, failedLayer: 'Layer 3→4a', message, layers };
+    return { variant: variantName, pass: false, failedLayer: 'Layer 3→4a', message, layers };
   }
   layers.push({ layer: 'Layer 3→4a', pass: true, errors: [] });
 
@@ -146,7 +163,7 @@ export async function runVariant(
     if (!searchResult.items || searchResult.items.length === 0) {
       layers.push({ layer: 'Layer 4a→4b', pass: false, errors: ['search returned empty'] });
       db.close();
-      return { variant, pass: false, failedLayer: 'Layer 4a→4b', message: 'search returned empty', layers };
+      return { variant: variantName, pass: false, failedLayer: 'Layer 4a→4b', message: 'search returned empty', layers };
     }
 
     searchItem = searchResult.items[0];
@@ -165,13 +182,13 @@ export async function runVariant(
     if (!searchItem.siteMeta || Object.keys(searchItem.siteMeta).length === 0) {
       layers.push({ layer: 'Layer 4a→4b', pass: false, errors: ['siteMeta is empty'] });
       db.close();
-      return { variant, pass: false, failedLayer: 'Layer 4a→4b', message: 'siteMeta is empty', layers };
+      return { variant: variantName, pass: false, failedLayer: 'Layer 4a→4b', message: 'siteMeta is empty', layers };
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     layers.push({ layer: 'Layer 4a→4b', pass: false, errors: [message] });
     db.close();
-    return { variant, pass: false, failedLayer: 'Layer 4a→4b', message, layers };
+    return { variant: variantName, pass: false, failedLayer: 'Layer 4a→4b', message, layers };
   }
   layers.push({ layer: 'Layer 4a→4b', pass: true, output: searchItem, errors: [] });
   db.close();
@@ -183,16 +200,16 @@ export async function runVariant(
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     layers.push({ layer: 'Layer 5', pass: false, errors: [message] });
-    return { variant, pass: false, failedLayer: 'Layer 5', message, layers };
+    return { variant: variantName, pass: false, failedLayer: 'Layer 5', message, layers };
   }
   layers.push({ layer: 'Layer 5', pass: true, output: formatted, errors: [] });
 
   // Layer 5 assertions: format assertions on formatted text
-  const formatAssertions = matchAssertions(descriptor.formatAssertions, variant);
+  const formatAssertions = matchAssertions(descriptor.formatAssertions, variantName);
   if (formatAssertions.length > 0) {
     const errors: string[] = [];
     for (const assertFn of formatAssertions) {
-      const ctx: AssertionContext = { variant, layer: 5, input: searchItem, output: formatted };
+      const ctx: AssertionContext = { variant: variantName, layer: 5, input: searchItem, output: formatted };
       const result = assertFn(ctx);
       if (!result.pass) {
         errors.push(result.message ?? 'Format assertion failed');
@@ -200,12 +217,12 @@ export async function runVariant(
     }
     if (errors.length > 0) {
       layers.push({ layer: 'Layer 5 assertions', pass: false, errors });
-      return { variant, pass: false, failedLayer: 'Layer 5 assertions', message: errors[0], layers };
+      return { variant: variantName, pass: false, failedLayer: 'Layer 5 assertions', message: errors[0], layers };
     }
     layers.push({ layer: 'Layer 5 assertions', pass: true, errors: [] });
   }
 
-  return { variant, pass: true, layers };
+  return { variant: variantName, pass: true, layers };
 }
 
 /**
