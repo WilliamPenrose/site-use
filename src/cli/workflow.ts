@@ -2,8 +2,8 @@ import type { Browser } from 'puppeteer-core';
 import type { Primitives } from '../primitives/types.js';
 import type { FeedResult } from '../registry/types.js';
 import { ensureBrowser } from '../browser/browser.js';
-import { buildPrimitivesStack } from '../primitives/factory.js';
-import { twitterSiteConfig } from '../sites/twitter/site.js';
+import { plugin as twitterPlugin } from '../sites/twitter/index.js';
+import { buildSiteStack } from '../runtime/build-site-stack.js';
 import { getFeed, type TimelineFeed } from '../sites/twitter/workflows.js';
 import { getConfig } from '../config.js';
 import { withLock } from '../lock.js';
@@ -92,8 +92,10 @@ export function parseFeedArgs(args: string[]): FeedArgs {
 // Build primitives (same stack as server.ts but no caching)
 // ---------------------------------------------------------------------------
 
-export function buildPrimitives(browser: Browser): Primitives {
-  return buildPrimitivesStack(browser, [twitterSiteConfig]).guarded;
+export async function buildPrimitives(browser: Browser): Promise<Primitives> {
+  const pages = await browser.pages();
+  const page = pages[0] ?? await browser.newPage();
+  return buildSiteStack(page, twitterPlugin).primitives;
 }
 
 // ---------------------------------------------------------------------------
@@ -186,7 +188,7 @@ async function runFetchFromBrowser(parsed: FeedArgs, config: ReturnType<typeof g
   try {
     await withLock(async () => {
       const browser = await ensureBrowser({ autoLaunch: true });
-      const primitives = buildPrimitives(browser);
+      const primitives = await buildPrimitives(browser);
 
       fs.mkdirSync(path.dirname(dbPath), { recursive: true });
       const store = createStore(dbPath);

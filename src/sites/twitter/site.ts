@@ -1,6 +1,5 @@
 /** Twitter site definition — single source of truth for site identity. */
 import type { DetectFn } from '../../primitives/rate-limit-detect.js';
-import type { SiteConfig } from '../../primitives/factory.js';
 import type { Primitives } from '../../primitives/types.js';
 import { matchByRule } from '../../ops/matchers.js';
 import type { MatcherRule } from '../../ops/matchers.js';
@@ -114,13 +113,3 @@ export async function isLoggedIn(primitives: Primitives): Promise<AuthCheckResul
   diag.push({ step: 'snapshotPoll', elapsed: Date.now() - pollStart, attempts, foundHome: false, reason: 'timeout' });
   return { loggedIn: false, diagnostics: diag };
 }
-
-export const twitterSiteConfig: SiteConfig = {
-  name: twitterSite.name,
-  domains: [...twitterSite.domains],
-  detect: twitterDetect,
-  authCheck: async (inner) => {
-    const { loggedIn } = await isLoggedIn(inner);
-    return loggedIn;
-  },
-};
