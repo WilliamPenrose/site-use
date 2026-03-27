@@ -8,7 +8,13 @@ import type {
   AssertionFn,
   AssertionResult,
 } from '../../src/harness/types.js';
+import type { FixtureEntry } from '../../src/harness/fixture-io.js';
 import { matchAssertions, runVariant, runDomain, loadHarness } from '../../src/harness/runner.js';
+
+/** Helper: wrap a variant name string into a FixtureEntry with minimal data. */
+function fixtureOf(variant: string, data?: Record<string, unknown>): FixtureEntry {
+  return { _variant: variant, ...data };
+}
 
 // --- Mock data ---
 
@@ -111,7 +117,7 @@ describe('matchAssertions', () => {
 describe('runVariant', () => {
   it('passes all layers for a well-formed variant', async () => {
     const descriptor = createMockDescriptor();
-    const result = await runVariant(descriptor, 'timeline', 'direct|original');
+    const result = await runVariant(descriptor, 'timeline', fixtureOf('direct|original'));
     expect(result.pass).toBe(true);
     expect(result.variant).toBe('direct|original');
     expect(result.layers.length).toBeGreaterThanOrEqual(5);
@@ -124,7 +130,7 @@ describe('runVariant', () => {
     const descriptor = createMockDescriptor({
       parseEntry: () => { throw new Error('parse boom'); },
     });
-    const result = await runVariant(descriptor, 'timeline', 'direct|original');
+    const result = await runVariant(descriptor, 'timeline', fixtureOf('direct|original'));
     expect(result.pass).toBe(false);
     expect(result.failedLayer).toContain('0');
     expect(result.message).toContain('parse boom');
@@ -134,7 +140,7 @@ describe('runVariant', () => {
     const descriptor = createMockDescriptor({
       toFeedItem: () => { throw new Error('convert boom'); },
     });
-    const result = await runVariant(descriptor, 'timeline', 'direct|original');
+    const result = await runVariant(descriptor, 'timeline', fixtureOf('direct|original'));
     expect(result.pass).toBe(false);
     expect(result.failedLayer).toContain('1');
     expect(result.message).toContain('convert boom');
@@ -145,7 +151,7 @@ describe('runVariant', () => {
     const descriptor = createMockDescriptor({
       domainAssertions: { '*': [failAssertion] },
     });
-    const result = await runVariant(descriptor, 'timeline', 'direct|original');
+    const result = await runVariant(descriptor, 'timeline', fixtureOf('direct|original'));
     expect(result.pass).toBe(false);
     expect(result.failedLayer).toContain('2');
     expect(result.message).toContain('bad feeditem');
@@ -156,7 +162,7 @@ describe('runVariant', () => {
     const descriptor = createMockDescriptor({
       formatAssertions: { '*': [failAssertion] },
     });
-    const result = await runVariant(descriptor, 'timeline', 'direct|original');
+    const result = await runVariant(descriptor, 'timeline', fixtureOf('direct|original'));
     expect(result.pass).toBe(false);
     expect(result.failedLayer).toContain('5');
     expect(result.message).toContain('bad format');
@@ -166,11 +172,11 @@ describe('runVariant', () => {
     const descriptor = createMockDescriptor({
       parseEntry: () => null,
     });
-    const result = await runVariant(descriptor, 'timeline', 'tombstone|deleted');
+    const result = await runVariant(descriptor, 'timeline', fixtureOf('tombstone|deleted'));
     expect(result.pass).toBe(true);
     expect(result.variant).toBe('tombstone|deleted');
-    // Should have Layer 0 result but stop there
-    expect(result.layers.length).toBe(1);
+    // Should have Layer 0 tombstone result, no further pipeline layers
+    expect(result.layers.length).toBeLessThanOrEqual(2); // tombstone layer + optional tombstone assertions
     expect(result.layers[0].pass).toBe(true);
   });
 
@@ -185,7 +191,7 @@ describe('runVariant', () => {
       domainAssertions: { retweet: [retweetAssertion] },
     });
     // "retweet" is a substring of "direct|retweet" so it should match
-    const result = await runVariant(descriptor, 'timeline', 'direct|retweet');
+    const result = await runVariant(descriptor, 'timeline', fixtureOf('direct|retweet'));
     expect(result.pass).toBe(true);
   });
 });
@@ -195,7 +201,7 @@ describe('runVariant', () => {
 describe('runDomain', () => {
   it('runs all variants and returns HarnessReport', async () => {
     const descriptor = createMockDescriptor();
-    const variants = ['direct|original', 'direct|retweet'];
+    const variants: FixtureEntry[] = [fixtureOf('direct|original'), fixtureOf('direct|retweet')];
     const report = await runDomain(descriptor, 'test-site', 'timeline', variants, 'golden');
     expect(report.site).toBe('test-site');
     expect(report.domain).toBe('timeline');
@@ -211,12 +217,12 @@ describe('runDomain', () => {
   it('counts failures correctly', async () => {
     const descriptor = createMockDescriptor({
       parseEntry: (raw: unknown) => {
-        const variant = (raw as string);
-        if (variant === 'bad') throw new Error('bad entry');
+        const entry = raw as Record<string, unknown>;
+        if (entry.fail) throw new Error('bad entry');
         return raw;
       },
     });
-    const variants = ['good', 'bad'];
+    const variants: FixtureEntry[] = [fixtureOf('good'), fixtureOf('bad', { fail: true })];
     const report = await runDomain(descriptor, 'test-site', 'timeline', variants, 'golden');
     expect(report.totalVariants).toBe(2);
     expect(report.passed).toBe(1);

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadGoldenVariants } from '../../src/harness/fixture-io.js';
@@ -12,6 +12,14 @@ const goldenDir = path.join(__dirname, '..', '..', 'src', 'sites', 'twitter', '_
 const variants: FixtureEntry[] = loadGoldenVariants(goldenDir, 'timeline');
 
 describe('harness golden — twitter/timeline', () => {
+  beforeAll(() => {
+    const tag = `twitter/timeline · ${variants.length} variants`;
+    const line = '═'.repeat(tag.length + 6);
+    console.log(`\n  ╔═${line}═╗`);
+    console.log(`  ║   HARNESS · ${tag}   ║`);
+    console.log(`  ╚═${line}═╝`);
+  });
+
   it('golden fixture file loads with expected variant count', () => {
     expect(variants.length).toBe(32);
   });

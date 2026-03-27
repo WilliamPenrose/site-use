@@ -201,6 +201,10 @@ async function runFetchFromBrowser(parsed: FeedArgs, config: ReturnType<typeof g
         } catch (err) {
           console.warn('Knowledge store ingest failed:', err);
         }
+
+        // TODO(m9): Wire captureForHarness() here for runtime variant capture (trigger source 3).
+        // Requires access to raw GraphQL response bodies from the intercept callback in getFeed().
+        // Currently deferred — see docs/milestones/m9/diagnostic-harness.md "Trigger Source 3".
       } finally {
         store.close();
       }

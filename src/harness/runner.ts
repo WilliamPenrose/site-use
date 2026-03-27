@@ -51,19 +51,11 @@ export function matchAssertions(
 export async function runVariant(
   descriptor: SiteHarnessDescriptor,
   domainName: string,
-  variant: string | FixtureEntry,
+  variant: FixtureEntry,
 ): Promise<VariantResult> {
-  // Split fixture entry into variant name and raw entry
-  let variantName: string;
-  let rawEntry: unknown;
-  if (typeof variant === 'string') {
-    variantName = variant;
-    rawEntry = variant;
-  } else {
-    variantName = variant._variant;
-    const { _variant, ...rest } = variant;
-    rawEntry = rest;
-  }
+  const variantName = variant._variant;
+  const { _variant, ...rest } = variant;
+  const rawEntry: unknown = rest;
 
   const domain = descriptor.domains[domainName];
   if (!domain) {
@@ -88,9 +80,28 @@ export async function runVariant(
     return { variant: variantName, pass: false, failedLayer: 'Layer 0→1', message, layers };
   }
 
-  // Tombstone: parseEntry returned null → pass, stop
+  // Tombstone: parseEntry returned null → run tombstone assertions, then stop
   if (parsed === null || parsed === undefined) {
     layers.push({ layer: 'Layer 0→1 (tombstone)', pass: true, output: null, errors: [] });
+
+    // Run tombstone-specific assertions (e.g. layer1ReturnsEmpty)
+    const tombstoneAssertions = matchAssertions(domain.assertions, variantName);
+    if (tombstoneAssertions.length > 0) {
+      const errors: string[] = [];
+      for (const assertFn of tombstoneAssertions) {
+        const ctx: AssertionContext = { variant: variantName, layer: 1, input: rawEntry, output: parsed };
+        const result = assertFn(ctx);
+        if (!result.pass) {
+          errors.push(result.message ?? 'Tombstone assertion failed');
+        }
+      }
+      if (errors.length > 0) {
+        layers.push({ layer: 'Tombstone assertions', pass: false, errors });
+        return { variant: variantName, pass: false, failedLayer: 'Tombstone assertions', message: errors[0], layers };
+      }
+      layers.push({ layer: 'Tombstone assertions', pass: true, errors: [] });
+    }
+
     return { variant: variantName, pass: true, layers };
   }
 
@@ -232,7 +243,7 @@ export async function runDomain(
   descriptor: SiteHarnessDescriptor,
   site: string,
   domainName: string,
-  variants: string[],
+  variants: FixtureEntry[],
   source: 'golden' | 'captured' | 'quarantine',
 ): Promise<HarnessReport> {
   const results: VariantResult[] = [];

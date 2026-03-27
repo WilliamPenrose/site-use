@@ -1,5 +1,5 @@
 import { loadHarness, runDomain } from '../harness/runner.js';
-import { loadGoldenVariants, loadFixtureDir, promoteFixture, goldenDir, harnessDataDir } from '../harness/fixture-io.js';
+import { loadGoldenVariants, loadFixtureDir, promoteFixture, goldenDir, harnessDataDir, type FixtureEntry } from '../harness/fixture-io.js';
 import { formatReport, formatSummary } from '../harness/report.js';
 import type { HarnessReport } from '../harness/types.js';
 import fs from 'node:fs';
@@ -50,7 +50,7 @@ async function runHarnessRun(site: string, args: string[]): Promise<void> {
   const reports: HarnessReport[] = [];
 
   for (const domainName of domainNames) {
-    let variants: string[];
+    let variants: FixtureEntry[];
     let source: 'golden' | 'captured' | 'quarantine';
 
     if (useCaptured || useQuarantine) {
@@ -61,7 +61,7 @@ async function runHarnessRun(site: string, args: string[]): Promise<void> {
       const filtered = entries.filter(({ filePath }) =>
         path.basename(filePath).startsWith(domainName + '-'),
       );
-      variants = filtered.map(({ entry }) => entry._variant);
+      variants = filtered.map(({ entry }) => entry);
       if (variants.length === 0) {
         console.log(`[harness] No ${source} fixtures found for ${site}/${domainName}`);
         continue;
@@ -69,8 +69,7 @@ async function runHarnessRun(site: string, args: string[]): Promise<void> {
     } else {
       source = 'golden';
       const dir = goldenDir(site);
-      const entries = loadGoldenVariants(dir, domainName);
-      variants = entries.map((e) => e._variant);
+      variants = loadGoldenVariants(dir, domainName);
       if (variants.length === 0) {
         console.log(`[harness] No golden variants found for ${site}/${domainName}`);
         continue;
