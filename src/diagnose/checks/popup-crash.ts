@@ -3,9 +3,9 @@ import type { CheckMeta, CheckResult } from '../types.js';
 export const meta: CheckMeta & { runtime: 'browser' } = {
   id: 'popup-crash',
   name: 'Popup from iframe',
-  description: 'window.open from an iframe should not crash or be blocked',
+  description: 'Programmatic window.open should be blocked (normal browser) and not crash',
   runtime: 'browser',
-  expected: 'popup allowed',
+  expected: 'popup blocked',
 };
 
 export function run(): CheckResult {
@@ -19,10 +19,11 @@ export function run(): CheckResult {
       if (w) {
         w.close();
         f.remove();
-        return { pass: true, actual: 'popup allowed' };
+        // Normal browsers block programmatic popups without user gesture
+        return { pass: false, actual: 'popup allowed (automation signature)' };
       }
       f.remove();
-      return { pass: false, actual: 'popup blocked' };
+      return { pass: true, actual: 'popup blocked' };
     } catch (e) {
       f.remove();
       return { pass: false, actual: `popup error: ${(e as Error).message}` };

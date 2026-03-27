@@ -95,13 +95,22 @@ export async function humanScroll(
   let primaryAccum = 0;
   let secondaryAccum = 0;
 
+  // Precompute bell-shaped speed profile and normalize so total ≈ target distance.
+  // Without normalization the correction step overshoots the peak (bug).
+  const rawBellScales: number[] = [];
+  let bellSum = 0;
+  for (let i = 0; i < numSteps; i++) {
+    const t = numSteps > 1 ? i / (numSteps - 1) : 0.5;
+    const s = 0.3 + 0.7 * Math.sin(Math.PI * t);
+    rawBellScales.push(s);
+    bellSum += s;
+  }
+  const bellNorm = bellSum > 0 ? numSteps / bellSum : 1;
+
   for (let i = 0; i < numSteps; i++) {
     const isLast = i === numSteps - 1;
 
-    // Bell-shaped speed profile: scale step size by sin curve
-    // so first/last steps are smaller (acceleration/deceleration)
-    const t = numSteps > 1 ? i / (numSteps - 1) : 0.5;
-    const bellScale = 0.3 + 0.7 * Math.sin(Math.PI * t);
+    const bellScale = rawBellScales[i] * bellNorm;
 
     const pJitter = 1 + (Math.random() * 2 - 1) * stepSizeJitter;
     const sJitter = 1 + (Math.random() * 2 - 1) * stepSizeJitter;
