@@ -548,9 +548,9 @@ describe('local mode: CLI integration', () => {
 
   it('--local returns cached tweets as formatted text', () => {
     const output = run(['--local']);
-    // Default tab is "following" → only followed-author tweets
+    // Default tab is "for_you" → all tweets (no filter)
     expect(output).toContain('Following tweet 1');
-    expect(output).not.toContain('For you tweet 1');
+    expect(output).toContain('For you tweet 1');
     expect(output).toContain('cached');
   });
 
@@ -610,11 +610,11 @@ describe('local mode: CLI integration', () => {
     expect(items).toHaveLength(6);
   });
 
-  it('--local default tab (following) filters to followed authors', () => {
-    // Default tab is "following", so --local without --tab should also filter
+  it('--local default tab (for_you) returns all tweets', () => {
+    // Default tab is "for_you", so --local without --tab returns all tweets
     const output = run(['--local', '--json']);
     const items = JSON.parse(output);
-    expect(items).toHaveLength(3);
+    expect(items).toHaveLength(6);
   });
 
   it('--local shows hint message on stderr', () => {
@@ -668,7 +668,75 @@ describe('local mode: CLI integration', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Smart default CLI integration (only testable for fresh → local path)
+// Smart default decision logic (pure unit tests — no CLI, no browser)
+// ---------------------------------------------------------------------------
+
+describe('smart default: checkFreshness decision logic', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'freshness-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('returns fresh when timestamp is within maxAge', async () => {
+    const { checkFreshness } = await import('../../src/cli/freshness.js');
+    const recentTs = new Date(Date.now() - 10 * 60_000).toISOString();
+    fs.writeFileSync(
+      path.join(tmpDir, 'fetch-timestamps.json'),
+      JSON.stringify({ twitter: { for_you: recentTs } }),
+    );
+
+    const result = checkFreshness(tmpDir, 'twitter', 'for_you', 120);
+    expect(result.shouldFetch).toBe(false);
+    expect(result.reason).toBe('fresh');
+    expect(result.ageMinutes).toBeLessThanOrEqual(11);
+  });
+
+  it('returns stale when timestamp exceeds maxAge', async () => {
+    const { checkFreshness } = await import('../../src/cli/freshness.js');
+    const oldTs = new Date(Date.now() - 150 * 60_000).toISOString();
+    fs.writeFileSync(
+      path.join(tmpDir, 'fetch-timestamps.json'),
+      JSON.stringify({ twitter: { for_you: oldTs } }),
+    );
+
+    const result = checkFreshness(tmpDir, 'twitter', 'for_you', 120);
+    expect(result.shouldFetch).toBe(true);
+    expect(result.reason).toBe('stale');
+  });
+
+  it('returns no_data when no timestamp exists for the requested tab', async () => {
+    const { checkFreshness } = await import('../../src/cli/freshness.js');
+    const recentTs = new Date(Date.now() - 10 * 60_000).toISOString();
+    fs.writeFileSync(
+      path.join(tmpDir, 'fetch-timestamps.json'),
+      JSON.stringify({ twitter: { following: recentTs } }),
+    );
+
+    // "following" is fresh
+    const followingCheck = checkFreshness(tmpDir, 'twitter', 'following', 120);
+    expect(followingCheck.shouldFetch).toBe(false);
+
+    // "for_you" has no timestamp → would trigger fetch
+    const forYouCheck = checkFreshness(tmpDir, 'twitter', 'for_you', 120);
+    expect(forYouCheck.shouldFetch).toBe(true);
+    expect(forYouCheck.reason).toBe('no_data');
+  });
+
+  it('returns no_data when timestamp file does not exist', async () => {
+    const { checkFreshness } = await import('../../src/cli/freshness.js');
+    const result = checkFreshness(tmpDir, 'twitter', 'for_you', 120);
+    expect(result.shouldFetch).toBe(true);
+    expect(result.reason).toBe('no_data');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Smart default CLI integration (--local only, never launches browser)
 // ---------------------------------------------------------------------------
 
 describe('local mode: smart default CLI integration', () => {
@@ -690,16 +758,9 @@ describe('local mode: smart default CLI integration', () => {
 
   const bin = path.resolve('dist/index.js');
 
-  it('auto-selects local when data is fresh and DB populated', () => {
-    // Write fresh timestamp for "following" tab
-    const recentTs = new Date(Date.now() - 10 * 60_000).toISOString();
-    fs.writeFileSync(
-      path.join(tmpDir, 'fetch-timestamps.json'),
-      JSON.stringify({ twitter: { following: recentTs } }),
-    );
-
+  it('--local --json returns all tweets for default tab (for_you)', () => {
     const { execFileSync } = require('node:child_process') as typeof import('node:child_process');
-    const result = execFileSync('node', [bin, 'twitter', 'feed', '--json'], {
+    const result = execFileSync('node', [bin, 'twitter', 'feed', '--local', '--json'], {
       env: { ...process.env, SITE_USE_DATA_DIR: tmpDir },
       encoding: 'utf-8',
       timeout: 15_000,
@@ -707,60 +768,17 @@ describe('local mode: smart default CLI integration', () => {
 
     const items = JSON.parse(result);
     expect(Array.isArray(items)).toBe(true);
-    // Default tab is "following" → only followed authors (3 items)
-    expect(items.length).toBe(3);
+    expect(items.length).toBe(6);
   });
 
-  it('smart default stderr shows cache age and count when using local', () => {
-    const recentTs = new Date(Date.now() - 10 * 60_000).toISOString();
-    fs.writeFileSync(
-      path.join(tmpDir, 'fetch-timestamps.json'),
-      JSON.stringify({ twitter: { following: recentTs } }),
-    );
-
-    const { execFileSync } = require('node:child_process') as typeof import('node:child_process');
-    try {
-      execFileSync('node', [bin, 'twitter', 'feed'], {
-        env: { ...process.env, SITE_USE_DATA_DIR: tmpDir },
-        encoding: 'utf-8',
-        timeout: 15_000,
-      });
-    } catch {
-      // may or may not throw depending on exit code
-    }
-
-    // We need stderr — use spawnSync for more control
+  it('--local stderr shows hint and tweet count', () => {
     const { spawnSync } = require('node:child_process') as typeof import('node:child_process');
-    const proc = spawnSync('node', [bin, 'twitter', 'feed'], {
+    const proc = spawnSync('node', [bin, 'twitter', 'feed', '--local'], {
       env: { ...process.env, SITE_USE_DATA_DIR: tmpDir },
       encoding: 'utf-8',
       timeout: 15_000,
     });
 
-    expect(proc.stderr).toContain('cached data');
-    expect(proc.stderr).toContain('6 tweets');
-    expect(proc.stderr).toContain('--fetch');
-  });
-
-  it('smart default for_you tab with no timestamp would NOT use local (unit-level check)', async () => {
-    // Verify at the unit level: fresh "following" but missing "for_you" timestamp
-    // means smart default would trigger fetch for --tab for_you.
-    // We don't run the CLI here to avoid launching a real browser.
-    const { checkFreshness } = await import('../../src/cli/freshness.js');
-
-    const recentTs = new Date(Date.now() - 10 * 60_000).toISOString();
-    fs.writeFileSync(
-      path.join(tmpDir, 'fetch-timestamps.json'),
-      JSON.stringify({ twitter: { following: recentTs } }),
-    );
-
-    // "following" is fresh → would use local
-    const followingCheck = checkFreshness(tmpDir, 'twitter', 'following', 120);
-    expect(followingCheck.shouldFetch).toBe(false);
-
-    // "for_you" has no timestamp → would trigger fetch
-    const forYouCheck = checkFreshness(tmpDir, 'twitter', 'for_you', 120);
-    expect(forYouCheck.shouldFetch).toBe(true);
-    expect(forYouCheck.reason).toBe('no_data');
+    expect(proc.stderr).toContain('local data');
   });
 });

@@ -240,7 +240,7 @@ describe('Error Scenario Tests', () => {
           collect: async () => ({ items: [], meta: { coveredUsers: [], timeRange: { from: '', to: '' } } }),
           params: z.object({
             count: z.number().min(1).max(100).default(20),
-            tab: z.enum(['following', 'for_you']).default('following'),
+            tab: z.enum(['following', 'for_you']).default('for_you'),
             debug: z.boolean().default(false),
             dumpRaw: z.string().optional(),
           }),

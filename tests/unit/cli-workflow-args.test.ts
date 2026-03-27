@@ -9,7 +9,7 @@ describe('parseFeedArgs', () => {
 
   it('returns defaults when no args', () => {
     const result = parseFeedArgs([]);
-    expect(result).toEqual({ count: 20, tab: 'following', debug: false, json: false, local: false, fetch: false, maxAge: 120 });
+    expect(result).toEqual({ count: 20, tab: 'for_you', debug: false, json: false, local: false, fetch: false, maxAge: 120 });
   });
 
   it('throws on NaN count', () => {

@@ -178,7 +178,7 @@ export interface FeedResult {
 export const TwitterFeedParamsSchema = z.object({
   count: z.number().min(1).max(100).default(20)
     .describe('Number of tweets to collect'),
-  tab: z.enum(['following', 'for_you']).default('following')
+  tab: z.enum(['following', 'for_you']).default('for_you')
     .describe('Which feed tab to read: "following" (chronological) or "for_you" (algorithmic)'),
   debug: z.boolean().default(false)
     .describe('Include diagnostic info (tab action, reload fallback, GraphQL counts, timing)'),

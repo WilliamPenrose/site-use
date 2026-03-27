@@ -32,7 +32,7 @@ interface FeedArgs {
 }
 
 export function parseFeedArgs(args: string[]): FeedArgs {
-  const result: FeedArgs = { count: 20, tab: 'following', debug: false, json: false, local: false, fetch: false, maxAge: 120 };
+  const result: FeedArgs = { count: 20, tab: 'for_you', debug: false, json: false, local: false, fetch: false, maxAge: 120 };
   let i = 0;
 
   while (i < args.length) {
@@ -143,7 +143,7 @@ site-use twitter feed — Collect tweets from the home timeline
 
 Options:
   --count <n>            Number of tweets (1-100, default: 20)
-  --tab <name>           Feed tab: following | for_you (default: following)
+  --tab <name>           Feed tab: following | for_you (default: for_you)
   --fetch                Force fetch from browser (skip freshness check)
   --local                Force local cache query (no browser)
   --max-age <minutes>    Max cache age before auto-fetching (default: 120)
@@ -327,7 +327,7 @@ Subcommands:
 
 Options (feed):
   --count <n>            Number of tweets (default: 20)
-  --tab <name>           Feed tab: following | for_you (default: following)
+  --tab <name>           Feed tab: following | for_you (default: for_you)
   --fetch                Force fetch from browser
   --local                Force local cache query
   --max-age <minutes>    Max cache age before auto-fetching (default: 120)

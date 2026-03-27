@@ -99,7 +99,7 @@ describe('getFeed', () => {
       takeSnapshot: vi.fn().mockResolvedValue(
         buildSnapshot([
           { uid: '1', role: 'link', name: 'Home' },
-          { uid: '10', role: 'tab', name: 'Following', selected: true },
+          { uid: '10', role: 'tab', name: 'For you', selected: true },
         ]),
       ),
       interceptRequest: vi.fn().mockImplementation(
@@ -166,11 +166,11 @@ describe('getFeed', () => {
     let interceptHandler: any;
     const beforeTabSwitch = buildSnapshot([
       { uid: '1', role: 'link', name: 'Home' },
-      { uid: '10', role: 'tab', name: 'Following', selected: false },
+      { uid: '10', role: 'tab', name: 'For you', selected: false },
     ]);
     const afterTabSwitch = buildSnapshot([
       { uid: '1', role: 'link', name: 'Home' },
-      { uid: '10', role: 'tab', name: 'Following', selected: true },
+      { uid: '10', role: 'tab', name: 'For you', selected: true },
     ]);
     const primitives = createMockPrimitives({
       evaluate: vi.fn()
@@ -237,7 +237,7 @@ describe('getFeed', () => {
       takeSnapshot: vi.fn().mockResolvedValue(
         buildSnapshot([
           { uid: '1', role: 'link', name: 'Home' },
-          { uid: '10', role: 'tab', name: 'Following', selected: true },
+          { uid: '10', role: 'tab', name: 'For you', selected: true },
         ]),
       ),
       interceptRequest: vi.fn().mockImplementation(

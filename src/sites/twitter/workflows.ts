@@ -66,7 +66,7 @@ export async function getFeed(
   primitives: Primitives,
   opts: GetFeedOptions = {},
 ): Promise<FrameworkFeedResult> {
-  const { count = 20, tab = 'following', debug = false, dumpRaw } = opts;
+  const { count = 20, tab = 'for_you', debug = false, dumpRaw } = opts;
   const startTime = Date.now();
   let graphqlResponseCount = 0;
   let reloadFallback = false;
