@@ -88,17 +88,20 @@ export function registerGlobalTools(
           .describe('Minimum retweets threshold'),
         surface_reason: z.enum(['original', 'retweet', 'quote', 'reply']).optional()
           .describe('Filter by how the post appeared in the feed'),
+        tab: z.enum(['following', 'for_you']).optional()
+          .describe('Feed tab: "following" returns only posts from authors you follow; "for_you" applies no filter'),
         fields: z.array(z.enum(SEARCH_FIELDS)).optional()
           .describe('Fields to include in results. Defaults to all fields.'),
       },
     },
-    async ({ query, site, author, start_date, end_date, max_results, hashtag, mention, min_likes, min_retweets, surface_reason, fields }) => {
+    async ({ query, site, author, start_date, end_date, max_results, hashtag, mention, min_likes, min_retweets, surface_reason, tab, fields }) => {
       try {
         const store = getOrCreateStore();
         const metricFilters: Array<{ metric: string; op: '>=' | '<=' | '='; numValue?: number; strValue?: string }> = [];
         if (min_likes != null) metricFilters.push({ metric: 'likes', op: '>=', numValue: min_likes });
         if (min_retweets != null) metricFilters.push({ metric: 'retweets', op: '>=', numValue: min_retweets });
         if (surface_reason != null) metricFilters.push({ metric: 'surface_reason', op: '=', strValue: surface_reason });
+        if (tab === 'following') metricFilters.push({ metric: 'following', op: '=', numValue: 1 });
         const result = await store.search({
           query, site, author, start_date, end_date, max_results, hashtag, mention,
           metricFilters: metricFilters.length > 0 ? metricFilters : undefined,
