@@ -6,6 +6,9 @@ import { DEFAULT_TOOL_DESCRIPTIONS } from './default-descriptions.js';
 import { setLastFetchTime } from '../fetch-timestamps.js';
 import { getConfig } from '../config.js';
 import path from 'node:path';
+import { withSmartCache, stripFrameworkFlags } from '../cli/smart-cache.js';
+import { createStore } from '../storage/index.js';
+import fs from 'node:fs';
 
 // ── FeedResult Zod schema for return value validation ──────────
 const MediaItemSchema = z.object({
@@ -176,7 +179,12 @@ export function generateCliCommands(
         command: 'check-login',
         description: capabilities.auth.cli?.description
           ?? `Check login status for ${plugin.name}`,
-        handler: async () => {
+        handler: async (args) => {
+          if (args?.includes('--help') || args?.includes('-h')) {
+            const desc = capabilities.auth!.cli?.description ?? `Check login status for ${plugin.name}`;
+            console.log(`site-use ${plugin.name} check-login — ${desc}\n`);
+            return;
+          }
           const result = await wrappedAuth({});
           const text = (result.content[0] as { text: string }).text;
           console.log(text);
@@ -188,6 +196,7 @@ export function generateCliCommands(
     if (capabilities?.feed && shouldExposeCli(capabilities.feed.expose)) {
       const feedCollect = capabilities.feed.collect;
       const paramsSchema = capabilities.feed.params;
+      const feedCap = capabilities.feed;
       const wrappedFeed = wrapToolHandler({
         siteName: plugin.name,
         getRuntime: () => runtimeManager.get(plugin.name),
@@ -206,17 +215,91 @@ export function generateCliCommands(
           return result;
         },
       });
+
+      const hasCacheSupport = !!(feedCap.localQuery && feedCap.cache);
+
       commands.push({
         site: plugin.name,
         command: 'feed',
-        description: capabilities.feed.cli?.description
+        description: feedCap.cli?.description
           ?? `Collect feed from ${plugin.name}`,
         handler: async (args) => {
-          const params = parseCliArgs(args, paramsSchema);
-          const result = await wrappedFeed(params);
-          const text = (result.content[0] as { text: string }).text;
-          console.log(text);
-          if (result.isError) process.exitCode = 1;
+          if (args?.includes('--help') || args?.includes('-h')) {
+            console.log(buildFeedHelp(
+              plugin.name,
+              feedCap.cli,
+              hasCacheSupport,
+              feedCap.cache?.defaultMaxAge,
+            ));
+            return;
+          }
+
+          if (hasCacheSupport) {
+            const { cacheFlags, pluginArgs } = stripFrameworkFlags(args, feedCap.cache!.defaultMaxAge);
+            const params = parseCliArgs(pluginArgs, paramsSchema);
+            const variantKey = feedCap.cache!.variantKey;
+            const variant = variantKey
+              ? ((params as Record<string, unknown>)[variantKey] as string | undefined) ?? feedCap.cache!.defaultVariant ?? 'default'
+              : feedCap.cache!.defaultVariant ?? 'default';
+
+            const cfg = getConfig();
+            const dbPath = path.join(cfg.dataDir, 'knowledge.db');
+
+            const cacheResult = await withSmartCache(
+              {
+                siteName: plugin.name,
+                variant,
+                maxAge: cacheFlags.maxAge,
+                forceLocal: cacheFlags.forceLocal,
+                forceFetch: cacheFlags.forceFetch,
+                dataDir: cfg.dataDir,
+              },
+              {
+                localQuery: async () => {
+                  const store = createStore(dbPath);
+                  try {
+                    return await feedCap.localQuery!(store, params);
+                  } finally {
+                    store.close();
+                  }
+                },
+                remoteFetch: async () => {
+                  const result = await wrappedFeed(params);
+                  if (result.isError) {
+                    const text = (result.content[0] as { text: string }).text;
+                    throw new Error(text);
+                  }
+                  return JSON.parse((result.content[0] as { text: string }).text);
+                },
+                hasLocalData: async () => {
+                  if (!fs.existsSync(dbPath)) return false;
+                  const store = createStore(dbPath);
+                  try {
+                    const count = await store.countItems({ site: plugin.name });
+                    return count > 0;
+                  } catch {
+                    return false;
+                  } finally {
+                    store.close();
+                  }
+                },
+              },
+            );
+
+            console.log(JSON.stringify(cacheResult.result, null, 2));
+            if (cacheResult.source === 'local') {
+              const age = cacheResult.ageMinutes != null ? `${cacheResult.ageMinutes}min old` : 'age unknown';
+              console.error(`Using cached data (${age}).`);
+            } else {
+              console.error('Fetched from browser.');
+            }
+          } else {
+            const params = parseCliArgs(args, paramsSchema);
+            const result = await wrappedFeed(params);
+            const text = (result.content[0] as { text: string }).text;
+            console.log(text);
+            if (result.isError) process.exitCode = 1;
+          }
         },
       });
     }
@@ -236,6 +319,14 @@ export function generateCliCommands(
           command: wf.name,
           description: wf.cli?.description ?? wf.description,
           handler: async (args) => {
+            if (args?.includes('--help') || args?.includes('-h')) {
+              const desc = wf.cli?.description ?? wf.description;
+              console.log(`site-use ${plugin.name} ${wf.name} — ${desc}\n`);
+              if (wf.cli?.help) {
+                console.log(wf.cli.help);
+              }
+              return;
+            }
             const params = parseCliArgs(args, wf.params);
             const result = await wrappedWf(params);
             const text = (result.content[0] as { text: string }).text;
@@ -248,6 +339,32 @@ export function generateCliCommands(
   }
 
   return commands;
+}
+
+function buildFeedHelp(
+  siteName: string,
+  cli: { description?: string; help?: string } | undefined,
+  hasCacheSupport: boolean,
+  defaultMaxAge?: number,
+): string {
+  const lines: string[] = [];
+  const desc = cli?.description ?? `Collect feed from ${siteName}`;
+  lines.push(`site-use ${siteName} feed — ${desc}\n`);
+
+  if (cli?.help) {
+    lines.push(cli.help);
+    lines.push('');
+  }
+
+  if (hasCacheSupport) {
+    lines.push('Cache options:');
+    lines.push('  --local                Force local cache query (no browser)');
+    lines.push('  --fetch                Force fetch from browser (skip freshness check)');
+    lines.push(`  --max-age <minutes>    Max cache age before auto-fetching (default: ${defaultMaxAge ?? 120})`);
+    lines.push('');
+  }
+
+  return lines.join('\n');
 }
 
 /**

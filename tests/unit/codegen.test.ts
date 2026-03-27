@@ -172,3 +172,74 @@ describe('generateCliCommands', () => {
     expect(sites.sort()).toEqual(['reddit', 'twitter']);
   });
 });
+
+describe('generateCliCommands — smart cache', () => {
+  it('generates feed command that accepts cache flags without error', () => {
+    const plugin = fakePlugin({
+      capabilities: {
+        feed: {
+          collect: async () => ({ items: [], meta: { coveredUsers: [], timeRange: { from: '', to: '' } } }),
+          params: z.object({ tab: z.string().optional() }),
+          localQuery: async () => ({ items: [], meta: { coveredUsers: [], timeRange: { from: '', to: '' } } }),
+          cache: { defaultMaxAge: 120, variantKey: 'tab', defaultVariant: 'for_you' },
+        },
+      },
+    });
+    const cmds = generateCliCommands([plugin], fakeManager());
+    const entry = cmds.find(c => c.command === 'feed');
+    expect(entry).toBeDefined();
+  });
+
+  it('feed command without localQuery has no cache behavior', () => {
+    const plugin = fakePlugin({
+      capabilities: {
+        feed: {
+          collect: async () => ({ items: [], meta: { coveredUsers: [], timeRange: { from: '', to: '' } } }),
+          params: z.object({ count: z.number().optional() }),
+        },
+      },
+    });
+    const cmds = generateCliCommands([plugin], fakeManager());
+    const entry = cmds.find(c => c.command === 'feed');
+    expect(entry).toBeDefined();
+  });
+
+  it('feed command with cache handles --help', async () => {
+    const plugin = fakePlugin({
+      capabilities: {
+        feed: {
+          collect: async () => ({ items: [], meta: { coveredUsers: [], timeRange: { from: '', to: '' } } }),
+          params: z.object({ tab: z.string().optional() }),
+          localQuery: async () => ({ items: [], meta: { coveredUsers: [], timeRange: { from: '', to: '' } } }),
+          cache: { defaultMaxAge: 120 },
+          cli: { description: 'Collect feed', help: 'Feed help text' },
+        },
+      },
+    });
+    const cmds = generateCliCommands([plugin], fakeManager());
+    const entry = cmds.find(c => c.command === 'feed')!;
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    await entry.handler(['--help']);
+    expect(consoleSpy).toHaveBeenCalled();
+    const output = consoleSpy.mock.calls.map(c => c[0]).join('\n');
+    expect(output).toContain('Feed help text');
+    expect(output).toContain('--local');
+    expect(output).toContain('--fetch');
+    expect(output).toContain('--max-age');
+    consoleSpy.mockRestore();
+  });
+
+  it('check-login command handles --help', async () => {
+    const plugin = fakePlugin({
+      capabilities: {
+        auth: { check: async () => ({ loggedIn: true }) },
+      },
+    });
+    const cmds = generateCliCommands([plugin], fakeManager());
+    const entry = cmds.find(c => c.command === 'check-login')!;
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    await entry.handler(['--help']);
+    expect(consoleSpy).toHaveBeenCalled();
+    consoleSpy.mockRestore();
+  });
+});
