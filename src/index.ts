@@ -111,6 +111,7 @@ Global commands:
   rebuild            Rebuild search index (Phase 2)
   clean              Delete stored items by filter (interactive)
   diagnose           Run anti-detection diagnostic checks
+  harness            Diagnostic harness (run / capture / promote / status)
   help               Show this help message
 
 Environment:
@@ -190,6 +191,12 @@ The server communicates via stdin/stdout using the MCP protocol.
     case 'clean':
       await runCleanCli(args.slice(1));
       break;
+
+    case 'harness': {
+      const { runHarnessCli } = await import('./cli/harness.js');
+      await runHarnessCli(args.slice(1));
+      break;
+    }
 
     case 'diagnose': {
       if (args.includes('--help') || args.includes('-h') || args.includes('help')) {
