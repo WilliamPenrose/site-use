@@ -84,8 +84,8 @@ export async function runVariant(
   if (parsed === null || parsed === undefined) {
     layers.push({ layer: 'Layer 0→1 (tombstone)', pass: true, output: null, errors: [] });
 
-    // Run tombstone-specific assertions (e.g. layer1ReturnsEmpty)
-    const tombstoneAssertions = matchAssertions(domain.assertions, variantName);
+    // Run only tombstone-tagged assertions (Layer 2 assertions expect FeedItem, not null)
+    const tombstoneAssertions = domain.assertions['tombstone'] ?? [];
     if (tombstoneAssertions.length > 0) {
       const errors: string[] = [];
       for (const assertFn of tombstoneAssertions) {
