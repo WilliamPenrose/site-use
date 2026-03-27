@@ -15,7 +15,9 @@ chrome-profile/
 .site-use/
 
 # Claude Code local settings (contains machine-specific paths)
-.claude/
+# Ignore everything in .claude/ except project-level settings.json
+.claude/*
+!.claude/settings.json
 .claude.local.md
 
 # Superpowers intermediate process docs
