@@ -377,7 +377,7 @@ function parseCliArgs(args: string[], schema: ZodType): Record<string, unknown> 
   while (i < args.length) {
     const arg = args[i];
     if (arg.startsWith('--')) {
-      const key = arg.slice(2).replace(/-/g, '_');
+      const key = arg.slice(2).replace(/-([a-z])/g, (_, c) => c.toUpperCase());
       const next = args[i + 1];
       if (next === undefined || next.startsWith('--')) {
         raw[key] = true;
