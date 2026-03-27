@@ -262,7 +262,9 @@ export async function runDomain(
 export async function loadHarness(site: string): Promise<SiteHarnessDescriptor | null> {
   try {
     const mod = await import(`../sites/${site}/harness.js`);
-    return (mod.default ?? mod.descriptor ?? null) as SiteHarnessDescriptor | null;
+    // Look for named export: {site}Harness (e.g. twitterHarness), then default, then descriptor
+    const descriptorKey = `${site}Harness`;
+    return (mod[descriptorKey] ?? mod.default ?? mod.descriptor ?? null) as SiteHarnessDescriptor | null;
   } catch {
     return null;
   }

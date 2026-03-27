@@ -5,9 +5,16 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-/** Path to golden fixtures in the source tree. */
+/**
+ * Path to golden fixtures in the source tree.
+ * Resolves from __dirname (dist/harness/ or src/harness/) up to project root,
+ * then into src/sites/{site}/__tests__/fixtures/golden/.
+ * Works both from compiled dist/ (CLI) and from src/ (vitest).
+ */
 export function goldenDir(site: string): string {
-  return path.join(__dirname, '..', 'sites', site, '__tests__', 'fixtures', 'golden');
+  // __dirname is either dist/harness/ or src/harness/ — go up to project root
+  const projectRoot = path.resolve(__dirname, '..', '..');
+  return path.join(projectRoot, 'src', 'sites', site, '__tests__', 'fixtures', 'golden');
 }
 
 /** Path to harness data (captured/quarantine) under ~/.site-use/harness. */
