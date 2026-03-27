@@ -211,6 +211,7 @@ export async function runHarnessCli(args: string[]): Promise<void> {
     }
 
     default:
-      writeError('unknown_subcommand', `Unknown harness subcommand: ${subcommand}\n\n${HARNESS_HELP}`);
+      writeError('unknown_subcommand', `Unknown harness subcommand: ${subcommand}`);
+      console.log(HARNESS_HELP);
   }
 }
