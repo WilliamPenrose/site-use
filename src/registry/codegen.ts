@@ -4,7 +4,7 @@ import type { SiteRuntimeManager } from '../runtime/manager.js';
 import { wrapToolHandler, type ToolResult } from './tool-wrapper.js';
 import { DEFAULT_TOOL_DESCRIPTIONS } from './default-descriptions.js';
 import { setLastFetchTime } from '../fetch-timestamps.js';
-import { getConfig } from '../config.js';
+import { getConfig, getKnowledgeDbPath } from '../config.js';
 import path from 'node:path';
 import { withSmartCache, stripFrameworkFlags } from '../cli/smart-cache.js';
 import { createStore } from '../storage/index.js';
@@ -243,7 +243,7 @@ export function generateCliCommands(
               : feedCap.cache!.defaultVariant ?? 'default';
 
             const cfg = getConfig();
-            const dbPath = path.join(cfg.dataDir, 'knowledge.db');
+            const dbPath = getKnowledgeDbPath(cfg.dataDir);
 
             const cacheResult = await withSmartCache(
               {

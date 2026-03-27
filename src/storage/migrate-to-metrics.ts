@@ -8,6 +8,7 @@
 
 import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
+import { getKnowledgeDbPath } from '../config.js';
 import os from 'node:os';
 
 function migrate(dbPath: string): void {
@@ -94,6 +95,7 @@ function migrate(dbPath: string): void {
 }
 
 // CLI entry point
-const dbPath = process.argv[2] || path.join(os.homedir(), '.site-use', 'data', 'knowledge.db');
+const defaultDataDir = path.join(os.homedir(), '.site-use');
+const dbPath = process.argv[2] || getKnowledgeDbPath(defaultDataDir);
 console.log(`Migrating database: ${dbPath}`);
 migrate(dbPath);

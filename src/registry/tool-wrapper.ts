@@ -1,5 +1,4 @@
 import { z, type ZodType } from 'zod';
-import path from 'node:path';
 import type { SiteRuntime } from '../runtime/types.js';
 import { SiteUseError, BrowserDisconnected, RateLimited } from '../errors.js';
 import { resolveHint } from './default-descriptions.js';
@@ -87,9 +86,9 @@ export function wrapToolHandler(opts: WrapOptions): (params: Record<string, unkn
         const feedResult = result as { items?: unknown[] };
         if (feedResult.items && feedResult.items.length > 0) {
           const { createStore } = await import('../storage/index.js');
-          const { getConfig } = await import('../config.js');
+          const { getConfig, getKnowledgeDbPath } = await import('../config.js');
           const cfg = getConfig();
-          const dbPath = path.join(cfg.dataDir, 'data', 'knowledge.db');
+          const dbPath = getKnowledgeDbPath(cfg.dataDir);
           const store = createStore(dbPath);
           const ingestItems = opts.autoIngest.storeAdapter
             .toIngestItems(feedResult.items)

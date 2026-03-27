@@ -4,6 +4,7 @@ import os from 'node:os';
 import fs from 'node:fs';
 import readline from 'node:readline/promises';
 import { createStore } from '../storage/index.js';
+import { getKnowledgeDbPath } from '../config.js';
 import { localToUtc } from './knowledge.js';
 import { utcToLocalDisplay } from '../format-date.js';
 import type { DeleteParams, DeletePreview } from '../storage/types.js';
@@ -166,7 +167,7 @@ export async function runCleanCli(args: string[]): Promise<void> {
   }
 
   const dataDir = getDataDir();
-  const dbPath = path.join(dataDir, 'data', 'knowledge.db');
+  const dbPath = getKnowledgeDbPath(dataDir);
   if (!fs.existsSync(dbPath)) {
     process.stderr.write(`Database not found at ${dbPath}\n`);
     process.exitCode = 1;

@@ -515,8 +515,9 @@ describe('local mode: CLI integration', () => {
 
   beforeEach(async () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'local-cli-'));
-    // DB lives at {dataDir}/knowledge.db (same as codegen path in getConfig)
-    dbPath = path.join(tmpDir, 'knowledge.db');
+    // DB lives at {dataDir}/data/knowledge.db (canonical path used everywhere)
+    dbPath = path.join(tmpDir, 'data', 'knowledge.db');
+    fs.mkdirSync(path.join(tmpDir, 'data'), { recursive: true });
     const store = createStore(dbPath);
     await store.ingest(feedItemsToIngestItems(ALL_ITEMS));
     store.close();
@@ -630,7 +631,8 @@ describe('local mode: CLI integration', () => {
   it('--local with empty DB shows no local data error', async () => {
     // Create a fresh empty DB — hasLocalData returns false → throws "No local data found"
     const emptyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'local-empty-'));
-    const emptyDbPath = path.join(emptyDir, 'knowledge.db');
+    fs.mkdirSync(path.join(emptyDir, 'data'), { recursive: true });
+    const emptyDbPath = path.join(emptyDir, 'data', 'knowledge.db');
     const store = createStore(emptyDbPath);
     store.close();
 
@@ -749,8 +751,9 @@ describe('local mode: smart default CLI integration', () => {
 
   beforeEach(async () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'smart-cli-'));
-    // DB lives at {dataDir}/knowledge.db (same as codegen path in getConfig)
-    dbPath = path.join(tmpDir, 'knowledge.db');
+    // DB lives at {dataDir}/data/knowledge.db (canonical path used everywhere)
+    dbPath = path.join(tmpDir, 'data', 'knowledge.db');
+    fs.mkdirSync(path.join(tmpDir, 'data'), { recursive: true });
     const store = createStore(dbPath);
     await store.ingest(feedItemsToIngestItems(ALL_ITEMS));
     store.close();

@@ -5,10 +5,11 @@ import { SEARCH_FIELDS } from '../storage/types.js';
 import type { SearchParams, SearchResult, SiteStats } from '../storage/types.js';
 import { getAllTimestamps } from '../fetch-timestamps.js';
 import { formatTweetText } from '../sites/twitter/format.js';
+import { getKnowledgeDbPath } from '../config.js';
 
 function getDbPath(): string {
   const dataDir = process.env.SITE_USE_DATA_DIR || path.join(os.homedir(), '.site-use');
-  return path.join(dataDir, 'data', 'knowledge.db');
+  return getKnowledgeDbPath(dataDir);
 }
 
 /** Interpret user input as local time and return UTC ISO string for DB comparison. */

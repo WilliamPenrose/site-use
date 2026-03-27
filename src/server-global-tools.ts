@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import type { SiteRuntimeManager } from './runtime/manager.js';
 import { createStore, type KnowledgeStore } from './storage/index.js';
 import { SEARCH_FIELDS } from './storage/types.js';
-import { getConfig } from './config.js';
+import { getConfig, getKnowledgeDbPath } from './config.js';
 
 // ---------------------------------------------------------------------------
 // Knowledge store singleton (same pattern as old server.ts)
@@ -19,7 +19,7 @@ let storeInstance: KnowledgeStore | null = null;
 function getOrCreateStore(): KnowledgeStore {
   if (!storeInstance) {
     const config = getConfig();
-    const dbPath = path.join(config.dataDir, 'data', 'knowledge.db');
+    const dbPath = getKnowledgeDbPath(config.dataDir);
     fs.mkdirSync(path.dirname(dbPath), { recursive: true });
     storeInstance = createStore(dbPath);
   }

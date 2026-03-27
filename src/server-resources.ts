@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import type { SitePlugin } from './registry/types.js';
 import { createStore, type KnowledgeStore } from './storage/index.js';
 import { getAllTimestamps } from './fetch-timestamps.js';
-import { getConfig } from './config.js';
+import { getConfig, getKnowledgeDbPath } from './config.js';
 import { BUILD_HASH, BUILD_DATE } from './build-info.js';
 
 function getVersion(): string {
@@ -20,7 +20,7 @@ let storeInstance: KnowledgeStore | null = null;
 function getOrCreateStore(): KnowledgeStore {
   if (!storeInstance) {
     const config = getConfig();
-    const dbPath = path.join(config.dataDir, 'data', 'knowledge.db');
+    const dbPath = getKnowledgeDbPath(config.dataDir);
     fs.mkdirSync(path.dirname(dbPath), { recursive: true });
     storeInstance = createStore(dbPath);
   }
