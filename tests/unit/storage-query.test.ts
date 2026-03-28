@@ -277,6 +277,51 @@ describe('search', () => {
     const bobItem = result.items.find(i => i.author === 'bob');
     expect(bobItem?.siteMeta).toEqual({ following: false });
   });
+
+  it('finds CJK text via FTS', () => {
+    ingest(db, [makeItem({
+      id: 'cjk-1',
+      site: 'xhs',
+      text: '人工智能正在改变世界',
+      author: 'zhangsan',
+      timestamp: '2026-03-22T10:00:00Z',
+      url: 'https://xhs.com/note/1',
+      rawJson: JSON.stringify({
+        author: { handle: 'zhangsan', name: '张三' },
+        text: '人工智能正在改变世界',
+        timestamp: '2026-03-22T10:00:00Z',
+        url: 'https://xhs.com/note/1',
+        media: [], links: [],
+        siteMeta: {},
+      }),
+      hashtags: [], metrics: [],
+    })]);
+    const result = search(db, { query: '人工智能' });
+    expect(result.items.length).toBeGreaterThanOrEqual(1);
+    expect(result.items.some(i => i.id === 'cjk-1')).toBe(true);
+  });
+
+  it('handles short CJK queries (< 3 chars) via LIKE fallback', () => {
+    ingest(db, [makeItem({
+      id: 'cjk-2',
+      site: 'xhs',
+      text: '测试短查询',
+      author: 'lisi',
+      timestamp: '2026-03-22T11:00:00Z',
+      url: 'https://xhs.com/note/2',
+      rawJson: JSON.stringify({
+        author: { handle: 'lisi', name: '李四' },
+        text: '测试短查询',
+        timestamp: '2026-03-22T11:00:00Z',
+        url: 'https://xhs.com/note/2',
+        media: [], links: [],
+        siteMeta: {},
+      }),
+      hashtags: [], metrics: [],
+    })]);
+    const result = search(db, { query: '测试' });
+    expect(result.items.some(i => i.id === 'cjk-2')).toBe(true);
+  });
 });
 
 describe('statsBySite', () => {

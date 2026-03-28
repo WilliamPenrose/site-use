@@ -17,11 +17,17 @@ export function search(db: DatabaseSync, params: SearchParams): SearchResult {
   const values: SqlValue[] = [];
   const limit = params.max_results ?? 20;
 
-  // FTS join
+  // FTS join — trigram tokenizer requires >= 3 chars
   if (params.query) {
-    joins.push('JOIN items_fts fts ON fts.id = i.id AND fts.site = i.site');
-    conditions.push('items_fts MATCH ?');
-    values.push(params.query);
+    if (params.query.length >= 3) {
+      joins.push('JOIN items_fts fts ON fts.id = i.id AND fts.site = i.site');
+      conditions.push('items_fts MATCH ?');
+      values.push(params.query);
+    } else {
+      // Short query: LIKE fallback (trigram can't index < 3 chars)
+      conditions.push('i.text LIKE ?');
+      values.push(`%${params.query}%`);
+    }
   }
 
   if (params.site) {

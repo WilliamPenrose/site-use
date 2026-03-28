@@ -70,7 +70,8 @@ function migrate(dbPath: string): void {
     CREATE VIRTUAL TABLE items_fts USING fts5(
       text,
       id UNINDEXED,
-      site UNINDEXED
+      site UNINDEXED,
+      tokenize='trigram'
     )
   `);
   db.exec(`

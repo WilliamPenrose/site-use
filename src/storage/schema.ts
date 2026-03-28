@@ -64,13 +64,41 @@ export function initializeDatabase(dbPath: string): DatabaseSync {
   `);
   db.exec('CREATE INDEX IF NOT EXISTS idx_hashtags_tag ON item_hashtags(tag)');
 
+  // FTS5 with trigram tokenizer — supports CJK (no whitespace delimiters)
+  // and Latin text. Trigram requires queries >= 3 chars; shorter queries
+  // must use LIKE fallback in query.ts.
   db.exec(`
     CREATE VIRTUAL TABLE IF NOT EXISTS items_fts USING fts5(
       text,
       id UNINDEXED,
-      site UNINDEXED
+      site UNINDEXED,
+      tokenize='trigram'
     )
   `);
+
+  // Auto-migrate: if existing FTS index doesn't use trigram, rebuild it
+  try {
+    const ftsInfo = db.prepare(
+      "SELECT sql FROM sqlite_master WHERE type='table' AND name='items_fts'"
+    ).get() as { sql: string } | undefined;
+    if (ftsInfo && !ftsInfo.sql.includes('trigram')) {
+      db.exec('DROP TABLE items_fts');
+      db.exec(`
+        CREATE VIRTUAL TABLE items_fts USING fts5(
+          text,
+          id UNINDEXED,
+          site UNINDEXED,
+          tokenize='trigram'
+        )
+      `);
+      db.exec(`
+        INSERT INTO items_fts (text, id, site)
+        SELECT text, id, site FROM items
+      `);
+    }
+  } catch {
+    // FTS table doesn't exist yet or migration not needed — ok
+  }
 
   return db;
 }
