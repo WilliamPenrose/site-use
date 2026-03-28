@@ -104,12 +104,19 @@ export class PuppeteerBackend implements Primitives {
   private async getPage(): Promise<Page> {
     const key = this.currentSite;
 
-    // 1. Map cache hit
+    // 1. Map cache hit — validate page is still alive
     const cached = this.pages.get(key);
     if (cached) {
-      this.currentSite = key;
-      this.installResponseListener(cached, key);
-      return cached;
+      try {
+        cached.url(); // throws if tab was closed
+      } catch {
+        this.pages.delete(key);
+        // fall through to tab scan / new page
+      }
+      if (this.pages.has(key)) {
+        this.installResponseListener(cached, key);
+        return cached;
+      }
     }
 
     // 2. Scan existing browser tabs for domain match
