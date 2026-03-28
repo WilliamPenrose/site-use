@@ -11,6 +11,18 @@ const displaySchemas: Record<string, DisplaySchema> = {
   twitter: twitterDisplaySchema,
 };
 
+// Top-level fields already on SearchResultItem — exclude from siteMeta.
+// Also excludes display-only formatting fields (authorTag) that should not
+// leak into siteMeta output.
+const TOP_LEVEL_FIELDS = new Set([
+  'text', 'author', 'authorName', 'authorTag', 'timestamp', 'url', 'media', 'links',
+]);
+
+/** Register a site's display schema for search result resolution. */
+export function registerDisplaySchema(site: string, schema: DisplaySchema): void {
+  displaySchemas[site] = schema;
+}
+
 export function search(db: DatabaseSync, params: SearchParams): SearchResult {
   const conditions: string[] = [];
   const joins: string[] = [];
@@ -115,27 +127,21 @@ export function search(db: DatabaseSync, params: SearchParams): SearchResult {
 
     // Resolve display-only data from raw_json via display schema
     if (schema) {
-      const display = resolveItem(doc, schema, [
-        'likes', 'retweets', 'replies', 'views', 'bookmarks', 'quotes', 'following',
-        'surfaceReason', 'surfacedBy', 'quotedTweet', 'inReplyTo',
-      ]);
-      if (display.likes != null || display.retweets != null || display.surfaceReason != null) {
-        const meta: Record<string, unknown> = {
-          likes: (display.likes as number | null) ?? null,
-          retweets: (display.retweets as number | null) ?? null,
-          replies: (display.replies as number | null) ?? null,
-          views: (display.views as number | null) ?? null,
-          bookmarks: (display.bookmarks as number | null) ?? null,
-          quotes: (display.quotes as number | null) ?? null,
-          following: (display.following as boolean | null) ?? null,
-        };
-        if (display.surfaceReason != null) meta.surfaceReason = display.surfaceReason;
-        if (display.surfacedBy != null) meta.surfacedBy = display.surfacedBy;
-        if (display.quotedTweet != null) meta.quotedTweet = display.quotedTweet;
-        if (display.inReplyTo != null) meta.inReplyTo = display.inReplyTo;
-        item.siteMeta = meta;
+      // Collect all schema fields, split into top-level vs siteMeta
+      const allFields = Object.keys(schema);
+      const metaFields = allFields.filter(f => !TOP_LEVEL_FIELDS.has(f));
+
+      // Resolve siteMeta fields
+      if (metaFields.length > 0) {
+        const display = resolveItem(doc, schema, metaFields);
+        const meta: Record<string, unknown> = {};
+        for (const field of metaFields) {
+          if (display[field] != null) meta[field] = display[field];
+        }
+        if (Object.keys(meta).length > 0) item.siteMeta = meta;
       }
 
+      // Resolve top-level fields that come from raw_json
       const links = resolveItem(doc, schema, ['links']).links as string[] | undefined;
       if (links) item.links = links;
 

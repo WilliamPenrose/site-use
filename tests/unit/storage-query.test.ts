@@ -3,6 +3,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { initializeDatabase } from '../../src/storage/schema.js';
 import { ingest } from '../../src/storage/ingest.js';
 import { search, statsBySite } from '../../src/storage/query.js';
+import type { DisplaySchema } from '../../src/display/resolve.js';
 import type { IngestItem } from '../../src/storage/types.js';
 
 function feedItemJson(overrides: {
@@ -299,6 +300,41 @@ describe('search', () => {
     const result = search(db, { query: '人工智能' });
     expect(result.items.length).toBeGreaterThanOrEqual(1);
     expect(result.items.some(i => i.id === 'cjk-1')).toBe(true);
+  });
+
+  it('resolves siteMeta for non-Twitter sites using their displaySchema', async () => {
+    const { registerDisplaySchema } = await import('../../src/storage/query.js');
+    registerDisplaySchema('xhs', {
+      collectCount: { path: 'siteMeta.collectCount' },
+      likeCount: { path: 'siteMeta.likeCount' },
+      noteType: { path: 'siteMeta.noteType' },
+    } as DisplaySchema);
+
+    ingest(db, [makeItem({
+      id: 'xhs-1',
+      site: 'xhs',
+      text: 'Beautiful sunset photo',
+      author: 'xiaoming',
+      timestamp: '2026-03-22T15:00:00Z',
+      url: 'https://xhs.com/note/abc',
+      rawJson: JSON.stringify({
+        author: { handle: 'xiaoming', name: '小明' },
+        text: 'Beautiful sunset photo',
+        timestamp: '2026-03-22T15:00:00Z',
+        url: 'https://xhs.com/note/abc',
+        media: [], links: [],
+        siteMeta: { collectCount: 500, likeCount: 1200, noteType: 'normal' },
+      }),
+      hashtags: [], metrics: [],
+    })]);
+
+    const result = search(db, { site: 'xhs' });
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].siteMeta).toEqual({
+      collectCount: 500,
+      likeCount: 1200,
+      noteType: 'normal',
+    });
   });
 
   it('handles short CJK queries (< 3 chars) via LIKE fallback', () => {
