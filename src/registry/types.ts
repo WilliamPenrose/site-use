@@ -85,6 +85,9 @@ export interface AuthCapability {
   check: (primitives: Primitives) => Promise<CheckLoginResult>;
   /** Auth guard check (does NOT navigate — page already loaded). Used by auth guard layer. */
   guard?: (primitives: Primitives) => Promise<{ loggedIn: boolean; diagnostics?: unknown }>;
+  /** Whether to intercept navigate() calls with auth guard. Default: true.
+   *  Set to false for sites where read-only operations don't require login. */
+  guardNavigate?: boolean;
   description?: string;
   expose?: ExposeTarget[];
   cli?: CliConfig;
