@@ -128,6 +128,9 @@ export function generateMcpTools(
             getRuntime: () => runtimeManager.get(plugin.name),
             onBrowserDisconnected: () => runtimeManager.clearAll(),
             paramsSchema: wf.params,
+            autoIngest: plugin.storeAdapter
+              ? { storeAdapter: plugin.storeAdapter as { toIngestItems: (items: any[]) => any[] }, siteName: plugin.name }
+              : undefined,
             handler: async (params, runtime) => {
               return await wf.execute(runtime.primitives, params);
             },
@@ -352,6 +355,9 @@ export function generateCliCommands(
           getRuntime: () => runtimeManager.get(plugin.name),
           onBrowserDisconnected: () => runtimeManager.clearAll(),
           paramsSchema: wf.params,
+          autoIngest: plugin.storeAdapter
+            ? { storeAdapter: plugin.storeAdapter as { toIngestItems: (items: any[]) => any[] }, siteName: plugin.name }
+            : undefined,
           handler: async (params, runtime) => wf.execute(runtime.primitives, params),
         });
         commands.push({

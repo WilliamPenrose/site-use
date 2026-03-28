@@ -153,4 +153,41 @@ describe('wrapToolHandler', () => {
     const body = JSON.parse((result.content[0] as { text: string }).text);
     expect(body.context.screenshotBase64).toBe('base64png');
   });
+
+  it('autoIngest silently skips when result has no items array', async () => {
+    const handler = vi.fn(async () => ({ status: 'ok' }));
+    const wrapped = wrapToolHandler({
+      siteName: 'test',
+      handler,
+      getRuntime: async () => fakeRuntime(),
+      autoIngest: {
+        storeAdapter: { toIngestItems: vi.fn() },
+        siteName: 'test',
+      },
+    });
+    const result = await wrapped({});
+    expect(result.isError).toBeUndefined();
+  });
+
+  it('autoIngest warns but does not fail when ingest items are invalid', async () => {
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const handler = vi.fn(async () => ({
+      items: [{ id: '1', badField: true }],
+    }));
+    const wrapped = wrapToolHandler({
+      siteName: 'test',
+      handler,
+      getRuntime: async () => fakeRuntime(),
+      autoIngest: {
+        storeAdapter: {
+          toIngestItems: () => [{ id: '1', badField: true }],
+        },
+        siteName: 'test',
+      },
+    });
+    const result = await wrapped({});
+    expect(result.isError).toBeUndefined();
+    expect(consoleWarn).toHaveBeenCalled();
+    consoleWarn.mockRestore();
+  });
 });

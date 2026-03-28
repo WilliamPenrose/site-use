@@ -85,16 +85,22 @@ export function wrapToolHandler(opts: WrapOptions): (params: Record<string, unkn
       if (opts.autoIngest) {
         const feedResult = result as { items?: unknown[] };
         if (feedResult.items && feedResult.items.length > 0) {
-          const { createStore } = await import('../storage/index.js');
-          const { getConfig, getKnowledgeDbPath } = await import('../config.js');
-          const cfg = getConfig();
-          const dbPath = getKnowledgeDbPath(cfg.dataDir);
-          const store = createStore(dbPath);
-          const ingestItems = opts.autoIngest.storeAdapter
-            .toIngestItems(feedResult.items)
-            .map((item: any) => ({ ...item, site: opts.autoIngest!.siteName }));
-          z.array(IngestItemSchema).parse(ingestItems);
-          await store.ingest(ingestItems);
+          try {
+            const { createStore } = await import('../storage/index.js');
+            const { getConfig, getKnowledgeDbPath } = await import('../config.js');
+            const cfg = getConfig();
+            const dbPath = getKnowledgeDbPath(cfg.dataDir);
+            const store = createStore(dbPath);
+            const ingestItems = opts.autoIngest.storeAdapter
+              .toIngestItems(feedResult.items)
+              .map((item: any) => ({ ...item, site: opts.autoIngest!.siteName }));
+            z.array(IngestItemSchema).parse(ingestItems);
+            await store.ingest(ingestItems);
+          } catch (err) {
+            console.warn(
+              `[site-use] autoIngest failed for ${opts.siteName}: ${err instanceof Error ? err.message : String(err)}`,
+            );
+          }
         }
       }
 

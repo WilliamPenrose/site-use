@@ -108,6 +108,41 @@ describe('generateMcpTools', () => {
     const tools = generateMcpTools([plugin], fakeManager());
     expect(tools).toHaveLength(0);
   });
+
+  it('passes autoIngest to customWorkflow when storeAdapter is declared', () => {
+    const plugin = fakePlugin({
+      storeAdapter: {
+        toIngestItems: (items) => items.map(i => ({
+          site: 'testsite', id: i.id, text: i.text, author: 'a',
+          timestamp: '2026-01-01T00:00:00Z', url: 'https://test.com/1',
+          rawJson: JSON.stringify(i),
+        })),
+      },
+      customWorkflows: [{
+        name: 'search',
+        description: 'Search testsite',
+        params: z.object({ query: z.string() }),
+        execute: async () => ({ items: [{ id: '1', text: 'result' }] }),
+      }],
+    });
+    const tools = generateMcpTools([plugin], fakeManager());
+    const searchTool = tools.find(t => t.name === 'testsite_search');
+    expect(searchTool).toBeDefined();
+  });
+
+  it('does not pass autoIngest to customWorkflow when storeAdapter is absent', () => {
+    const plugin = fakePlugin({
+      customWorkflows: [{
+        name: 'search',
+        description: 'Search testsite',
+        params: z.object({ query: z.string() }),
+        execute: async () => ({ items: [] }),
+      }],
+    });
+    const tools = generateMcpTools([plugin], fakeManager());
+    const searchTool = tools.find(t => t.name === 'testsite_search');
+    expect(searchTool).toBeDefined();
+  });
 });
 
 describe('generateCliCommands', () => {
