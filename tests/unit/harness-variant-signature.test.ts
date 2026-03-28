@@ -92,6 +92,22 @@ describe('computeTimelineVariantSignature', () => {
     expect(computeTimelineVariantSignature(entry)).toContain('media:video');
   });
 
+  it('detects media:gif for animated_gif', () => {
+    const entry = {
+      tweet_results: {
+        result: {
+          __typename: 'Tweet',
+          core: { user_results: { result: { relationship_perspectives: { following: false } } } },
+          legacy: {
+            full_text: 'gif',
+            extended_entities: { media: [{ type: 'animated_gif' }] },
+          },
+        },
+      },
+    };
+    expect(computeTimelineVariantSignature(entry)).toContain('media:gif');
+  });
+
   it('detects note_tweet', () => {
     const entry = {
       tweet_results: {

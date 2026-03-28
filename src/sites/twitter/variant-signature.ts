@@ -39,8 +39,10 @@ export function computeTimelineVariantSignature(rawEntry: unknown): string {
   const mediaItems = legacy.extended_entities?.media ?? [];
   if (mediaItems.length > 0) {
     const mediaType = mediaItems[0].type as string;
-    if (mediaType === 'video' || mediaType === 'animated_gif') {
+    if (mediaType === 'video') {
       tags.push('media:video');
+    } else if (mediaType === 'animated_gif') {
+      tags.push('media:gif');
     } else if (mediaType === 'photo') {
       tags.push('media:photo');
     }

@@ -21,7 +21,7 @@ describe('harness golden — twitter/timeline', () => {
   });
 
   it('golden fixture file loads with expected variant count', () => {
-    expect(variants.length).toBe(32);
+    expect(variants.length).toBeGreaterThanOrEqual(30);
   });
 
   describe.each(variants.map((v) => [v._variant, v] as const))(

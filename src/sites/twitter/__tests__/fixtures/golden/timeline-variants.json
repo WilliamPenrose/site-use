@@ -18451,7 +18451,7 @@
     }
   },
   {
-    "_variant": "direct|reply|following:true|media:video|has_urls",
+    "_variant": "direct|reply|following:true|media:gif|has_urls",
     "__typename": "TimelineTweet",
     "itemType": "TimelineTweet",
     "tweetDisplayType": "Tweet",

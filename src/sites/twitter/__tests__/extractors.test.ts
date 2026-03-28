@@ -230,6 +230,7 @@ describe('processFullText', () => {
 interface FixtureEntry {
   _variant: string;
   tweet_results: { result: Record<string, unknown> };
+  promotedMetadata?: unknown;
 }
 
 const fixturesPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'fixtures/golden/timeline-variants.json');
@@ -265,8 +266,13 @@ function fixturesByPattern(pattern: string): FixtureEntry[] {
   return allFixtures.filter(f => f._variant.includes(pattern));
 }
 
+/** Filter out fixtures that are expected to produce 0 tweets (promoted ads, tombstones). */
+function parseable(fixtures: FixtureEntry[]): FixtureEntry[] {
+  return fixtures.filter(f => !f.promotedMetadata && !f._variant.startsWith('tombstone'));
+}
+
 describe('parseGraphQLTimeline (real fixtures)', () => {
-  it('all 31 variants parse without throwing', () => {
+  it('all variants parse without throwing', () => {
     let parsed = 0;
     for (const fixture of allFixtures) {
       const body = wrapAsTimeline(fixture);
@@ -277,9 +283,10 @@ describe('parseGraphQLTimeline (real fixtures)', () => {
   });
 
   describe('original tweets', () => {
-    const originals = fixturesByPattern('|original|');
+    const originals = parseable(fixturesByPattern('|original|'));
 
     it('extracts author, text, metrics, and timestamp', () => {
+      expect(originals.length).toBeGreaterThan(0);
       for (const fixture of originals) {
         const tweets = parseGraphQLTimeline(wrapAsTimeline(fixture));
         expect(tweets.length, fixture._variant).toBe(1);
@@ -301,14 +308,15 @@ describe('parseGraphQLTimeline (real fixtures)', () => {
       });
       expect(withViews.length).toBeGreaterThan(0);
       for (const fixture of withViews) {
-        const t = parseGraphQLTimeline(wrapAsTimeline(fixture))[0];
-        expect(typeof t.views, fixture._variant).toBe('number');
+        const tweets = parseGraphQLTimeline(wrapAsTimeline(fixture));
+        expect(tweets.length, fixture._variant).toBe(1);
+        expect(typeof tweets[0].views, fixture._variant).toBe('number');
       }
     });
   });
 
   describe('retweets', () => {
-    const retweets = fixturesByPattern('|retweet|');
+    const retweets = parseable(fixturesByPattern('|retweet|'));
 
     it('extracts inner tweet with surfaceReason=retweet and surfacedBy', () => {
       expect(retweets.length).toBeGreaterThan(0);
@@ -324,7 +332,7 @@ describe('parseGraphQLTimeline (real fixtures)', () => {
   });
 
   describe('quote tweets', () => {
-    const quotes = fixturesByPattern('|quote|');
+    const quotes = parseable(fixturesByPattern('|quote|'));
 
     it('extracts quotedTweet with surfaceReason=quote', () => {
       expect(quotes.length).toBeGreaterThan(0);
@@ -341,20 +349,22 @@ describe('parseGraphQLTimeline (real fixtures)', () => {
 
   describe('following field', () => {
     it('extracts following=true from relationship_perspectives', () => {
-      const fixtures = fixturesByPattern('following:true').filter(f => !f._variant.includes('retweet'));
+      const fixtures = parseable(fixturesByPattern('following:true')).filter(f => !f._variant.includes('retweet'));
       expect(fixtures.length).toBeGreaterThan(0);
       for (const fixture of fixtures) {
-        const t = parseGraphQLTimeline(wrapAsTimeline(fixture))[0];
-        expect(t.following, fixture._variant).toBe(true);
+        const tweets = parseGraphQLTimeline(wrapAsTimeline(fixture));
+        expect(tweets.length, fixture._variant).toBe(1);
+        expect(tweets[0].following, fixture._variant).toBe(true);
       }
     });
 
     it('extracts following=false from relationship_perspectives', () => {
-      const fixtures = fixturesByPattern('following:false');
+      const fixtures = parseable(fixturesByPattern('following:false'));
       expect(fixtures.length).toBeGreaterThan(0);
       for (const fixture of fixtures) {
-        const t = parseGraphQLTimeline(wrapAsTimeline(fixture))[0];
-        expect(t.following, fixture._variant).toBe(false);
+        const tweets = parseGraphQLTimeline(wrapAsTimeline(fixture));
+        expect(tweets.length, fixture._variant).toBe(1);
+        expect(tweets[0].following, fixture._variant).toBe(false);
       }
     });
 
@@ -373,11 +383,11 @@ describe('parseGraphQLTimeline (real fixtures)', () => {
 
   describe('media extraction', () => {
     it('extracts photo media', () => {
-      const fixtures = fixturesByPattern('media:photo');
+      const fixtures = parseable(fixturesByPattern('media:photo'));
       expect(fixtures.length).toBeGreaterThan(0);
       for (const fixture of fixtures) {
         const tweets = parseGraphQLTimeline(wrapAsTimeline(fixture));
-        if (tweets.length === 0) continue; // tombstone
+        expect(tweets.length, fixture._variant).toBe(1);
         const t = tweets[0];
         const photos = t.media.filter(m => m.type === 'photo');
         expect(photos.length, fixture._variant).toBeGreaterThan(0);
@@ -390,11 +400,11 @@ describe('parseGraphQLTimeline (real fixtures)', () => {
     });
 
     it('extracts video media with duration and videoUrl', () => {
-      const fixtures = fixturesByPattern('media:video');
+      const fixtures = parseable(fixturesByPattern('media:video'));
       expect(fixtures.length).toBeGreaterThan(0);
       for (const fixture of fixtures) {
         const tweets = parseGraphQLTimeline(wrapAsTimeline(fixture));
-        if (tweets.length === 0) continue;
+        expect(tweets.length, fixture._variant).toBe(1);
         const t = tweets[0];
         const videos = t.media.filter(m => m.type === 'video');
         expect(videos.length, fixture._variant).toBeGreaterThan(0);
@@ -407,13 +417,13 @@ describe('parseGraphQLTimeline (real fixtures)', () => {
   });
 
   describe('note_tweet (long-form)', () => {
-    const noteTweets = fixturesByPattern('note_tweet');
+    const noteTweets = parseable(fixturesByPattern('note_tweet'));
 
     it('prefers note_tweet text over legacy full_text', () => {
       expect(noteTweets.length).toBeGreaterThan(0);
       for (const fixture of noteTweets) {
         const tweets = parseGraphQLTimeline(wrapAsTimeline(fixture));
-        if (tweets.length === 0) continue;
+        expect(tweets.length, fixture._variant).toBe(1);
         // Note tweets typically have longer text than legacy truncation
         expect(tweets[0].text, fixture._variant).toBeTruthy();
       }
@@ -421,13 +431,13 @@ describe('parseGraphQLTimeline (real fixtures)', () => {
   });
 
   describe('URL expansion', () => {
-    const withUrls = fixturesByPattern('has_urls');
+    const withUrls = parseable(fixturesByPattern('has_urls'));
 
     it('expands t.co links into links array', () => {
       expect(withUrls.length).toBeGreaterThan(0);
       for (const fixture of withUrls) {
         const tweets = parseGraphQLTimeline(wrapAsTimeline(fixture));
-        if (tweets.length === 0) continue;
+        expect(tweets.length, fixture._variant).toBe(1);
         const t = tweets[0];
         // has_urls variants should have at least one expanded link
         expect(t.links.length, fixture._variant).toBeGreaterThan(0);
@@ -439,7 +449,7 @@ describe('parseGraphQLTimeline (real fixtures)', () => {
   });
 
   describe('TweetWithVisibilityResults wrapper', () => {
-    const wrapped = fixturesByPattern('wrapped|');
+    const wrapped = parseable(fixturesByPattern('wrapped|'));
 
     it('unwraps and parses successfully', () => {
       expect(wrapped.length).toBeGreaterThan(0);
@@ -457,6 +467,18 @@ describe('parseGraphQLTimeline (real fixtures)', () => {
     it('returns empty array for tombstone/unavailable tweets', () => {
       expect(tombstones.length).toBeGreaterThan(0);
       for (const fixture of tombstones) {
+        const tweets = parseGraphQLTimeline(wrapAsTimeline(fixture));
+        expect(tweets, fixture._variant).toHaveLength(0);
+      }
+    });
+  });
+
+  describe('promoted tweets', () => {
+    const promoted = allFixtures.filter(f => !!f.promotedMetadata);
+
+    it('skips promoted tweets (returns empty array)', () => {
+      if (promoted.length === 0) return; // no promoted fixtures captured yet
+      for (const fixture of promoted) {
         const tweets = parseGraphQLTimeline(wrapAsTimeline(fixture));
         expect(tweets, fixture._variant).toHaveLength(0);
       }
