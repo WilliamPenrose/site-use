@@ -8,8 +8,11 @@ import {
   parseGraphQLTimeline,
   parseTweet,
   buildFeedMeta,
+  parseTweetDetail,
   GRAPHQL_TIMELINE_PATTERN,
+  GRAPHQL_TWEET_DETAIL_PATTERN,
 } from './extractors.js';
+import { SiteUseError } from '../../errors.js';
 import type { RawTweetData } from './types.js';
 import type { FeedResult as FrameworkFeedResult } from '../../registry/types.js';
 import { tweetToFeedItem } from './feed-item.js';
@@ -129,6 +132,54 @@ export async function ensureTimeline(
   return { navAction, tabAction, reloaded, waits };
 }
 
+export interface EnsureTweetDetailResult {
+  reloaded: boolean;
+  waits: WaitRecord[];
+}
+
+/**
+ * Navigate to tweet detail page and wait for GraphQL data.
+ * Checks for login redirect. Falls back to reload if no data arrives.
+ */
+export async function ensureTweetDetail(
+  primitives: Primitives,
+  collector: DataCollector<RawTweetData>,
+  opts: { url: string; t0: number },
+): Promise<EnsureTweetDetailResult> {
+  const { url, t0 } = opts;
+  const waits: WaitRecord[] = [];
+  let reloaded = false;
+
+  async function timedWait(purpose: string, predicate: () => boolean, timeoutMs: number): Promise<boolean> {
+    const startedAt = Date.now() - t0;
+    const satisfied = await collector.waitUntil(predicate, timeoutMs);
+    waits.push({ purpose, startedAt, resolvedAt: Date.now() - t0, satisfied, dataCount: collector.length });
+    return satisfied;
+  }
+
+  // Step 1: Navigate to tweet detail page
+  await primitives.navigate(url);
+
+  // Step 2: Check for login redirect
+  const currentUrl = await primitives.evaluate<string>('window.location.href');
+  if (currentUrl.includes('/login') || currentUrl.includes('/i/flow/login')) {
+    throw new SiteUseError('SessionExpired', 'Not logged in — redirected to login page', { retryable: false });
+  }
+
+  // Step 3: Wait for initial data
+  const hasData = await timedWait('initial_data', () => collector.length > 0, WAIT_FOR_DATA_MS);
+
+  // Step 4: Fallback — reload if no data
+  if (!hasData) {
+    reloaded = true;
+    collector.clear();
+    await primitives.navigate(url);
+    await timedWait('after_reload', () => collector.length > 0, WAIT_FOR_DATA_MS);
+  }
+
+  return { reloaded, waits };
+}
+
 const MAX_STALE_ROUNDS = 3;
 const SCROLL_WAIT_MS = 2000;
 
@@ -240,6 +291,105 @@ export async function getFeed(
         rawBeforeFilter: collector.length,
         elapsedMs: Date.now() - t0,
         ensureTimeline: timelineResult,
+        collectData: collectResult,
+      };
+    }
+
+    return frameworkResult;
+  } finally {
+    cleanup();
+  }
+}
+
+export interface GetTweetDetailOptions {
+  url: string;
+  count?: number;
+  debug?: boolean;
+  dumpRaw?: string;
+}
+
+/**
+ * Fetch a tweet and its replies.
+ * Sets up GraphQL interception, navigates to the tweet detail page,
+ * collects replies via scroll, and returns anchor + replies as FeedResult.
+ */
+export async function getTweetDetail(
+  primitives: Primitives,
+  opts: GetTweetDetailOptions,
+): Promise<FrameworkFeedResult> {
+  const { url, count = 20, debug = false, dumpRaw } = opts;
+  const t0 = Date.now();
+  let graphqlResponseCount = 0;
+  let graphqlParseFailures = 0;
+
+  // Anchor is stored separately; only replies go into collector.
+  let anchor: RawTweetData | null = null;
+  let hasCursor = false;
+  const collector = createDataCollector<RawTweetData>();
+  let dumpIndex = 0;
+
+  const cleanup = await primitives.interceptRequest(
+    GRAPHQL_TWEET_DETAIL_PATTERN,
+    (response) => {
+      try {
+        if (dumpRaw) {
+          fs.mkdirSync(dumpRaw, { recursive: true });
+          const outPath = path.join(dumpRaw, `tweet-detail-${dumpIndex++}.json`);
+          fs.writeFileSync(outPath, response.body);
+        }
+        const parsed = parseTweetDetail(response.body);
+        if (parsed.anchor && !anchor) {
+          anchor = parsed.anchor;
+        }
+        hasCursor = parsed.hasCursor;
+        if (parsed.replies.length > 0) {
+          collector.push(...parsed.replies);
+        }
+        graphqlResponseCount++;
+      } catch {
+        graphqlParseFailures++;
+      }
+    },
+  );
+
+  try {
+    const ensureResult = await ensureTweetDetail(primitives, collector, { url, t0 });
+
+    // Only scroll for more if we need more replies AND there are more to load
+    let collectResult: CollectDataResult = { scrollRounds: 0, waits: [] };
+    if (collector.length < count && hasCursor) {
+      collectResult = await collectData(primitives, collector, { count, t0 });
+    }
+
+    // Build items: anchor first, then replies
+    const allRaw = anchor ? [anchor, ...collector.items] : [...collector.items];
+    const tweets = allRaw
+      .map(parseTweet)
+      .filter((t) => !t.isAd);
+
+    // Trim replies to count (anchor doesn't count toward limit)
+    const anchorTweet = anchor ? tweets[0] : undefined;
+    const replyTweets = anchor ? tweets.slice(1, count + 1) : tweets.slice(0, count);
+    const finalTweets = anchorTweet ? [anchorTweet, ...replyTweets] : replyTweets;
+
+    const meta = buildFeedMeta(finalTweets);
+    const items = finalTweets.map(tweetToFeedItem);
+
+    const frameworkResult: FrameworkFeedResult = {
+      items,
+      meta: {
+        coveredUsers: meta.coveredUsers,
+        timeRange: { from: meta.timeRange.from, to: meta.timeRange.to },
+      },
+    };
+
+    if (debug) {
+      frameworkResult.debug = {
+        graphqlResponseCount,
+        graphqlParseFailures,
+        rawRepliesBeforeFilter: collector.length,
+        elapsedMs: Date.now() - t0,
+        ensureTweetDetail: ensureResult,
         collectData: collectResult,
       };
     }

@@ -5,6 +5,7 @@ import {
   FeedMetaSchema,
   FeedResultSchema,
   RawTweetDataSchema,
+  TweetDetailParamsSchema,
 } from '../types.js';
 
 describe('TweetAuthorSchema', () => {
@@ -156,5 +157,50 @@ describe('FeedResultSchema', () => {
       },
     });
     expect(result.success).toBe(true);
+  });
+});
+
+describe('TweetDetailParamsSchema', () => {
+  it('accepts valid x.com tweet URL with defaults', () => {
+    const result = TweetDetailParamsSchema.parse({
+      url: 'https://x.com/shawn_pana/status/2037688071144317428',
+    });
+    expect(result.url).toBe('https://x.com/shawn_pana/status/2037688071144317428');
+    expect(result.count).toBe(20);
+    expect(result.debug).toBe(false);
+  });
+
+  it('accepts twitter.com URL', () => {
+    const result = TweetDetailParamsSchema.parse({
+      url: 'https://twitter.com/user/status/123456',
+    });
+    expect(result.url).toBe('https://twitter.com/user/status/123456');
+  });
+
+  it('accepts URL with query params', () => {
+    const result = TweetDetailParamsSchema.parse({
+      url: 'https://x.com/user/status/123456?s=20&t=abc',
+    });
+    expect(result.url).toContain('123456');
+  });
+
+  it('rejects non-tweet URL', () => {
+    expect(() => TweetDetailParamsSchema.parse({
+      url: 'https://x.com/user',
+    })).toThrow();
+  });
+
+  it('rejects non-URL string', () => {
+    expect(() => TweetDetailParamsSchema.parse({
+      url: 'not-a-url',
+    })).toThrow();
+  });
+
+  it('accepts custom count', () => {
+    const result = TweetDetailParamsSchema.parse({
+      url: 'https://x.com/user/status/123',
+      count: 50,
+    });
+    expect(result.count).toBe(50);
   });
 });

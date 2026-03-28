@@ -183,3 +183,27 @@ export const TwitterFeedParamsSchema = z.object({
   debug: z.boolean().default(false)
     .describe('Include diagnostic info (tab action, reload fallback, GraphQL counts, timing)'),
 });
+
+// --- TweetDetailParams ---
+
+const TWEET_URL_PATTERN = /^https:\/\/(x\.com|twitter\.com)\/\w+\/status\/\d+/;
+
+export const TweetDetailParamsSchema = z.object({
+  url: z.string()
+    .regex(TWEET_URL_PATTERN, 'Must be a tweet URL (https://x.com/{handle}/status/{id})')
+    .describe('Tweet URL (https://x.com/{handle}/status/{id})'),
+  count: z.number().min(1).max(100).default(20)
+    .describe('Maximum number of replies to return'),
+  debug: z.boolean().default(false)
+    .describe('Include diagnostic info'),
+  dumpRaw: z.string().optional()
+    .describe('Directory path to dump raw GraphQL responses'),
+});
+
+// --- TweetDetailParsed (extractor output) ---
+
+export interface TweetDetailParsed {
+  anchor: RawTweetData | null;
+  replies: RawTweetData[];
+  hasCursor: boolean;
+}

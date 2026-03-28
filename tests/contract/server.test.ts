@@ -100,12 +100,13 @@ describe('MCP Server contract', () => {
     expect(serverInfo!.name).toBe('site-use');
   });
 
-  it('lists all four tools', async () => {
+  it('lists all five tools', async () => {
     const { tools } = await client.listTools();
-    expect(tools).toHaveLength(4);
+    expect(tools).toHaveLength(5);
     const toolNames = tools.map((t) => t.name);
     expect(toolNames).toContain('twitter_check_login');
     expect(toolNames).toContain('twitter_feed');
+    expect(toolNames).toContain('twitter_tweet_detail');
     expect(toolNames).toContain('screenshot');
     expect(toolNames).toContain('search');
   });

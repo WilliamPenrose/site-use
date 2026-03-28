@@ -1,9 +1,9 @@
 import type { SitePlugin } from '../../registry/types.js';
 import type { Primitives } from '../../primitives/types.js';
 import { twitterDetect, isLoggedIn } from './site.js';
-import { checkLogin, getFeed } from './workflows.js';
+import { checkLogin, getFeed, getTweetDetail } from './workflows.js';
 import { feedItemsToIngestItems } from './store-adapter.js';
-import { TwitterFeedParamsSchema } from './types.js';
+import { TwitterFeedParamsSchema, TweetDetailParamsSchema } from './types.js';
 import { twitterLocalQuery } from './local-query.js';
 
 export const plugin: SitePlugin = {
@@ -38,6 +38,23 @@ export const plugin: SitePlugin = {
       },
     },
   },
+
+  customWorkflows: [
+    {
+      name: 'tweet_detail',
+      description:
+        'Get a tweet with its replies. Returns the original tweet (with full text) as items[0] ' +
+        'and replies as items[1..n].',
+      params: TweetDetailParamsSchema,
+      execute: (primitives: Primitives, params: unknown) =>
+        getTweetDetail(primitives, params as Parameters<typeof getTweetDetail>[1]),
+      expose: ['mcp', 'cli'],
+      cli: {
+        description: 'Get a tweet and its replies',
+        help: `Options:\n  --url <url>             Tweet URL (required)\n  --count <n>            Max replies (1-100, default: 20)\n  --debug                Include diagnostic info`,
+      },
+    },
+  ],
 
   storeAdapter: {
     toIngestItems: feedItemsToIngestItems,

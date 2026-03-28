@@ -32,9 +32,9 @@ export function tweetToFeedItem(tweet: Tweet): FeedItem {
     isRetweet: tweet.isRetweet,
     isAd: tweet.isAd,
     surfaceReason: tweet.surfaceReason,
-    surfacedBy: tweet.surfacedBy,
-    quotedTweet: tweet.quotedTweet,
-    inReplyTo: tweet.inReplyTo,
+    ...(tweet.surfacedBy !== undefined && { surfacedBy: tweet.surfacedBy }),
+    ...(tweet.quotedTweet !== undefined && { quotedTweet: tweet.quotedTweet }),
+    ...(tweet.inReplyTo !== undefined && { inReplyTo: tweet.inReplyTo }),
   };
 
   TwitterSiteMetaSchema.parse(siteMeta);

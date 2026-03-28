@@ -1,7 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { Primitives, SnapshotNode, Snapshot } from '../../../primitives/types.js';
 import { TwitterFeedParamsSchema } from '../types.js';
 import { createDataCollector } from '../../../ops/data-collector.js';
+import type { RawTweetData } from '../types.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 function createMockPrimitives(overrides: Partial<Primitives> = {}): Primitives {
   return {
@@ -29,6 +35,8 @@ let checkLogin: typeof import('../workflows.js').checkLogin;
 let getFeed: typeof import('../workflows.js').getFeed;
 let ensureTimeline: typeof import('../workflows.js').ensureTimeline;
 let collectData: typeof import('../workflows.js').collectData;
+let ensureTweetDetail: typeof import('../workflows.js').ensureTweetDetail;
+let getTweetDetail: typeof import('../workflows.js').getTweetDetail;
 
 beforeEach(async () => {
   const mod = await import('../workflows.js');
@@ -36,6 +44,8 @@ beforeEach(async () => {
   getFeed = mod.getFeed;
   ensureTimeline = mod.ensureTimeline;
   collectData = mod.collectData;
+  ensureTweetDetail = mod.ensureTweetDetail;
+  getTweetDetail = mod.getTweetDetail;
 });
 
 describe('checkLogin', () => {
@@ -525,5 +535,162 @@ describe('collectData', () => {
     const result = await collectData(primitives, collector, { count: 100, t0: Date.now() });
 
     expect(result.scrollRounds).toBe(6);
+  });
+});
+
+describe('ensureTweetDetail', () => {
+  it('navigates to the tweet URL and waits for data', async () => {
+    const collector = createDataCollector<RawTweetData>();
+    const primitives = createMockPrimitives({
+      navigate: vi.fn().mockImplementation(async () => {
+        // Simulate GraphQL response arriving after navigation
+        setTimeout(() => collector.push({
+          authorHandle: 'test',
+          authorName: 'Test',
+          following: false,
+          text: 'reply text',
+          timestamp: '2026-03-28T00:00:00.000Z',
+          url: 'https://x.com/test/status/111',
+          likes: 0, retweets: 0, replies: 0,
+          media: [], links: [],
+          isRetweet: false, isAd: false,
+          surfaceReason: 'reply',
+          inReplyTo: { handle: 'author', tweetId: '100' },
+        }), 50);
+      }),
+      evaluate: vi.fn().mockResolvedValue('https://x.com/author/status/100'),
+    });
+
+    const result = await ensureTweetDetail(primitives, collector, {
+      url: 'https://x.com/author/status/100',
+      t0: Date.now(),
+    });
+
+    expect(primitives.navigate).toHaveBeenCalledWith('https://x.com/author/status/100');
+    expect(result.reloaded).toBe(false);
+    expect(collector.length).toBe(1);
+  });
+
+  it('reloads when no data arrives within timeout', { timeout: 10000 }, async () => {
+    const collector = createDataCollector<RawTweetData>();
+    let navigateCount = 0;
+    const primitives = createMockPrimitives({
+      navigate: vi.fn().mockImplementation(async () => {
+        navigateCount++;
+        // Push data only on second navigate (reload)
+        if (navigateCount === 2) {
+          setTimeout(() => collector.push({
+            authorHandle: 'test', authorName: 'Test', following: false,
+            text: 'reply', timestamp: '2026-03-28T00:00:00.000Z',
+            url: 'https://x.com/test/status/111',
+            likes: 0, retweets: 0, replies: 0,
+            media: [], links: [], isRetweet: false, isAd: false,
+            surfaceReason: 'reply',
+          }), 50);
+        }
+      }),
+      evaluate: vi.fn().mockResolvedValue('https://x.com/author/status/100'),
+    });
+
+    const result = await ensureTweetDetail(primitives, collector, {
+      url: 'https://x.com/author/status/100',
+      t0: Date.now(),
+    });
+
+    expect(result.reloaded).toBe(true);
+    expect(primitives.navigate).toHaveBeenCalledTimes(2);
+  });
+
+  it('throws SessionExpired when redirected to login', async () => {
+    const collector = createDataCollector<RawTweetData>();
+    const primitives = createMockPrimitives({
+      evaluate: vi.fn().mockResolvedValue('https://x.com/i/flow/login'),
+    });
+
+    await expect(
+      ensureTweetDetail(primitives, collector, {
+        url: 'https://x.com/author/status/100',
+        t0: Date.now(),
+      }),
+    ).rejects.toThrow('Not logged in');
+  });
+});
+
+describe('getTweetDetail', () => {
+  it('returns anchor as items[0] and replies as items[1..n]', { timeout: 15000 }, async () => {
+    const fixtureBody = fs.readFileSync(
+      path.join(__dirname, 'fixtures/tweet-detail-initial.json'), 'utf-8',
+    );
+
+    let interceptHandler: ((response: { url: string; status: number; body: string }) => void) | null = null;
+
+    const primitives = createMockPrimitives({
+      interceptRequest: vi.fn().mockImplementation(async (_pattern: RegExp, handler: any) => {
+        interceptHandler = handler;
+        return () => {};
+      }),
+      navigate: vi.fn().mockImplementation(async () => {
+        // Simulate GraphQL response arriving after navigation
+        if (interceptHandler) {
+          setTimeout(() => {
+            interceptHandler!({
+              url: 'https://x.com/i/api/graphql/abc/TweetDetail',
+              status: 200,
+              body: fixtureBody,
+            });
+          }, 50);
+        }
+      }),
+      evaluate: vi.fn().mockResolvedValue('https://x.com/shawn_pana/status/2037688071144317428'),
+    });
+
+    const result = await getTweetDetail(primitives, {
+      url: 'https://x.com/shawn_pana/status/2037688071144317428',
+      count: 20,
+    });
+
+    // items[0] is anchor
+    expect(result.items[0].author.handle).toBe('shawn_pana');
+    expect(result.items[0].siteMeta).not.toHaveProperty('inReplyTo');
+    // items[1..n] are replies
+    expect(result.items.length).toBeGreaterThan(1);
+    // meta
+    expect(result.meta.coveredUsers).toContain('shawn_pana');
+    expect(result.meta.timeRange.from).toBeTruthy();
+    expect(result.meta.timeRange.to).toBeTruthy();
+  });
+
+  it('filters out ads from replies', { timeout: 15000 }, async () => {
+    const fixtureBody = fs.readFileSync(
+      path.join(__dirname, 'fixtures/tweet-detail-initial.json'), 'utf-8',
+    );
+
+    let interceptHandler: any = null;
+    const primitives = createMockPrimitives({
+      interceptRequest: vi.fn().mockImplementation(async (_p: any, handler: any) => {
+        interceptHandler = handler;
+        return () => {};
+      }),
+      navigate: vi.fn().mockImplementation(async () => {
+        if (interceptHandler) {
+          setTimeout(() => interceptHandler({
+            url: 'https://x.com/i/api/graphql/abc/TweetDetail',
+            status: 200,
+            body: fixtureBody,
+          }), 50);
+        }
+      }),
+      evaluate: vi.fn().mockResolvedValue('https://x.com/shawn_pana/status/2037688071144317428'),
+    });
+
+    const result = await getTweetDetail(primitives, {
+      url: 'https://x.com/shawn_pana/status/2037688071144317428',
+    });
+
+    // No ads in result
+    const hasAd = result.items.some(item =>
+      (item.siteMeta as any).isAd === true
+    );
+    expect(hasAd).toBe(false);
   });
 });

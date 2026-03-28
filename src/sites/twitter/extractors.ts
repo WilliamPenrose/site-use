@@ -1,4 +1,4 @@
-import type { Tweet, TweetMedia, RawTweetData, RawTweetMedia, FeedMeta } from './types.js';
+import type { Tweet, TweetMedia, RawTweetData, RawTweetMedia, FeedMeta, TweetDetailParsed } from './types.js';
 
 const GRAPHQL_TIMELINE_PATTERN = /\/i\/api\/graphql\/.*\/Home.*Timeline/;
 
@@ -376,5 +376,60 @@ export function extractFromTweetResult(
   };
 }
 
-export { GRAPHQL_TIMELINE_PATTERN };
+const GRAPHQL_TWEET_DETAIL_PATTERN = /\/i\/api\/graphql\/.*\/TweetDetail/;
+
+/** Parse GraphQL TweetDetail response into anchor + replies. */
+export function parseTweetDetail(body: string): TweetDetailParsed {
+  let data: any;
+  try {
+    data = JSON.parse(body);
+  } catch {
+    return { anchor: null, replies: [], hasCursor: false };
+  }
+
+  const instructions =
+    data?.data?.threaded_conversation_with_injections_v2?.instructions ?? [];
+
+  const addEntries = instructions.find(
+    (i: any) => i.type === 'TimelineAddEntries',
+  );
+  if (!addEntries) return { anchor: null, replies: [], hasCursor: false };
+
+  let anchor: RawTweetData | null = null;
+  const replies: RawTweetData[] = [];
+  let hasCursor = false;
+
+  for (const entry of addEntries.entries ?? []) {
+    const entryId: string = entry.entryId ?? '';
+
+    if (entryId.startsWith('tweet-')) {
+      // Anchor tweet
+      const itemContent = entry.content?.itemContent;
+      if (itemContent?.__typename === 'TimelineTweet') {
+        const tweetResult = itemContent.tweet_results?.result;
+        if (tweetResult) {
+          const extracted = extractFromTweetResult(tweetResult);
+          if (extracted) anchor = extracted;
+        }
+      }
+    } else if (entryId.startsWith('conversationthread-')) {
+      // Reply thread module — extract all items
+      for (const moduleItem of entry.content?.items ?? []) {
+        const itemContent = moduleItem?.item?.itemContent;
+        if (itemContent?.__typename !== 'TimelineTweet') continue;
+        const tweetResult = itemContent.tweet_results?.result;
+        if (!tweetResult) continue;
+        const extracted = extractFromTweetResult(tweetResult);
+        if (extracted) replies.push(extracted);
+      }
+    } else if (entryId.startsWith('cursor-bottom')) {
+      hasCursor = true;
+    }
+    // tweetdetailrelatedtweets-* and other entries are silently skipped
+  }
+
+  return { anchor, replies, hasCursor };
+}
+
+export { GRAPHQL_TIMELINE_PATTERN, GRAPHQL_TWEET_DETAIL_PATTERN };
 

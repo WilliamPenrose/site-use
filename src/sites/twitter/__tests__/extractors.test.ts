@@ -6,9 +6,12 @@ import {
   parseTweet,
   buildFeedMeta,
   parseGraphQLTimeline,
+  parseTweetDetail,
   processFullText,
 } from '../extractors.js';
 import type { RawTweetData } from '../types.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const RAW_TWEET: RawTweetData = {
   authorHandle: 'karpathy',
@@ -789,5 +792,52 @@ describe('parseGraphQLTimeline (edge cases)', () => {
     const results = parseGraphQLTimeline(body);
     expect(results).toHaveLength(1);
     expect(results[0].authorHandle).toBe('pinner');
+  });
+});
+
+describe('parseTweetDetail', () => {
+
+  it('extracts anchor and replies from initial response', () => {
+    const body = fs.readFileSync(
+      path.join(__dirname, 'fixtures/tweet-detail-initial.json'), 'utf-8',
+    );
+    const result = parseTweetDetail(body);
+
+    expect(result.anchor).not.toBeNull();
+    expect(result.anchor!.authorHandle).toBe('shawn_pana');
+    expect(result.replies.length).toBeGreaterThan(0);
+    // Replies should not include the anchor tweet
+    expect(result.replies.every(r => r.url !== result.anchor!.url)).toBe(true);
+    // No recommended tweets (tweetdetailrelatedtweets) in replies
+    expect(result.hasCursor).toBe(true);
+  });
+
+  it('returns null anchor for incremental response', () => {
+    const body = fs.readFileSync(
+      path.join(__dirname, 'fixtures/tweet-detail-incremental.json'), 'utf-8',
+    );
+    const result = parseTweetDetail(body);
+
+    expect(result.anchor).toBeNull();
+    expect(result.replies.length).toBeGreaterThan(0);
+  });
+
+  it('extracts replies with inReplyTo field', () => {
+    const body = fs.readFileSync(
+      path.join(__dirname, 'fixtures/tweet-detail-initial.json'), 'utf-8',
+    );
+    const result = parseTweetDetail(body);
+
+    // At least some replies should have inReplyTo
+    const withInReplyTo = result.replies.filter(r => r.inReplyTo != null);
+    expect(withInReplyTo.length).toBeGreaterThan(0);
+    expect(withInReplyTo[0].inReplyTo!.handle).toBe('shawn_pana');
+  });
+
+  it('returns empty result for malformed body', () => {
+    const result = parseTweetDetail('{}');
+    expect(result.anchor).toBeNull();
+    expect(result.replies).toEqual([]);
+    expect(result.hasCursor).toBe(false);
   });
 });
