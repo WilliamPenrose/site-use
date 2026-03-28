@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Primitives, SnapshotNode, Snapshot } from '../../../primitives/types.js';
 import { TwitterFeedParamsSchema } from '../types.js';
+import { createDataCollector } from '../../../ops/data-collector.js';
 
 function createMockPrimitives(overrides: Partial<Primitives> = {}): Primitives {
   return {
@@ -26,11 +27,13 @@ function buildSnapshot(nodes: SnapshotNode[]): Snapshot {
 
 let checkLogin: typeof import('../workflows.js').checkLogin;
 let getFeed: typeof import('../workflows.js').getFeed;
+let ensureTimeline: typeof import('../workflows.js').ensureTimeline;
 
 beforeEach(async () => {
   const mod = await import('../workflows.js');
   checkLogin = mod.checkLogin;
   getFeed = mod.getFeed;
+  ensureTimeline = mod.ensureTimeline;
 });
 
 describe('checkLogin', () => {
@@ -260,6 +263,183 @@ describe('getFeed', () => {
       reloadFallback: expect.any(Boolean),
       graphqlResponseCount: expect.any(Number),
       elapsedMs: expect.any(Number),
+    });
+  });
+});
+
+describe('ensureTimeline', () => {
+  it('navigates and waits for data when already on home', async () => {
+    const collector = createDataCollector<any>();
+    const primitives = createMockPrimitives({
+      evaluate: vi.fn().mockResolvedValue('https://x.com/home'),
+      takeSnapshot: vi.fn().mockResolvedValue(
+        buildSnapshot([
+          { uid: '1', role: 'link', name: 'Home' },
+          { uid: '10', role: 'tab', name: 'For you', selected: true },
+        ]),
+      ),
+      navigate: vi.fn().mockImplementation(async () => {
+        collector.push({ id: '1' });
+      }),
+    });
+
+    const result = await ensureTimeline(primitives, collector, {
+      tab: 'for_you',
+      t0: Date.now(),
+    });
+
+    expect(result.navAction).toBe('already_there');
+    expect(result.tabAction).toBe('already_there');
+    expect(result.reloaded).toBe(false);
+    expect(collector.length).toBeGreaterThan(0);
+  });
+
+  it('switches tab and clears old data', async () => {
+    const collector = createDataCollector<any>();
+    collector.push({ id: 'old' });
+
+    const afterTabSwitch = buildSnapshot([
+      { uid: '1', role: 'link', name: 'Home' },
+      { uid: '10', role: 'tab', name: 'Following', selected: true },
+    ]);
+    const beforeTabSwitch = buildSnapshot([
+      { uid: '1', role: 'link', name: 'Home' },
+      { uid: '10', role: 'tab', name: 'Following', selected: false },
+    ]);
+
+    const primitives = createMockPrimitives({
+      evaluate: vi.fn().mockResolvedValue('https://x.com/home'),
+      takeSnapshot: vi.fn()
+        .mockResolvedValueOnce(beforeTabSwitch)   // URL ensure
+        .mockResolvedValueOnce(beforeTabSwitch)   // tab ensure initial
+        .mockResolvedValueOnce(afterTabSwitch)    // tab ensure after click
+        .mockResolvedValue(afterTabSwitch),
+      navigate: vi.fn().mockImplementation(async () => {
+        collector.push({ id: 'wrong_tab' });
+      }),
+      click: vi.fn().mockImplementation(async () => {
+        // Simulates: tab click triggers new GraphQL for correct tab
+        collector.push({ id: 'correct_tab' });
+      }),
+    });
+
+    const result = await ensureTimeline(primitives, collector, {
+      tab: 'following',
+      t0: Date.now(),
+    });
+
+    expect(result.tabAction).toBe('transitioned');
+    // Old data and wrong-tab data should be cleared; only correct_tab data remains
+    expect(collector.items.some((d: any) => d.id === 'old')).toBe(false);
+    expect(collector.items.some((d: any) => d.id === 'correct_tab')).toBe(true);
+  });
+
+  it('reload fallback when tab switch produces no data', { timeout: 15000 }, async () => {
+    const collector = createDataCollector<any>();
+
+    const snapshot = buildSnapshot([
+      { uid: '1', role: 'link', name: 'Home' },
+      { uid: '10', role: 'tab', name: 'Following', selected: false },
+      { uid: '11', role: 'tab', name: 'For you', selected: true },
+    ]);
+    const afterSwitch = buildSnapshot([
+      { uid: '1', role: 'link', name: 'Home' },
+      { uid: '10', role: 'tab', name: 'Following', selected: true },
+    ]);
+
+    let navigateCount = 0;
+    const primitives = createMockPrimitives({
+      evaluate: vi.fn().mockResolvedValue('https://x.com/home'),
+      takeSnapshot: vi.fn()
+        .mockResolvedValueOnce(snapshot)      // URL ensure
+        .mockResolvedValueOnce(snapshot)      // tab ensure initial (Following not selected)
+        .mockResolvedValueOnce(afterSwitch)   // tab ensure after click
+        // After reload fallback:
+        .mockResolvedValueOnce(afterSwitch)   // tab ensure initial
+        .mockResolvedValue(afterSwitch),      // subsequent
+      navigate: vi.fn().mockImplementation(async () => {
+        navigateCount++;
+        // Only produce data on reload fallback (2nd navigate)
+        if (navigateCount >= 2) {
+          collector.push({ id: 'after_reload' });
+        }
+      }),
+      click: vi.fn().mockResolvedValue(undefined),
+      // Tab click does NOT produce data -> triggers reload fallback
+    });
+
+    const result = await ensureTimeline(primitives, collector, {
+      tab: 'following',
+      t0: Date.now(),
+    });
+
+    expect(result.reloaded).toBe(true);
+    expect(collector.length).toBeGreaterThan(0);
+  });
+
+  it('does not reload twice', { timeout: 15000 }, async () => {
+    const collector = createDataCollector<any>();
+
+    const snapshot = buildSnapshot([
+      { uid: '1', role: 'link', name: 'Home' },
+      { uid: '10', role: 'tab', name: 'Following', selected: false },
+      { uid: '11', role: 'tab', name: 'For you', selected: true },
+    ]);
+    const afterSwitch = buildSnapshot([
+      { uid: '1', role: 'link', name: 'Home' },
+      { uid: '10', role: 'tab', name: 'Following', selected: true },
+    ]);
+
+    const primitives = createMockPrimitives({
+      evaluate: vi.fn().mockResolvedValue('https://x.com/home'),
+      takeSnapshot: vi.fn()
+        .mockResolvedValueOnce(snapshot)
+        .mockResolvedValueOnce(snapshot)
+        .mockResolvedValueOnce(afterSwitch)
+        .mockResolvedValue(afterSwitch),
+      navigate: vi.fn().mockResolvedValue(undefined),
+      // Never produces data — navigate is a no-op
+      click: vi.fn().mockResolvedValue(undefined),
+    });
+
+    const result = await ensureTimeline(primitives, collector, {
+      tab: 'following',
+      t0: Date.now(),
+    });
+
+    expect(result.reloaded).toBe(true);
+    // navigate called: 1 (initial reload) + 1 (reload fallback) = 2
+    // NOT 3 — no second reload fallback
+    expect(primitives.navigate).toHaveBeenCalledTimes(2);
+  });
+
+  it('returns timing info in waits array', async () => {
+    const collector = createDataCollector<any>();
+    const primitives = createMockPrimitives({
+      evaluate: vi.fn().mockResolvedValue('https://x.com/home'),
+      takeSnapshot: vi.fn().mockResolvedValue(
+        buildSnapshot([
+          { uid: '1', role: 'link', name: 'Home' },
+          { uid: '10', role: 'tab', name: 'For you', selected: true },
+        ]),
+      ),
+      navigate: vi.fn().mockImplementation(async () => {
+        collector.push({ id: '1' });
+      }),
+    });
+
+    const result = await ensureTimeline(primitives, collector, {
+      tab: 'for_you',
+      t0: Date.now(),
+    });
+
+    expect(result.waits.length).toBeGreaterThan(0);
+    expect(result.waits[0]).toMatchObject({
+      purpose: expect.any(String),
+      startedAt: expect.any(Number),
+      resolvedAt: expect.any(Number),
+      satisfied: true,
+      dataCount: expect.any(Number),
     });
   });
 });
