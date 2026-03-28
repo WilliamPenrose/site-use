@@ -1,8 +1,6 @@
-import type { Primitives } from '../../primitives/types.js';
 import type { Tweet, TweetMedia, RawTweetData, RawTweetMedia, FeedMeta } from './types.js';
 
 const GRAPHQL_TIMELINE_PATTERN = /\/i\/api\/graphql\/.*\/Home.*Timeline/;
-const MAX_STALE_ROUNDS = 3;
 
 /** Decode common HTML entities found in Twitter GraphQL full_text. */
 const HTML_ENTITIES: Record<string, string> = {
@@ -380,40 +378,3 @@ export function extractFromTweetResult(
 
 export { GRAPHQL_TIMELINE_PATTERN };
 
-/** Short delay to allow async GraphQL responses to arrive. */
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/**
- * Scroll timeline and collect intercepted tweets until count is reached.
- * Caller is responsible for setting up interception before navigation —
- * this function only scrolls and waits for data to accumulate.
- */
-export async function collectTweetsFromTimeline(
-  primitives: Primitives,
-  interceptedRaw: RawTweetData[],
-  count: number,
-): Promise<RawTweetData[]> {
-  // Wait for initial page load GraphQL response
-  await wait(2000);
-
-  let prevTotal = 0;
-  let staleRounds = 0;
-
-  while (staleRounds < MAX_STALE_ROUNDS) {
-    if (interceptedRaw.length >= count) break;
-
-    if (interceptedRaw.length <= prevTotal) {
-      staleRounds++;
-    } else {
-      staleRounds = 0;
-    }
-
-    prevTotal = interceptedRaw.length;
-    await primitives.scroll({ direction: 'down' });
-    await wait(1500);
-  }
-
-  return interceptedRaw;
-}
