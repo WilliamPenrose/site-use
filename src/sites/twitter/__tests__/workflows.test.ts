@@ -28,12 +28,14 @@ function buildSnapshot(nodes: SnapshotNode[]): Snapshot {
 let checkLogin: typeof import('../workflows.js').checkLogin;
 let getFeed: typeof import('../workflows.js').getFeed;
 let ensureTimeline: typeof import('../workflows.js').ensureTimeline;
+let collectData: typeof import('../workflows.js').collectData;
 
 beforeEach(async () => {
   const mod = await import('../workflows.js');
   checkLogin = mod.checkLogin;
   getFeed = mod.getFeed;
   ensureTimeline = mod.ensureTimeline;
+  collectData = mod.collectData;
 });
 
 describe('checkLogin', () => {
@@ -86,7 +88,7 @@ describe('checkLogin', () => {
 });
 
 describe('getFeed', () => {
-  it('navigates to x.com/home directly (auth guard handles login check)', async () => {
+  it('navigates to x.com/home directly (auth guard handles login check)', { timeout: 15000 }, async () => {
     const GRAPHQL_BODY = JSON.stringify({
       data: {
         home: {
@@ -97,6 +99,7 @@ describe('getFeed', () => {
       },
     });
 
+    let interceptHandler: any;
     const primitives = createMockPrimitives({
       evaluate: vi.fn().mockResolvedValue('https://x.com/home'),
       takeSnapshot: vi.fn().mockResolvedValue(
@@ -107,14 +110,17 @@ describe('getFeed', () => {
       ),
       interceptRequest: vi.fn().mockImplementation(
         async (_pattern: any, handler: any) => {
-          handler({
-            url: '/i/api/graphql/abc/HomeLatestTimeline',
-            status: 200,
-            body: GRAPHQL_BODY,
-          });
+          interceptHandler = handler;
           return () => {};
         },
       ),
+      navigate: vi.fn().mockImplementation(async () => {
+        interceptHandler({
+          url: '/i/api/graphql/abc/HomeLatestTimeline',
+          status: 200,
+          body: GRAPHQL_BODY,
+        });
+      }),
     });
 
     const result = await getFeed(primitives, { count: 0 });
@@ -236,6 +242,7 @@ describe('getFeed', () => {
       },
     });
 
+    let interceptHandler: any;
     const primitives = createMockPrimitives({
       evaluate: vi.fn().mockResolvedValue('https://x.com/home'),
       takeSnapshot: vi.fn().mockResolvedValue(
@@ -246,23 +253,37 @@ describe('getFeed', () => {
       ),
       interceptRequest: vi.fn().mockImplementation(
         async (_pattern: any, handler: any) => {
-          handler({
-            url: '/i/api/graphql/abc/HomeLatestTimeline',
-            status: 200,
-            body: GRAPHQL_BODY,
-          });
+          interceptHandler = handler;
           return () => {};
         },
       ),
+      navigate: vi.fn().mockImplementation(async () => {
+        interceptHandler({
+          url: '/i/api/graphql/abc/HomeLatestTimeline',
+          status: 200,
+          body: GRAPHQL_BODY,
+        });
+      }),
     });
 
     const result = await getFeed(primitives, { debug: true, count: 0 });
     expect(result).toHaveProperty('debug');
     expect(result.debug).toMatchObject({
       tabRequested: expect.any(String),
-      reloadFallback: expect.any(Boolean),
       graphqlResponseCount: expect.any(Number),
+      graphqlParseFailures: expect.any(Number),
+      notifyTimestamps: expect.any(Array),
       elapsedMs: expect.any(Number),
+      ensureTimeline: expect.objectContaining({
+        navAction: expect.any(String),
+        tabAction: expect.any(String),
+        reloaded: expect.any(Boolean),
+        waits: expect.any(Array),
+      }),
+      collectData: expect.objectContaining({
+        scrollRounds: expect.any(Number),
+        waits: expect.any(Array),
+      }),
     });
   });
 });
@@ -441,5 +462,68 @@ describe('ensureTimeline', () => {
       satisfied: true,
       dataCount: expect.any(Number),
     });
+  });
+});
+
+describe('collectData', () => {
+  it('returns immediately when data already >= count', async () => {
+    const collector = createDataCollector<any>();
+    collector.push({ id: '1' }, { id: '2' }, { id: '3' });
+
+    const primitives = createMockPrimitives();
+    const result = await collectData(primitives, collector, { count: 2, t0: Date.now() });
+
+    expect(result.scrollRounds).toBe(0);
+    expect(result.waits).toHaveLength(0);
+    expect(primitives.scroll).not.toHaveBeenCalled();
+  });
+
+  it('scrolls and collects until count reached', async () => {
+    const collector = createDataCollector<any>();
+    let scrollCount = 0;
+
+    const primitives = createMockPrimitives({
+      scroll: vi.fn().mockImplementation(async () => {
+        scrollCount++;
+        collector.push({ id: `scroll-${scrollCount}` });
+      }),
+    });
+
+    const result = await collectData(primitives, collector, { count: 3, t0: Date.now() });
+
+    expect(collector.length).toBeGreaterThanOrEqual(3);
+    expect(result.scrollRounds).toBeGreaterThan(0);
+  });
+
+  it('exits after MAX_STALE_ROUNDS with no new data', { timeout: 15000 }, async () => {
+    const collector = createDataCollector<any>();
+    collector.push({ id: '1' });
+
+    const primitives = createMockPrimitives({
+      scroll: vi.fn().mockResolvedValue(undefined),
+    });
+
+    const result = await collectData(primitives, collector, { count: 100, t0: Date.now() });
+
+    expect(result.scrollRounds).toBe(3);
+    expect(result.waits.every((w) => !w.satisfied)).toBe(true);
+  });
+
+  it('resets staleRounds when new data arrives', { timeout: 15000 }, async () => {
+    const collector = createDataCollector<any>();
+    let scrollCount = 0;
+
+    const primitives = createMockPrimitives({
+      scroll: vi.fn().mockImplementation(async () => {
+        scrollCount++;
+        if (scrollCount === 1 || scrollCount === 3) {
+          collector.push({ id: `s${scrollCount}` });
+        }
+      }),
+    });
+
+    const result = await collectData(primitives, collector, { count: 100, t0: Date.now() });
+
+    expect(result.scrollRounds).toBe(6);
   });
 });
