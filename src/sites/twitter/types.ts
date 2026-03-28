@@ -148,18 +148,6 @@ export const FeedMetaSchema = z.object({
 
 export type FeedMeta = z.infer<typeof FeedMetaSchema>;
 
-// --- FeedDebug ---
-
-export interface FeedDebug {
-  tabRequested: string;
-  navAction: string;
-  tabAction: string;
-  reloadFallback: boolean;
-  graphqlResponseCount: number;
-  rawBeforeFilter: number;
-  elapsedMs: number;
-}
-
 // --- FeedResult ---
 
 export const FeedResultSchema = z.object({
@@ -170,7 +158,6 @@ export const FeedResultSchema = z.object({
 export interface FeedResult {
   tweets: Tweet[];
   meta: FeedMeta;
-  debug?: FeedDebug;
 }
 
 // --- TwitterFeedParams (plugin-level params schema) ---

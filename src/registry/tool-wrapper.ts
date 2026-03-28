@@ -2,6 +2,7 @@ import { z, type ZodType } from 'zod';
 import type { SiteRuntime } from '../runtime/types.js';
 import { SiteUseError, BrowserDisconnected, RateLimited } from '../errors.js';
 import { resolveHint } from './default-descriptions.js';
+import { Trace, type TraceData } from '../trace.js';
 
 const IngestItemSchema = z.object({
   site: z.string(), id: z.string(), text: z.string(), author: z.string(),
@@ -22,7 +23,8 @@ export interface ToolResult {
 
 export interface WrapOptions {
   siteName: string;
-  handler: (params: Record<string, unknown>, runtime: SiteRuntime) => Promise<unknown>;
+  toolName: string;
+  handler: (params: Record<string, unknown>, runtime: SiteRuntime, trace: Trace) => Promise<unknown>;
   getRuntime: () => Promise<SiteRuntime>;
   paramsSchema?: ZodType;
   resultSchema?: ZodType;
@@ -67,9 +69,11 @@ export function wrapToolHandler(opts: WrapOptions): (params: Record<string, unkn
       }
     }
 
+    const trace = new Trace(opts.toolName);
+
     try {
       const result = await runtime.mutex.run(async () => {
-        return await opts.handler(rawParams, runtime);
+        return await opts.handler(rawParams, runtime, trace);
       });
 
       if (opts.resultSchema) {
@@ -105,11 +109,28 @@ export function wrapToolHandler(opts: WrapOptions): (params: Record<string, unkn
       }
 
       runtime.circuitBreaker.recordSuccess();
+      if ((rawParams as Record<string, unknown>).debug) {
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify({ result, trace: trace.toJSON() }) }],
+        };
+      }
       return {
         content: [{ type: 'text' as const, text: JSON.stringify(result) }],
       };
     } catch (err) {
-      return formatError(opts.siteName, err as Error, runtime, opts.onBrowserDisconnected);
+      const errorResult = await formatError(opts.siteName, err as Error, runtime, opts.onBrowserDisconnected, trace.toJSON());
+
+      // Screenshot as MCP image content block
+      try {
+        if (!(err instanceof BrowserDisconnected) && runtime?.primitives?.screenshot) {
+          const screenshot = await runtime.primitives.screenshot();
+          errorResult.content.push({ type: 'image' as const, data: screenshot, mimeType: 'image/png' });
+        }
+      } catch {
+        // Screenshot failed — skip, don't cause secondary failure
+      }
+
+      return errorResult;
     }
   };
 }
@@ -119,6 +140,7 @@ async function formatError(
   err: Error,
   runtime: SiteRuntime | undefined,
   onBrowserDisconnected?: () => void,
+  trace?: TraceData,
 ): Promise<ToolResult> {
   if (err instanceof SiteUseError) {
     if (err instanceof BrowserDisconnected && onBrowserDisconnected) {
@@ -131,37 +153,34 @@ async function formatError(
     const hint = resolveHint(pluginHints as Record<string, string> | undefined, err.type, siteName);
     if (hint) context.hint = hint;
 
-    if (!(err instanceof BrowserDisconnected) && runtime) {
-      try {
-        context.screenshotBase64 = await runtime.primitives.screenshot();
-      } catch {
-        // screenshot failed, skip
-      }
-    }
-
     if (runtime && !(err instanceof BrowserDisconnected) && !(err instanceof RateLimited)) {
       runtime.circuitBreaker.recordError();
     }
 
+    const payload: Record<string, unknown> = {
+      type: err.type,
+      message: err.message,
+      site: siteName,
+      context,
+    };
+    if (trace) payload.trace = trace;
+
     return {
-      content: [{ type: 'text' as const, text: JSON.stringify({
-        type: err.type,
-        message: err.message,
-        site: siteName,
-        context,
-      }) }],
+      content: [{ type: 'text' as const, text: JSON.stringify(payload) }],
       isError: true,
     };
   }
 
   if (runtime) runtime.circuitBreaker.recordError();
+  const payload: Record<string, unknown> = {
+    type: 'PluginError',
+    message: `Plugin "${siteName}" threw an unexpected error: ${err.message}`,
+    site: siteName,
+    context: { originalError: err.message, retryable: false },
+  };
+  if (trace) payload.trace = trace;
   return {
-    content: [{ type: 'text' as const, text: JSON.stringify({
-      type: 'PluginError',
-      message: `Plugin "${siteName}" threw an unexpected error: ${err.message}`,
-      site: siteName,
-      context: { originalError: err.message, retryable: false },
-    }) }],
+    content: [{ type: 'text' as const, text: JSON.stringify(payload) }],
     isError: true,
   };
 }

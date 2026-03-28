@@ -16,6 +16,7 @@ import { SiteUseError } from '../../errors.js';
 import type { RawTweetData } from './types.js';
 import type { FeedResult as FrameworkFeedResult } from '../../registry/types.js';
 import { tweetToFeedItem } from './feed-item.js';
+import { NOOP_TRACE, NOOP_SPAN, type Trace, type SpanHandle } from '../../trace.js';
 
 const TWITTER_HOME = 'https://x.com/home';
 
@@ -44,7 +45,6 @@ export type TimelineFeed = 'following' | 'for_you';
 export interface GetFeedOptions {
   count?: number;
   tab?: TimelineFeed;
-  debug?: boolean;
   dumpRaw?: string;
 }
 
@@ -78,6 +78,7 @@ export async function ensureTimeline(
   primitives: Primitives,
   collector: DataCollector<RawTweetData>,
   opts: { tab: TimelineFeed; t0: number },
+  span: SpanHandle = NOOP_SPAN,
 ): Promise<EnsureTimelineResult> {
   const { tab, t0 } = opts;
   const waits: WaitRecord[] = [];
@@ -94,40 +95,49 @@ export async function ensureTimeline(
   const ensure = makeEnsureState(primitives);
 
   // Step 1: Navigate to Twitter home
-  const { action: navAction } = await ensure({ url: TWITTER_HOME });
-  if (navAction === 'already_there') {
-    // Already on home — force reload to trigger GraphQL
-    await primitives.navigate(TWITTER_HOME);
-  }
+  const { action: navAction } = await span.span('navigate', async (s) => {
+    const result = await ensure({ url: TWITTER_HOME });
+    s.set('action', result.action);
+    if (result.action === 'already_there') {
+      await primitives.navigate(TWITTER_HOME);
+    }
+    return result;
+  });
 
   // Step 2: Switch to target tab
-  // Clear before the ensure call so data from the old tab is discarded,
-  // but data arriving from the tab-switch click is preserved.
   const tabName = tab === 'following' ? 'Following' : 'For you';
   const prevLength = collector.length;
-  const { action: tabAction } = await ensure({ role: 'tab', name: tabName, selected: true });
-  if (tabAction !== 'already_there') {
-    // Tab was switched — discard any data that was present before the switch.
-    // Data pushed during the ensure call (from the click) is kept.
-    const dataFromSwitch = collector.items.slice(prevLength);
-    collector.clear();
-    if (dataFromSwitch.length > 0) {
-      collector.push(...dataFromSwitch);
+  const { action: tabAction } = await span.span('switchTab', async (s) => {
+    const result = await ensure({ role: 'tab', name: tabName, selected: true });
+    s.set('action', result.action);
+    s.set('tabName', tabName);
+    if (result.action !== 'already_there') {
+      const dataFromSwitch = collector.items.slice(prevLength);
+      collector.clear();
+      if (dataFromSwitch.length > 0) {
+        collector.push(...dataFromSwitch);
+      }
     }
-  }
+    return result;
+  });
 
   // Step 3: Wait for data
-  const hasData = await timedWait('initial_data', () => collector.length > 0, WAIT_FOR_DATA_MS);
+  await span.span('waitForData', async (s) => {
+    const hasData = await timedWait('initial_data', () => collector.length > 0, WAIT_FOR_DATA_MS);
+    s.set('satisfied', hasData);
+    s.set('dataCount', collector.length);
 
-  if (!hasData && !reloaded) {
-    // No data — Twitter may have used cache. Reload fallback.
-    reloaded = true;
-    collector.clear();
-    await primitives.navigate(TWITTER_HOME);
-    await ensure({ role: 'tab', name: tabName, selected: true });
-    await timedWait('after_reload', () => collector.length > 0, WAIT_FOR_DATA_MS);
-    // If still no data after reload, proceed anyway — collectData scrolling may trigger GraphQL
-  }
+    if (!hasData && !reloaded) {
+      reloaded = true;
+      collector.clear();
+      await primitives.navigate(TWITTER_HOME);
+      await ensure({ role: 'tab', name: tabName, selected: true });
+      const hasDataAfterReload = await timedWait('after_reload', () => collector.length > 0, WAIT_FOR_DATA_MS);
+      s.set('reloaded', true);
+      s.set('satisfiedAfterReload', hasDataAfterReload);
+      s.set('dataCountAfterReload', collector.length);
+    }
+  });
 
   return { navAction, tabAction, reloaded, waits };
 }
@@ -145,6 +155,7 @@ export async function ensureTweetDetail(
   primitives: Primitives,
   collector: DataCollector<RawTweetData>,
   opts: { url: string; t0: number },
+  span: SpanHandle = NOOP_SPAN,
 ): Promise<EnsureTweetDetailResult> {
   const { url, t0 } = opts;
   const waits: WaitRecord[] = [];
@@ -158,24 +169,35 @@ export async function ensureTweetDetail(
   }
 
   // Step 1: Navigate to tweet detail page
-  await primitives.navigate(url);
+  await span.span('navigate', async () => {
+    await primitives.navigate(url);
+  });
 
   // Step 2: Check for login redirect
-  const currentUrl = await primitives.evaluate<string>('window.location.href');
-  if (currentUrl.includes('/login') || currentUrl.includes('/i/flow/login')) {
-    throw new SiteUseError('SessionExpired', 'Not logged in — redirected to login page', { retryable: false });
-  }
+  await span.span('checkLogin', async (s) => {
+    const currentUrl = await primitives.evaluate<string>('window.location.href');
+    s.set('currentUrl', currentUrl);
+    if (currentUrl.includes('/login') || currentUrl.includes('/i/flow/login')) {
+      throw new SiteUseError('SessionExpired', 'Not logged in — redirected to login page', { retryable: false });
+    }
+  });
 
   // Step 3: Wait for initial data
-  const hasData = await timedWait('initial_data', () => collector.length > 0, WAIT_FOR_DATA_MS);
+  await span.span('waitForData', async (s) => {
+    const hasData = await timedWait('initial_data', () => collector.length > 0, WAIT_FOR_DATA_MS);
+    s.set('satisfied', hasData);
+    s.set('dataCount', collector.length);
 
-  // Step 4: Fallback — reload if no data
-  if (!hasData) {
-    reloaded = true;
-    collector.clear();
-    await primitives.navigate(url);
-    await timedWait('after_reload', () => collector.length > 0, WAIT_FOR_DATA_MS);
-  }
+    if (!hasData) {
+      reloaded = true;
+      collector.clear();
+      await primitives.navigate(url);
+      const hasDataAfterReload = await timedWait('after_reload', () => collector.length > 0, WAIT_FOR_DATA_MS);
+      s.set('reloaded', true);
+      s.set('satisfiedAfterReload', hasDataAfterReload);
+      s.set('dataCountAfterReload', collector.length);
+    }
+  });
 
   return { reloaded, waits };
 }
@@ -190,6 +212,7 @@ export async function collectData(
   primitives: Primitives,
   collector: DataCollector<RawTweetData>,
   opts: { count: number; t0: number },
+  span: SpanHandle = NOOP_SPAN,
 ): Promise<CollectDataResult> {
   const { count, t0 } = opts;
   const waits: Array<WaitRecord & { round: number }> = [];
@@ -207,24 +230,31 @@ export async function collectData(
 
     round++;
     const prevTotal = collector.length;
-    await primitives.scroll({ direction: 'down' });
 
-    const startedAt = Date.now() - t0;
-    const satisfied = await collector.waitUntil(() => collector.length > prevTotal, SCROLL_WAIT_MS);
-    waits.push({
-      round,
-      purpose: `scroll_${round}`,
-      startedAt,
-      resolvedAt: Date.now() - t0,
-      satisfied,
-      dataCount: collector.length,
+    await span.span(`scroll_${round}`, async (s) => {
+      await primitives.scroll({ direction: 'down' });
+
+      const startedAt = Date.now() - t0;
+      const satisfied = await collector.waitUntil(() => collector.length > prevTotal, SCROLL_WAIT_MS);
+      waits.push({
+        round,
+        purpose: `scroll_${round}`,
+        startedAt,
+        resolvedAt: Date.now() - t0,
+        satisfied,
+        dataCount: collector.length,
+      });
+
+      s.set('satisfied', satisfied);
+      s.set('dataCount', collector.length);
+      s.set('newItems', collector.length - prevTotal);
+
+      if (satisfied) {
+        staleRounds = 0;
+      } else {
+        staleRounds++;
+      }
     });
-
-    if (satisfied) {
-      staleRounds = 0;
-    } else {
-      staleRounds++;
-    }
   }
 
   return { scrollRounds: round, waits };
@@ -233,78 +263,77 @@ export async function collectData(
 export async function getFeed(
   primitives: Primitives,
   opts: GetFeedOptions = {},
+  trace: Trace = NOOP_TRACE,
 ): Promise<FrameworkFeedResult> {
-  const { count = 20, tab = 'for_you', debug = false, dumpRaw } = opts;
+  const { count = 20, tab = 'for_you', dumpRaw } = opts;
+
   const t0 = Date.now();
-  let graphqlResponseCount = 0;
-  let graphqlParseFailures = 0;
-  const notifyTimestamps: number[] = [];
 
-  const collector = createDataCollector<RawTweetData>();
-  let dumpIndex = 0;
+  return await trace.span('getFeed', async (rootSpan) => {
+    rootSpan.set('tab', tab);
+    rootSpan.set('count', count);
+    let graphqlCount = 0;
+    let graphqlFailures = 0;
 
-  const cleanup = await primitives.interceptRequest(
-    GRAPHQL_TIMELINE_PATTERN,
-    (response) => {
-      try {
-        if (dumpRaw) {
-          fs.mkdirSync(dumpRaw, { recursive: true });
-          const outPath = path.join(dumpRaw, `graphql-${dumpIndex++}.json`);
-          fs.writeFileSync(outPath, response.body);
+    const collector = createDataCollector<RawTweetData>();
+    let dumpIndex = 0;
+
+    const cleanup = await primitives.interceptRequest(
+      GRAPHQL_TIMELINE_PATTERN,
+      (response) => {
+        try {
+          if (dumpRaw) {
+            fs.mkdirSync(dumpRaw, { recursive: true });
+            const outPath = path.join(dumpRaw, `graphql-${dumpIndex++}.json`);
+            fs.writeFileSync(outPath, response.body);
+          }
+          const parsed = parseGraphQLTimeline(response.body);
+          collector.push(...parsed);
+          graphqlCount++;
+          rootSpan.set('graphqlResponses', graphqlCount);
+        } catch {
+          graphqlFailures++;
+          rootSpan.set('graphqlFailures', graphqlFailures);
         }
-        const parsed = parseGraphQLTimeline(response.body);
-        collector.push(...parsed);
-        graphqlResponseCount++;
-        notifyTimestamps.push(Date.now() - t0);
-      } catch {
-        graphqlParseFailures++;
-      }
-    },
-  );
-
-  try {
-    const timelineResult = await ensureTimeline(primitives, collector, { tab, t0 });
-    const collectResult = await collectData(primitives, collector, { count, t0 });
-
-    const tweets = [...collector.items]
-      .map(parseTweet)
-      .filter((t) => !t.isAd)
-      .slice(0, count);
-
-    const meta = buildFeedMeta(tweets);
-    const items = tweets.map(tweetToFeedItem);
-
-    const frameworkResult: FrameworkFeedResult = {
-      items,
-      meta: {
-        coveredUsers: meta.coveredUsers,
-        timeRange: { from: meta.timeRange.from, to: meta.timeRange.to },
       },
-    };
+    );
 
-    if (debug) {
-      frameworkResult.debug = {
-        tabRequested: tab,
-        graphqlResponseCount,
-        graphqlParseFailures,
-        notifyTimestamps,
-        rawBeforeFilter: collector.length,
-        elapsedMs: Date.now() - t0,
-        ensureTimeline: timelineResult,
-        collectData: collectResult,
+    try {
+      await rootSpan.span('ensureTimeline', async (s) => {
+        await ensureTimeline(primitives, collector, { tab, t0 }, s);
+      });
+
+      await rootSpan.span('collectData', async (s) => {
+        await collectData(primitives, collector, { count, t0 }, s);
+      });
+
+      const tweets = [...collector.items]
+        .map(parseTweet)
+        .filter((t) => !t.isAd)
+        .slice(0, count);
+
+      const meta = buildFeedMeta(tweets);
+      const items = tweets.map(tweetToFeedItem);
+
+      rootSpan.set('rawBeforeFilter', collector.length);
+      rootSpan.set('itemsReturned', items.length);
+
+      return {
+        items,
+        meta: {
+          coveredUsers: meta.coveredUsers,
+          timeRange: { from: meta.timeRange.from, to: meta.timeRange.to },
+        },
       };
+    } finally {
+      cleanup();
     }
-
-    return frameworkResult;
-  } finally {
-    cleanup();
-  }
+  });
 }
 
 export interface GetTweetDetailOptions {
   url: string;
   count?: number;
-  debug?: boolean;
   dumpRaw?: string;
 }
 
@@ -316,86 +345,84 @@ export interface GetTweetDetailOptions {
 export async function getTweetDetail(
   primitives: Primitives,
   opts: GetTweetDetailOptions,
+  trace: Trace = NOOP_TRACE,
 ): Promise<FrameworkFeedResult> {
-  const { url, count = 20, debug = false, dumpRaw } = opts;
+  const { url, count = 20, dumpRaw } = opts;
   const t0 = Date.now();
-  let graphqlResponseCount = 0;
-  let graphqlParseFailures = 0;
 
-  // Anchor is stored separately; only replies go into collector.
-  let anchor: RawTweetData | null = null;
-  let hasCursor = false;
-  const collector = createDataCollector<RawTweetData>();
-  let dumpIndex = 0;
+  return await trace.span('getTweetDetail', async (rootSpan) => {
+    rootSpan.set('url', url);
+    rootSpan.set('count', count);
+    let graphqlCount = 0;
+    let graphqlFailures = 0;
 
-  const cleanup = await primitives.interceptRequest(
-    GRAPHQL_TWEET_DETAIL_PATTERN,
-    (response) => {
-      try {
-        if (dumpRaw) {
-          fs.mkdirSync(dumpRaw, { recursive: true });
-          const outPath = path.join(dumpRaw, `tweet-detail-${dumpIndex++}.json`);
-          fs.writeFileSync(outPath, response.body);
+    let anchor: RawTweetData | null = null;
+    let hasCursor = false;
+    const collector = createDataCollector<RawTweetData>();
+    let dumpIndex = 0;
+
+    const cleanup = await primitives.interceptRequest(
+      GRAPHQL_TWEET_DETAIL_PATTERN,
+      (response) => {
+        try {
+          if (dumpRaw) {
+            fs.mkdirSync(dumpRaw, { recursive: true });
+            const outPath = path.join(dumpRaw, `tweet-detail-${dumpIndex++}.json`);
+            fs.writeFileSync(outPath, response.body);
+          }
+          const parsed = parseTweetDetail(response.body);
+          if (parsed.anchor && !anchor) {
+            anchor = parsed.anchor;
+          }
+          hasCursor = parsed.hasCursor;
+          if (parsed.replies.length > 0) {
+            collector.push(...parsed.replies);
+          }
+          graphqlCount++;
+          rootSpan.set('graphqlResponses', graphqlCount);
+        } catch {
+          graphqlFailures++;
+          rootSpan.set('graphqlFailures', graphqlFailures);
         }
-        const parsed = parseTweetDetail(response.body);
-        if (parsed.anchor && !anchor) {
-          anchor = parsed.anchor;
-        }
-        hasCursor = parsed.hasCursor;
-        if (parsed.replies.length > 0) {
-          collector.push(...parsed.replies);
-        }
-        graphqlResponseCount++;
-      } catch {
-        graphqlParseFailures++;
-      }
-    },
-  );
-
-  try {
-    const ensureResult = await ensureTweetDetail(primitives, collector, { url, t0 });
-
-    // Only scroll for more if we need more replies AND there are more to load
-    let collectResult: CollectDataResult = { scrollRounds: 0, waits: [] };
-    if (collector.length < count && hasCursor) {
-      collectResult = await collectData(primitives, collector, { count, t0 });
-    }
-
-    // Build items: anchor first, then replies
-    const allRaw = anchor ? [anchor, ...collector.items] : [...collector.items];
-    const tweets = allRaw
-      .map(parseTweet)
-      .filter((t) => !t.isAd);
-
-    // Trim replies to count (anchor doesn't count toward limit)
-    const anchorTweet = anchor ? tweets[0] : undefined;
-    const replyTweets = anchor ? tweets.slice(1, count + 1) : tweets.slice(0, count);
-    const finalTweets = anchorTweet ? [anchorTweet, ...replyTweets] : replyTweets;
-
-    const meta = buildFeedMeta(finalTweets);
-    const items = finalTweets.map(tweetToFeedItem);
-
-    const frameworkResult: FrameworkFeedResult = {
-      items,
-      meta: {
-        coveredUsers: meta.coveredUsers,
-        timeRange: { from: meta.timeRange.from, to: meta.timeRange.to },
       },
-    };
+    );
 
-    if (debug) {
-      frameworkResult.debug = {
-        graphqlResponseCount,
-        graphqlParseFailures,
-        rawRepliesBeforeFilter: collector.length,
-        elapsedMs: Date.now() - t0,
-        ensureTweetDetail: ensureResult,
-        collectData: collectResult,
+    try {
+      await rootSpan.span('ensureTweetDetail', async (s) => {
+        await ensureTweetDetail(primitives, collector, { url, t0 }, s);
+      });
+
+      if (collector.length < count && hasCursor) {
+        await rootSpan.span('collectData', async (s) => {
+          await collectData(primitives, collector, { count, t0 }, s);
+        });
+      }
+
+      const allRaw = anchor ? [anchor, ...collector.items] : [...collector.items];
+      const tweets = allRaw
+        .map(parseTweet)
+        .filter((t) => !t.isAd);
+
+      const anchorTweet = anchor ? tweets[0] : undefined;
+      const replyTweets = anchor ? tweets.slice(1, count + 1) : tweets.slice(0, count);
+      const finalTweets = anchorTweet ? [anchorTweet, ...replyTweets] : replyTweets;
+
+      const meta = buildFeedMeta(finalTweets);
+      const items = finalTweets.map(tweetToFeedItem);
+
+      rootSpan.set('rawRepliesBeforeFilter', collector.length);
+      rootSpan.set('itemsReturned', items.length);
+      rootSpan.set('hasAnchor', anchor !== null);
+
+      return {
+        items,
+        meta: {
+          coveredUsers: meta.coveredUsers,
+          timeRange: { from: meta.timeRange.from, to: meta.timeRange.to },
+        },
       };
+    } finally {
+      cleanup();
     }
-
-    return frameworkResult;
-  } finally {
-    cleanup();
-  }
+  });
 }

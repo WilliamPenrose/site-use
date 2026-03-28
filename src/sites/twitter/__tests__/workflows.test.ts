@@ -241,7 +241,9 @@ describe('getFeed', () => {
     expect(opts.tab).toBe('following');
   });
 
-  it('debug: true produces debug field in result', { timeout: 15000 }, async () => {
+  it('records trace spans when Trace is provided', { timeout: 15000 }, async () => {
+    const { Trace } = await import('../../../trace.js');
+
     const GRAPHQL_BODY = JSON.stringify({
       data: {
         home: {
@@ -254,7 +256,6 @@ describe('getFeed', () => {
 
     let interceptHandler: any;
     const primitives = createMockPrimitives({
-      evaluate: vi.fn().mockResolvedValue('https://x.com/home'),
       takeSnapshot: vi.fn().mockResolvedValue(
         buildSnapshot([
           { uid: '1', role: 'link', name: 'Home' },
@@ -274,28 +275,40 @@ describe('getFeed', () => {
           body: GRAPHQL_BODY,
         });
       }),
+      evaluate: vi.fn().mockResolvedValue('https://x.com/home'),
     });
 
-    const result = await getFeed(primitives, { debug: true, count: 0 });
-    expect(result).toHaveProperty('debug');
-    expect(result.debug).toMatchObject({
-      tabRequested: expect.any(String),
-      graphqlResponseCount: expect.any(Number),
-      graphqlParseFailures: expect.any(Number),
-      notifyTimestamps: expect.any(Array),
-      elapsedMs: expect.any(Number),
-      ensureTimeline: expect.objectContaining({
-        navAction: expect.any(String),
-        tabAction: expect.any(String),
-        reloaded: expect.any(Boolean),
-        waits: expect.any(Array),
-      }),
-      collectData: expect.objectContaining({
-        scrollRounds: expect.any(Number),
-        waits: expect.any(Array),
-      }),
-    });
+    const trace = new Trace('twitter_feed');
+    const result = await getFeed(primitives, { count: 0 }, trace);
+
+    // Result should NOT have debug field
+    expect(result).not.toHaveProperty('debug');
+
+    // Trace should have span data
+    const traceData = trace.toJSON();
+    expect(traceData.tool).toBe('twitter_feed');
+    expect(traceData.status).toBe('ok');
+    expect(traceData.root.children).toHaveLength(1); // getFeed root span
+
+    const getFeedSpan = traceData.root.children[0];
+    expect(getFeedSpan.name).toBe('getFeed');
+    expect(getFeedSpan.status).toBe('ok');
+    expect(getFeedSpan.attrs.tab).toBe('for_you');
+
+    // Should have ensureTimeline and collectData child spans
+    const childNames = getFeedSpan.children.map((c: any) => c.name);
+    expect(childNames).toContain('ensureTimeline');
+    expect(childNames).toContain('collectData');
+
+    // ensureTimeline should have fine-grained children
+    const ensureSpan = getFeedSpan.children.find((c: any) => c.name === 'ensureTimeline');
+    expect(ensureSpan).toBeDefined();
+    const ensureChildNames = ensureSpan!.children.map((c: any) => c.name);
+    expect(ensureChildNames).toContain('navigate');
+    expect(ensureChildNames).toContain('switchTab');
+    expect(ensureChildNames).toContain('waitForData');
   });
+
 });
 
 describe('ensureTimeline', () => {

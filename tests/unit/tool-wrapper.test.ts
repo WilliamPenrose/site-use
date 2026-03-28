@@ -35,6 +35,7 @@ describe('wrapToolHandler', () => {
     const handler = vi.fn(async () => ({ data: 'ok' }));
     const wrapped = wrapToolHandler({
       siteName: 'test',
+      toolName: 'test_tool',
       handler,
       getRuntime: async () => fakeRuntime(),
     });
@@ -52,6 +53,7 @@ describe('wrapToolHandler', () => {
     const handler = vi.fn(async () => ({}));
     const wrapped = wrapToolHandler({
       siteName: 'test',
+      toolName: 'test_tool',
       handler,
       getRuntime: async () => fakeRuntime(),
       paramsSchema: z.object({ count: z.number().min(1) }),
@@ -68,6 +70,7 @@ describe('wrapToolHandler', () => {
     const handler = vi.fn(async () => { throw new SessionExpired('not logged in'); });
     const wrapped = wrapToolHandler({
       siteName: 'test',
+      toolName: 'test_tool',
       handler,
       getRuntime: async () => runtime,
     });
@@ -84,6 +87,7 @@ describe('wrapToolHandler', () => {
     const handler = vi.fn(async () => { throw new TypeError('oops'); });
     const wrapped = wrapToolHandler({
       siteName: 'test',
+      toolName: 'test_tool',
       handler,
       getRuntime: async () => fakeRuntime(),
     });
@@ -129,6 +133,7 @@ describe('wrapToolHandler', () => {
     const handler = vi.fn(async () => ({}));
     const wrapped = wrapToolHandler({
       siteName: 'test',
+      toolName: 'test_tool',
       handler,
       getRuntime: async () => runtime,
     });
@@ -140,24 +145,38 @@ describe('wrapToolHandler', () => {
     expect(body.type).toBe('RateLimited');
   });
 
-  it('captures auto-screenshot on SiteUseError', async () => {
+  it('captures auto-screenshot as image content block on SiteUseError', async () => {
     const runtime = fakeRuntime();
     const handler = async () => { throw new SessionExpired('test'); };
     const wrapped = wrapToolHandler({
       siteName: 'test',
+      toolName: 'test_tool',
       handler,
       getRuntime: async () => runtime,
     });
 
     const result = await wrapped({});
+    // Screenshot should be an image content block, not in JSON body
+    expect(result.content).toHaveLength(2);
+    expect(result.content[0].type).toBe('text');
+    expect(result.content[1]).toEqual({
+      type: 'image',
+      data: 'base64png',
+      mimeType: 'image/png',
+    });
+    // JSON body should NOT have screenshotBase64
     const body = JSON.parse((result.content[0] as { text: string }).text);
-    expect(body.context.screenshotBase64).toBe('base64png');
+    expect(body.context).not.toHaveProperty('screenshotBase64');
+    // But should have trace
+    expect(body.trace).toBeDefined();
+    expect(body.trace.tool).toBe('test_tool');
   });
 
   it('autoIngest silently skips when result has no items array', async () => {
     const handler = vi.fn(async () => ({ status: 'ok' }));
     const wrapped = wrapToolHandler({
       siteName: 'test',
+      toolName: 'test_tool',
       handler,
       getRuntime: async () => fakeRuntime(),
       autoIngest: {
@@ -176,6 +195,7 @@ describe('wrapToolHandler', () => {
     }));
     const wrapped = wrapToolHandler({
       siteName: 'test',
+      toolName: 'test_tool',
       handler,
       getRuntime: async () => fakeRuntime(),
       autoIngest: {

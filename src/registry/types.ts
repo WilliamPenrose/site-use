@@ -3,6 +3,7 @@ import type { Primitives } from '../primitives/types.js';
 import type { DetectFn } from '../primitives/rate-limit-detect.js';
 import type { IngestItem } from '../storage/types.js';
 import type { KnowledgeStore } from '../storage/index.js';
+import type { Trace } from '../trace.js';
 
 // ── Expose target ──────────────────────────────────────────────
 
@@ -63,7 +64,6 @@ export interface FeedMeta {
 export interface FeedResult {
   items: FeedItem[];
   meta: FeedMeta;
-  debug?: Record<string, unknown>;
 }
 
 // ── Auth types ─────────────────────────────────────────────────
@@ -94,7 +94,7 @@ export interface AuthCapability {
 }
 
 export interface FeedCapability {
-  collect: (primitives: Primitives, params: unknown) => Promise<FeedResult>;
+  collect: (primitives: Primitives, params: unknown, trace?: Trace) => Promise<FeedResult>;
   params: ZodType;
   localQuery?: (store: KnowledgeStore, params: unknown) => Promise<FeedResult>;
   cache?: CacheConfig;
@@ -109,7 +109,7 @@ export interface WorkflowDeclaration {
   name: string;
   description: string;
   params: ZodType;
-  execute: (primitives: Primitives, params: unknown) => Promise<unknown>;
+  execute: (primitives: Primitives, params: unknown, trace?: Trace) => Promise<unknown>;
   expose?: ExposeTarget[];
   cli?: CliConfig;
 }

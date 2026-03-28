@@ -10,6 +10,7 @@ import os from 'node:os';
 import { withSmartCache, stripFrameworkFlags } from '../cli/smart-cache.js';
 import { createStore } from '../storage/index.js';
 import fs from 'node:fs';
+import type { Trace } from '../trace.js';
 
 // ── FeedResult Zod schema for return value validation ──────────
 const MediaItemSchema = z.object({
@@ -28,7 +29,6 @@ const FeedResultSchema = z.object({
     coveredUsers: z.array(z.string()),
     timeRange: z.object({ from: z.string(), to: z.string() }),
   }),
-  debug: z.record(z.unknown()).optional(),
 });
 
 // ── MCP Tool generation ────────────────────────────────────────
@@ -71,9 +71,10 @@ export function generateMcpTools(
         config: { description },
         handler: wrapToolHandler({
           siteName: plugin.name,
+          toolName: `${plugin.name}_check_login`,
           getRuntime: () => runtimeManager.get(plugin.name),
           onBrowserDisconnected: () => runtimeManager.clearAll(),
-          handler: async (_params, runtime) => {
+          handler: async (_params, runtime, _trace) => {
             return await authCheck(runtime.primitives);
           },
         }),
@@ -93,6 +94,7 @@ export function generateMcpTools(
         config: { description, inputSchema },
         handler: wrapToolHandler({
           siteName: plugin.name,
+          toolName: `${plugin.name}_feed`,
           getRuntime: () => runtimeManager.get(plugin.name),
           onBrowserDisconnected: () => runtimeManager.clearAll(),
           paramsSchema,
@@ -100,8 +102,8 @@ export function generateMcpTools(
           autoIngest: plugin.storeAdapter
             ? { storeAdapter: plugin.storeAdapter as { toIngestItems: (items: any[]) => any[] }, siteName: plugin.name }
             : undefined,
-          handler: async (params, runtime) => {
-            const result = await feedCollect(runtime.primitives, params);
+          handler: async (params, runtime, trace) => {
+            const result = await feedCollect(runtime.primitives, params, trace);
 
             const cfg = getConfig();
             const tsPath = path.join(cfg.dataDir, 'fetch-timestamps.json');
@@ -125,14 +127,15 @@ export function generateMcpTools(
           config: { description: wf.description, inputSchema },
           handler: wrapToolHandler({
             siteName: plugin.name,
+            toolName: `${plugin.name}_${wf.name}`,
             getRuntime: () => runtimeManager.get(plugin.name),
             onBrowserDisconnected: () => runtimeManager.clearAll(),
             paramsSchema: wf.params,
             autoIngest: plugin.storeAdapter
               ? { storeAdapter: plugin.storeAdapter as { toIngestItems: (items: any[]) => any[] }, siteName: plugin.name }
               : undefined,
-            handler: async (params, runtime) => {
-              return await wf.execute(runtime.primitives, params);
+            handler: async (params, runtime, trace) => {
+              return await wf.execute(runtime.primitives, params, trace);
             },
           }),
         });
@@ -174,9 +177,10 @@ export function generateCliCommands(
       const authCheck = capabilities.auth.check;
       const wrappedAuth = wrapToolHandler({
         siteName: plugin.name,
+        toolName: `${plugin.name}_check_login`,
         getRuntime: () => runtimeManager.get(plugin.name),
         onBrowserDisconnected: () => runtimeManager.clearAll(),
-        handler: async (_params, runtime) => authCheck(runtime.primitives),
+        handler: async (_params, runtime, _trace) => authCheck(runtime.primitives),
       });
       commands.push({
         site: plugin.name,
@@ -203,6 +207,7 @@ export function generateCliCommands(
       const feedCap = capabilities.feed;
       const wrappedFeed = wrapToolHandler({
         siteName: plugin.name,
+        toolName: `${plugin.name}_feed`,
         getRuntime: () => runtimeManager.get(plugin.name),
         onBrowserDisconnected: () => runtimeManager.clearAll(),
         paramsSchema,
@@ -210,8 +215,8 @@ export function generateCliCommands(
         autoIngest: plugin.storeAdapter
           ? { storeAdapter: plugin.storeAdapter as { toIngestItems: (items: any[]) => any[] }, siteName: plugin.name }
           : undefined,
-        handler: async (params, runtime) => {
-          const result = await feedCollect(runtime.primitives, params);
+        handler: async (params, runtime, trace) => {
+          const result = await feedCollect(runtime.primitives, params, trace);
           const cfg = getConfig();
           const tsPath = path.join(cfg.dataDir, 'fetch-timestamps.json');
           const tab = (params as Record<string, unknown>).tab as string | undefined;
@@ -352,13 +357,14 @@ export function generateCliCommands(
         if (!shouldExposeCli(wf.expose)) continue;
         const wrappedWf = wrapToolHandler({
           siteName: plugin.name,
+          toolName: `${plugin.name}_${wf.name}`,
           getRuntime: () => runtimeManager.get(plugin.name),
           onBrowserDisconnected: () => runtimeManager.clearAll(),
           paramsSchema: wf.params,
           autoIngest: plugin.storeAdapter
             ? { storeAdapter: plugin.storeAdapter as { toIngestItems: (items: any[]) => any[] }, siteName: plugin.name }
             : undefined,
-          handler: async (params, runtime) => wf.execute(runtime.primitives, params),
+          handler: async (params, runtime, trace) => wf.execute(runtime.primitives, params, trace),
         });
         commands.push({
           site: plugin.name,
