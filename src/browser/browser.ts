@@ -203,6 +203,25 @@ async function applyCoordFix(pages: Page[]): Promise<void> {
   }
 }
 
+/**
+ * Unfreeze all pages by setting their lifecycle state to "active".
+ * Chrome freezes background tabs after ~5 minutes of inactivity, suspending
+ * the input event pipeline. This causes Input.dispatchMouseEvent to time out
+ * when connecting to a long-idle browser. Sending Page.setWebLifecycleState
+ * explicitly resumes the renderer without bringing the tab to front.
+ */
+export async function unfreezePages(pages: Page[]): Promise<void> {
+  for (const page of pages) {
+    try {
+      const cdp = await page.createCDPSession();
+      await cdp.send('Page.setWebLifecycleState', { state: 'active' });
+      await cdp.detach();
+    } catch {
+      // Tab may already be active, or the target was closed — safe to ignore
+    }
+  }
+}
+
 function fixPreferences(profileDir: string, webrtcPolicy: WebRTCPolicy): void {
   const prefsPath = path.join(profileDir, 'Default', 'Preferences');
   try {
@@ -287,12 +306,14 @@ async function applyConnectionSetup(browser: Browser): Promise<void> {
   const pages = await browser.pages();
   await emulateFocus(pages);
   await applyCoordFix(pages);
+  await unfreezePages(pages);
 
   browser.on('targetcreated', async (target) => {
     if (target.type() === 'page') {
       const page = await target.page();
       if (page) await emulateFocus([page]);
       if (page) await applyCoordFix([page]);
+      // New tabs are already active — no unfreeze needed
     }
   });
 }
