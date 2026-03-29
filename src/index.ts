@@ -9,6 +9,7 @@ import { BUILD_HASH, BUILD_DATE } from './build-info.js';
 import { discoverPlugins } from './registry/discovery.js';
 import { generateCliCommands } from './registry/codegen.js';
 import { SiteRuntimeManager } from './runtime/manager.js';
+import { runScreenshotCli } from './cli/screenshot.js';
 
 function getVersion(): string {
   if (BUILD_HASH === 'dev') return 'dev';
@@ -107,6 +108,7 @@ Global commands:
   stats              Show storage statistics
   rebuild            Rebuild search index (Phase 2)
   clean              Delete stored items by filter (interactive)
+  screenshot         Take a screenshot of a site's browser tab
   diagnose           Run anti-detection diagnostic checks
   harness            Diagnostic harness (run / capture / promote / status)
   help               Show this help message
@@ -177,6 +179,10 @@ async function run(): Promise<boolean> {
       await runHarnessCli(args.slice(1));
       break;
     }
+
+    case 'screenshot':
+      await runScreenshotCli(args.slice(1));
+      break;
 
     case 'diagnose': {
       if (args.includes('--help') || args.includes('-h') || args.includes('help')) {

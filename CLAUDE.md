@@ -35,7 +35,7 @@ MCP Server (server.ts)
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **cli-for-llm** (886 symbols, 1978 relationships, 59 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **cli-for-llm** (893 symbols, 1990 relationships, 60 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
