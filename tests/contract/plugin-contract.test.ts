@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { z } from 'zod';
-import { generateMcpTools, generateCliCommands } from '../../src/registry/codegen.js';
+import { generateCliCommands } from '../../src/registry/codegen.js';
 import { validatePlugins } from '../../src/registry/validation.js';
 import type { SitePlugin } from '../../src/registry/types.js';
 import type { SiteRuntimeManager } from '../../src/runtime/manager.js';
@@ -58,13 +58,13 @@ function makeMockRuntime(plugin: SitePlugin) {
 }
 
 describe('Plugin Contract', () => {
-  it('generates MCP tools from standard capabilities', () => {
-    const tools = generateMcpTools([fakePlugin()], fakeManager());
-    expect(tools.find(t => t.name === 'fake_check_login')).toBeDefined();
-    expect(tools.find(t => t.name === 'fake_feed')).toBeDefined();
+  it('generates CLI commands from standard capabilities', () => {
+    const cmds = generateCliCommands([fakePlugin()], fakeManager());
+    expect(cmds.find(c => c.command === 'check-login')).toBeDefined();
+    expect(cmds.find(c => c.command === 'feed')).toBeDefined();
   });
 
-  it('generates MCP tools from custom workflows', () => {
+  it('generates CLI commands from custom workflows', () => {
     const plugin = fakePlugin({
       customWorkflows: [{
         name: 'trending',
@@ -73,20 +73,8 @@ describe('Plugin Contract', () => {
         execute: async () => ({}),
       }],
     });
-    const tools = generateMcpTools([plugin], fakeManager());
-    expect(tools.find(t => t.name === 'fake_trending')).toBeDefined();
-  });
-
-  it('respects expose config (mcp-only)', () => {
-    const plugin = fakePlugin({
-      capabilities: {
-        auth: { check: async () => ({ loggedIn: true }), expose: ['mcp'] },
-      },
-    });
-    const mcpTools = generateMcpTools([plugin], fakeManager());
-    const cliCmds = generateCliCommands([plugin], fakeManager());
-    expect(mcpTools.find(t => t.name === 'fake_check_login')).toBeDefined();
-    expect(cliCmds.find(c => c.command === 'check-login')).toBeUndefined();
+    const cmds = generateCliCommands([plugin], fakeManager());
+    expect(cmds.find(c => c.command === 'trending')).toBeDefined();
   });
 
   it('respects expose config (cli-only)', () => {
@@ -95,13 +83,21 @@ describe('Plugin Contract', () => {
         auth: { check: async () => ({ loggedIn: true }), expose: ['cli'] },
       },
     });
-    const mcpTools = generateMcpTools([plugin], fakeManager());
     const cliCmds = generateCliCommands([plugin], fakeManager());
-    expect(mcpTools.find(t => t.name === 'fake_check_login')).toBeUndefined();
     expect(cliCmds.find(c => c.command === 'check-login')).toBeDefined();
   });
 
-  it('wraps unknown plugin errors as PluginError', async () => {
+  it('respects expose config (mcp-only skips CLI)', () => {
+    const plugin = fakePlugin({
+      capabilities: {
+        auth: { check: async () => ({ loggedIn: true }), expose: ['mcp'] },
+      },
+    });
+    const cliCmds = generateCliCommands([plugin], fakeManager());
+    expect(cliCmds.find(c => c.command === 'check-login')).toBeUndefined();
+  });
+
+  it('wraps unknown plugin errors as PluginError via CLI handler', async () => {
     const plugin = fakePlugin({
       capabilities: {
         auth: {
@@ -111,24 +107,24 @@ describe('Plugin Contract', () => {
     });
     const mockRuntime = makeMockRuntime(plugin);
     const mgr = { get: vi.fn(async () => mockRuntime), clearAll: vi.fn() } as unknown as SiteRuntimeManager;
-    const tools = generateMcpTools([plugin], mgr);
+    const cmds = generateCliCommands([plugin], mgr);
 
-    const authTool = tools.find(t => t.name === 'fake_check_login')!;
-    const result = await authTool.handler({});
-    expect(result.isError).toBe(true);
-    const body = JSON.parse((result.content[0] as { text: string }).text);
+    const authCmd = cmds.find(c => c.command === 'check-login')!;
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    await authCmd.handler([]);
+    const output = consoleSpy.mock.calls.map(c => c[0]).join('\n');
+    const body = JSON.parse(output);
     expect(body.type).toBe('PluginError');
+    consoleSpy.mockRestore();
   });
 
   it('per-site circuit breaker does not affect other sites', () => {
     const alpha = fakePlugin({ name: 'alpha', domains: ['alpha.com'] });
     const beta = fakePlugin({ name: 'beta', domains: ['beta.com'] });
     validatePlugins([alpha, beta]);
-    // If validation passes, they're independent — circuit breaker isolation
-    // is tested in runtime-manager.test.ts (each runtime has own CB)
   });
 
-  it('calls storeAdapter after feed.collect', async () => {
+  it('calls storeAdapter after feed.collect via CLI handler', async () => {
     const storeAdapterSpy = vi.fn(() => []);
     const plugin = fakePlugin({
       storeAdapter: { toIngestItems: storeAdapterSpy },
@@ -144,13 +140,17 @@ describe('Plugin Contract', () => {
     });
     const mockRuntime = makeMockRuntime(plugin);
     const mgr = { get: vi.fn(async () => mockRuntime), clearAll: vi.fn() } as unknown as SiteRuntimeManager;
-    const tools = generateMcpTools([plugin], mgr);
-    const feedTool = tools.find(t => t.name === 'fake_feed')!;
-    await feedTool.handler({});
+    const cmds = generateCliCommands([plugin], mgr);
+    const feedCmd = cmds.find(c => c.command === 'feed')!;
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    await feedCmd.handler([]);
     expect(storeAdapterSpy).toHaveBeenCalled();
+    consoleSpy.mockRestore();
+    stderrSpy.mockRestore();
   });
 
-  it('does not call storeAdapter when not declared', async () => {
+  it('does not call storeAdapter when not declared via CLI handler', async () => {
     const plugin = fakePlugin({
       capabilities: {
         feed: {
@@ -165,30 +165,37 @@ describe('Plugin Contract', () => {
     delete (plugin as Record<string, unknown>).storeAdapter;
     const mockRuntime = makeMockRuntime(plugin);
     const mgr = { get: vi.fn(async () => mockRuntime), clearAll: vi.fn() } as unknown as SiteRuntimeManager;
-    const tools = generateMcpTools([plugin], mgr);
-    const feedTool = tools.find(t => t.name === 'fake_feed')!;
+    const cmds = generateCliCommands([plugin], mgr);
+    const feedCmd = cmds.find(c => c.command === 'feed')!;
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     // Should not throw — just skips ingest
-    const result = await feedTool.handler({});
-    expect(result.isError).toBeUndefined();
+    await feedCmd.handler([]);
+    consoleSpy.mockRestore();
+    stderrSpy.mockRestore();
   });
 
-  it('FeedResult validation rejects invalid return', async () => {
+  it('FeedResult validation rejects invalid return via CLI handler', async () => {
     const plugin = fakePlugin({
       capabilities: {
         feed: {
-          collect: async () => ({ bad: 'data' }) as never, // Invalid FeedResult
+          collect: async () => ({ bad: 'data' }) as never,
           params: z.object({}),
         },
       },
     });
     const mockRuntime = makeMockRuntime(plugin);
     const mgr = { get: vi.fn(async () => mockRuntime), clearAll: vi.fn() } as unknown as SiteRuntimeManager;
-    const tools = generateMcpTools([plugin], mgr);
-    const feedTool = tools.find(t => t.name === 'fake_feed')!;
-    const result = await feedTool.handler({});
-    expect(result.isError).toBe(true);
-    const body = JSON.parse((result.content[0] as { text: string }).text);
+    const cmds = generateCliCommands([plugin], mgr);
+    const feedCmd = cmds.find(c => c.command === 'feed')!;
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    await feedCmd.handler([]);
+    const output = consoleSpy.mock.calls.map(c => c[0]).join('\n');
+    const body = JSON.parse(output);
     expect(body.type).toBe('PluginError');
+    consoleSpy.mockRestore();
+    stderrSpy.mockRestore();
   });
 });
 
@@ -205,15 +212,12 @@ describe('Error Scenario Tests', () => {
   });
 
   it('external plugin path not found is fatal', async () => {
-    // import() of nonexistent path throws with helpful message
     await expect(
       import('nonexistent-plugin-that-does-not-exist-12345'),
     ).rejects.toThrow();
   });
 
-  it('plugin detect runtime error is wrapped as PluginError', async () => {
-    // When auth.check throws a non-SiteUseError, the wrapper should catch it
-    // and return a PluginError response.
+  it('plugin detect runtime error is wrapped as PluginError via CLI', async () => {
     const plugin = fakePlugin({
       capabilities: {
         auth: {
@@ -223,49 +227,18 @@ describe('Error Scenario Tests', () => {
     });
     const mockRuntime = makeMockRuntime(plugin);
     const mgr = { get: vi.fn(async () => mockRuntime), clearAll: vi.fn() } as unknown as SiteRuntimeManager;
-    const tools = generateMcpTools([plugin], mgr);
-    const authTool = tools.find(t => t.name === 'fake_check_login')!;
-    const result = await authTool.handler({});
-    expect(result.isError).toBe(true);
-    const body = JSON.parse((result.content[0] as { text: string }).text);
+    const cmds = generateCliCommands([plugin], mgr);
+    const authCmd = cmds.find(c => c.command === 'check-login')!;
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    await authCmd.handler([]);
+    const output = consoleSpy.mock.calls.map(c => c[0]).join('\n');
+    const body = JSON.parse(output);
     expect(body.type).toBe('PluginError');
-  });
-
-  it('Twitter-only: tool inputSchema matches current structure', () => {
-    const twitterPlugin = fakePlugin({
-      name: 'twitter',
-      domains: ['x.com', 'twitter.com'],
-      capabilities: {
-        feed: {
-          collect: async () => ({ items: [], meta: { coveredUsers: [], timeRange: { from: '', to: '' } } }),
-          params: z.object({
-            count: z.number().min(1).max(100).default(20),
-            tab: z.enum(['following', 'for_you']).default('for_you'),
-            debug: z.boolean().default(false),
-            dumpRaw: z.string().optional(),
-          }),
-        },
-      },
-    });
-    const tools = generateMcpTools([twitterPlugin], fakeManager());
-    const feedTool = tools.find(t => t.name === 'twitter_feed')!;
-    const schema = feedTool.config.inputSchema!;
-    // Verify the Zod raw shape has the expected keys
-    expect(Object.keys(schema).sort()).toEqual(['count', 'debug', 'dumpRaw', 'tab']);
+    consoleSpy.mockRestore();
   });
 });
 
 describe('Backward Compatibility Snapshots', () => {
-  it('Twitter-only: generates same MCP tool names as current', () => {
-    const twitterPlugin = fakePlugin({
-      name: 'twitter',
-      domains: ['x.com', 'twitter.com'],
-    });
-    const tools = generateMcpTools([twitterPlugin], fakeManager());
-    const toolNames = tools.map(t => t.name).sort();
-    expect(toolNames).toEqual(['twitter_check_login', 'twitter_feed']);
-  });
-
   it('Twitter-only: CLI commands match current', () => {
     const twitterPlugin = fakePlugin({
       name: 'twitter',

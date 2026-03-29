@@ -183,7 +183,7 @@ export async function runKnowledgeCli(command: string, args: string[]): Promise<
       writeError(
         'DatabaseNotFound',
         `Knowledge database not found at ${dbPath}`,
-        "Run 'npx site-use mcp' and fetch some tweets first with twitter_timeline to populate the database.",
+        "Run 'npx site-use twitter feed' to collect some tweets first.",
       );
       return;
     }

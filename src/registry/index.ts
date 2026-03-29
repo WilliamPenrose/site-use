@@ -16,7 +16,7 @@ export type {
 
 export { validatePlugins } from './validation.js';
 export { discoverPlugins, mergePlugins } from './discovery.js';
-export { generateMcpTools, generateCliCommands } from './codegen.js';
-export type { GeneratedMcpTool, GeneratedCliCommand } from './codegen.js';
+export { generateCliCommands } from './codegen.js';
+export type { GeneratedCliCommand } from './codegen.js';
 export { wrapToolHandler } from './tool-wrapper.js';
 export { resolveHint } from './default-descriptions.js';

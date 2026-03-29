@@ -1,5 +1,4 @@
 #!/usr/bin/env node --no-warnings=ExperimentalWarning
-import { main as startServer } from './server.js';
 import { launchAndDetach, readChromeJson, closeBrowser, recoverOrphanChrome } from './browser/browser.js';
 import { getConfig } from './config.js';
 import { runKnowledgeCli } from './cli/knowledge.js';
@@ -92,7 +91,7 @@ async function browserClose(): Promise<void> {
 function buildHelp(siteNames: Set<string>): string {
   const siteList = [...siteNames].sort().map(s => `  ${s} <command>    Run a ${s} command`).join('\n');
   return `\
-site-use ${getVersion()} — Site-level browser automation via MCP
+site-use ${getVersion()} — Site-level browser automation for LLM agents
 
 
 Usage: site-use <command> [subcommand]
@@ -101,7 +100,6 @@ Site commands:
 ${siteList}
 
 Global commands:
-  mcp                Start MCP server (stdio transport)
   browser launch     Launch Chrome (detached — stays alive after exit)
   browser status     Show Chrome connection status, PID, and profile path
   browser close      Kill Chrome and clean up
@@ -134,17 +132,6 @@ async function run(): Promise<boolean> {
   const siteNames = new Set(siteCommands.map(c => c.site));
 
   switch (command) {
-    case 'mcp':
-      if (args.includes('--help') || args.includes('-h')) {
-        console.log(`site-use mcp — Start MCP server (stdio transport)
-
-The server communicates via stdin/stdout using the MCP protocol.
-`);
-        return true;
-      }
-      await startServer();
-      return false; // MCP server stays alive — don't process.exit()
-
     case undefined:
       console.log(buildHelp(siteNames));
       break;
@@ -267,7 +254,6 @@ run().then((shouldExit) => {
   // CLI commands that connect to Chrome (via puppeteer.connect) may leave
   // WebSocket handles that keep the event loop alive.  Explicit exit is the
   // standard pattern for CLI tools that spawn or connect to external processes.
-  // MCP server returns false — it must stay alive to serve requests via stdio.
   if (shouldExit) process.exit(process.exitCode ?? 0);
 }).catch((err) => {
   console.error('site-use failed:', err);

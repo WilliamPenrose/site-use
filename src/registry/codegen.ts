@@ -1,8 +1,7 @@
-import { z, type ZodType, type ZodRawShape } from 'zod';
+import { z, type ZodType } from 'zod';
 import type { SitePlugin } from './types.js';
 import type { SiteRuntimeManager } from '../runtime/manager.js';
-import { wrapToolHandler, type ToolResult } from './tool-wrapper.js';
-import { DEFAULT_TOOL_DESCRIPTIONS } from './default-descriptions.js';
+import { wrapToolHandler } from './tool-wrapper.js';
 import { setLastFetchTime } from '../fetch-timestamps.js';
 import { getConfig, getKnowledgeDbPath } from '../config.js';
 import path from 'node:path';
@@ -31,128 +30,9 @@ const FeedResultSchema = z.object({
   }),
 });
 
-// ── MCP Tool generation ────────────────────────────────────────
-
-export interface GeneratedMcpTool {
-  name: string;
-  config: {
-    description: string;
-    inputSchema?: ZodRawShape;
-  };
-  handler: (params: Record<string, unknown>) => Promise<ToolResult>;
-}
-
-function shouldExposeMcp(expose?: Array<'mcp' | 'cli'>): boolean {
-  if (!expose) return true;
-  return expose.includes('mcp');
-}
-
 function shouldExposeCli(expose?: Array<'mcp' | 'cli'>): boolean {
   if (!expose) return true;
   return expose.includes('cli');
-}
-
-export function generateMcpTools(
-  plugins: SitePlugin[],
-  runtimeManager: SiteRuntimeManager,
-): GeneratedMcpTool[] {
-  const tools: GeneratedMcpTool[] = [];
-
-  for (const plugin of plugins) {
-    const { capabilities, customWorkflows } = plugin;
-
-    if (capabilities?.auth && shouldExposeMcp(capabilities.auth.expose)) {
-      const description = capabilities.auth.description
-        ?? DEFAULT_TOOL_DESCRIPTIONS.auth(plugin.name);
-      const authCheck = capabilities.auth.check;
-
-      tools.push({
-        name: `${plugin.name}_check_login`,
-        config: { description },
-        handler: wrapToolHandler({
-          siteName: plugin.name,
-          toolName: `${plugin.name}_check_login`,
-          getRuntime: () => runtimeManager.get(plugin.name),
-          onBrowserDisconnected: () => runtimeManager.clearAll(),
-          handler: async (_params, runtime, _trace) => {
-            return await authCheck(runtime.primitives);
-          },
-        }),
-      });
-    }
-
-    if (capabilities?.feed && shouldExposeMcp(capabilities.feed.expose)) {
-      const description = capabilities.feed.description
-        ?? DEFAULT_TOOL_DESCRIPTIONS.feed(plugin.name);
-      const feedCollect = capabilities.feed.collect;
-      const paramsSchema = capabilities.feed.params;
-
-      const inputSchema = extractZodShape(paramsSchema);
-
-      tools.push({
-        name: `${plugin.name}_feed`,
-        config: { description, inputSchema },
-        handler: wrapToolHandler({
-          siteName: plugin.name,
-          toolName: `${plugin.name}_feed`,
-          getRuntime: () => runtimeManager.get(plugin.name),
-          onBrowserDisconnected: () => runtimeManager.clearAll(),
-          paramsSchema,
-          resultSchema: FeedResultSchema,
-          autoIngest: plugin.storeAdapter
-            ? { storeAdapter: plugin.storeAdapter as { toIngestItems: (items: any[]) => any[] }, siteName: plugin.name }
-            : undefined,
-          handler: async (params, runtime, trace) => {
-            const result = await feedCollect(runtime.primitives, params, trace);
-
-            const cfg = getConfig();
-            const tsPath = path.join(cfg.dataDir, 'fetch-timestamps.json');
-            const tab = (params as Record<string, unknown>).tab as string | undefined;
-            setLastFetchTime(tsPath, plugin.name, tab ?? 'default');
-
-            return result;
-          },
-        }),
-      });
-    }
-
-    if (customWorkflows) {
-      for (const wf of customWorkflows) {
-        if (!shouldExposeMcp(wf.expose)) continue;
-
-        const inputSchema = extractZodShape(wf.params);
-
-        tools.push({
-          name: `${plugin.name}_${wf.name}`,
-          config: { description: wf.description, inputSchema },
-          handler: wrapToolHandler({
-            siteName: plugin.name,
-            toolName: `${plugin.name}_${wf.name}`,
-            getRuntime: () => runtimeManager.get(plugin.name),
-            onBrowserDisconnected: () => runtimeManager.clearAll(),
-            paramsSchema: wf.params,
-            autoIngest: plugin.storeAdapter
-              ? { storeAdapter: plugin.storeAdapter as { toIngestItems: (items: any[]) => any[] }, siteName: plugin.name }
-              : undefined,
-            handler: async (params, runtime, trace) => {
-              return await wf.execute(runtime.primitives, params, trace);
-            },
-          }),
-        });
-      }
-    }
-  }
-
-  return tools;
-}
-
-/** Extract the raw shape from a ZodObject for MCP SDK's inputSchema. */
-function extractZodShape(schema: ZodType): ZodRawShape | undefined {
-  if (!schema) return undefined;
-  if ('shape' in schema && typeof schema.shape === 'object') {
-    return schema.shape as ZodRawShape;
-  }
-  return undefined;
 }
 
 // ── CLI command generation ─────────────────────────────────────

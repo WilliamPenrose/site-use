@@ -51,7 +51,6 @@
     "lint": "oxlint"
   },
   "keywords": [
-    "mcp",
     "browser-automation",
     "twitter",
     "puppeteer"
@@ -61,7 +60,6 @@
     "node": ">=22.14.0"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.8.0",
     "dotenv": "^16.4.7",
     "puppeteer-core": "^24.39.1",
     "snarkdown": "^2.0.0",
