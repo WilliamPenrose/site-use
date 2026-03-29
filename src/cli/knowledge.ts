@@ -219,7 +219,7 @@ Examples:
         }
       }
 
-      console.log(JSON.stringify(merged, null, 2));
+      console.log(JSON.stringify(localizeTimestamps(merged), null, 2));
     } else if (command === 'rebuild') {
       if (args.includes('--help') || args.includes('-h')) {
         console.log(`site-use rebuild — Rebuild search index

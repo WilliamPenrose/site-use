@@ -21,14 +21,16 @@ export function utcToLocalIso(utcIso: string): string {
   return `${y}-${mo}-${day}T${h}:${mi}:${s}${offset}`;
 }
 
-/** Recursively convert all 'timestamp' fields in an object from UTC to local ISO. */
+const ISO_UTC_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/;
+
+/** Recursively convert all UTC ISO 8601 string values in an object to local timezone. */
 export function localizeTimestamps(obj: unknown): unknown {
   if (typeof obj === 'string') return obj;
   if (Array.isArray(obj)) return obj.map(localizeTimestamps);
   if (obj && typeof obj === 'object') {
     const result: Record<string, unknown> = {};
     for (const [key, val] of Object.entries(obj)) {
-      if (key === 'timestamp' && typeof val === 'string') {
+      if (typeof val === 'string' && ISO_UTC_RE.test(val)) {
         result[key] = utcToLocalIso(val);
       } else {
         result[key] = localizeTimestamps(val);
