@@ -5,6 +5,7 @@ import { SEARCH_FIELDS } from '../storage/types.js';
 import type { SearchParams, SiteStats } from '../storage/types.js';
 import { getAllTimestamps } from '../fetch-timestamps.js';
 import { getKnowledgeDbPath } from '../config.js';
+import { localizeTimestamps } from '../format-date.js';
 
 function getDbPath(): string {
   const dataDir = process.env.SITE_USE_DATA_DIR || path.join(os.homedir(), '.site-use');
@@ -191,7 +192,7 @@ Examples:
         return;
       }
 
-      console.log(JSON.stringify(result, null, 2));
+      console.log(JSON.stringify(localizeTimestamps(result), null, 2));
     } else if (command === 'stats') {
       if (args.includes('--help') || args.includes('-h')) {
         console.log(`site-use stats — Show storage statistics\n`);

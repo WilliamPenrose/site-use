@@ -3,6 +3,7 @@ import type { SitePlugin } from './types.js';
 import type { SiteRuntimeManager } from '../runtime/manager.js';
 import { wrapToolHandler } from './tool-wrapper.js';
 import { setLastFetchTime } from '../fetch-timestamps.js';
+import { localizeTimestamps } from '../format-date.js';
 import { getConfig, getKnowledgeDbPath } from '../config.js';
 import path from 'node:path';
 import os from 'node:os';
@@ -197,7 +198,7 @@ export function generateCliCommands(
               },
             );
 
-            console.log(JSON.stringify(cacheResult.result, null, 2));
+            console.log(JSON.stringify(localizeTimestamps(cacheResult.result), null, 2));
             if (cacheResult.source === 'local') {
               const age = cacheResult.ageMinutes != null ? `${cacheResult.ageMinutes}min old` : 'age unknown';
               console.error(`Using cached data (${age}).`);
@@ -221,8 +222,12 @@ export function generateCliCommands(
 
             const result = await wrappedFeed(params);
             const text = (result.content[0] as { text: string }).text;
-            console.log(text);
-            if (result.isError) process.exitCode = 1;
+            if (result.isError) {
+              console.log(text);
+              process.exitCode = 1;
+            } else {
+              console.log(JSON.stringify(localizeTimestamps(JSON.parse(text)), null, 2));
+            }
 
             if (dumpRawDir) {
               console.error(`Dumped to ${dumpRawDir}`);
@@ -262,8 +267,12 @@ export function generateCliCommands(
             const params = parseCliArgs(args, wf.params);
             const result = await wrappedWf(params);
             const text = (result.content[0] as { text: string }).text;
-            console.log(text);
-            if (result.isError) process.exitCode = 1;
+            if (result.isError) {
+              console.log(text);
+              process.exitCode = 1;
+            } else {
+              console.log(JSON.stringify(localizeTimestamps(JSON.parse(text)), null, 2));
+            }
           },
         });
       }

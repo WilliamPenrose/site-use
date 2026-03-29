@@ -6,7 +6,7 @@ import readline from 'node:readline/promises';
 import { createStore } from '../storage/index.js';
 import { getKnowledgeDbPath } from '../config.js';
 import { localToUtc } from './knowledge.js';
-import { utcToLocalDisplay } from '../format-date.js';
+import { utcToLocalIso } from '../format-date.js';
 import type { DeleteParams, DeletePreview } from '../storage/types.js';
 
 const CLEAN_HELP = `\
@@ -125,14 +125,9 @@ export function formatPreview(site: string, preview: DeletePreview): string {
   ];
 
   if (preview.timeRange) {
-    const from = utcToLocalDisplay(preview.timeRange.from);
-    const to = utcToLocalDisplay(preview.timeRange.to);
-    // Extract timezone from the "to" display (both use the same local timezone)
-    const tzMatch = to.match(/\(UTC[^)]+\)/);
-    const tz = tzMatch ? ` ${tzMatch[0]}` : '';
-    const fromNoTz = from.replace(/ \(UTC[^)]+\)$/, '');
-    const toNoTz = to.replace(/ \(UTC[^)]+\)$/, '');
-    lines.push(`  Time:     ${fromNoTz} → ${toNoTz}${tz}`);
+    const from = utcToLocalIso(preview.timeRange.from);
+    const to = utcToLocalIso(preview.timeRange.to);
+    lines.push(`  Time:     ${from} → ${to}`);
   }
 
   return lines.join('\n');

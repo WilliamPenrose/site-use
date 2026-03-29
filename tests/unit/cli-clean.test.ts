@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parseCleanArgs, formatPreview, formatProgress } from '../../src/cli/clean.js';
-import { utcToLocalDisplay } from '../../src/format-date.js';
+import { utcToLocalIso } from '../../src/format-date.js';
 import type { DeletePreview } from '../../src/storage/types.js';
 
 describe('parseCleanArgs', () => {
@@ -54,16 +54,17 @@ describe('parseCleanArgs', () => {
   });
 });
 
-describe('utcToLocalDisplay', () => {
-  it('converts UTC ISO string to local time with timezone', () => {
-    const result = utcToLocalDisplay('2026-03-01T00:00:00Z');
-    // Should contain date, time, and timezone like (UTC+8) or (UTC-5) or (UTC+5:30)
-    expect(result).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2} \(UTC[+-]\d+(?::\d{2})?\)$/);
+describe('utcToLocalIso', () => {
+  it('converts UTC ISO string to local timezone ISO with offset', () => {
+    const result = utcToLocalIso('2026-03-01T00:00:00Z');
+    // Should NOT end with Z, should have offset like +08:00
+    expect(result).not.toMatch(/Z$/);
+    expect(result).toMatch(/[+-]\d{2}:\d{2}$/);
   });
 
   it('format is consistent across calls', () => {
-    const result = utcToLocalDisplay('2026-06-15T12:30:00Z');
-    expect(result).toMatch(/\d{4}-\d{2}-\d{2} \d{2}:\d{2} \(UTC[+-]\d+(?::\d{2})?\)$/);
+    const result = utcToLocalIso('2026-06-15T12:30:00Z');
+    expect(result).toMatch(/[+-]\d{2}:\d{2}$/);
   });
 });
 
@@ -84,8 +85,8 @@ describe('formatPreview', () => {
     expect(output).toContain('twitter');
     expect(output).toContain('@alice (15)');
     expect(output).toContain('@bob (12)');
-    // Time should show timezone ONCE at the end
-    expect(output).toMatch(/UTC[+-]\d+/);
+    // Time should show timezone offset like +08:00
+    expect(output).toMatch(/[+-]\d{2}:\d{2}/);
   });
 
   it('truncates long author lists', () => {
