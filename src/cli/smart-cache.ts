@@ -67,6 +67,7 @@ export interface CacheFlags {
   forceLocal: boolean;
   forceFetch: boolean;
   maxAge: number;
+  quiet: boolean;
 }
 
 export function stripFrameworkFlags(
@@ -77,6 +78,7 @@ export function stripFrameworkFlags(
     forceLocal: false,
     forceFetch: false,
     maxAge: defaultMaxAge,
+    quiet: false,
   };
   const pluginArgs: string[] = [];
   let fields: SearchField[] | undefined;
@@ -93,6 +95,11 @@ export function stripFrameworkFlags(
         cacheFlags.forceFetch = true;
         i++;
         break;
+      case '--quiet':
+      case '-q':
+        cacheFlags.quiet = true;
+        i++;
+        break;
       case '--max-age': {
         const val = parseInt(args[i + 1], 10);
         if (isNaN(val)) throw new Error(`Invalid --max-age value: "${args[i + 1]}"`);
@@ -101,11 +108,17 @@ export function stripFrameworkFlags(
         break;
       }
       case '--fields': {
-        const parts = args[i + 1].split(',');
-        const invalid = parts.filter((f) => !(SEARCH_FIELDS as readonly string[]).includes(f));
-        if (invalid.length > 0) throw new Error(`Unknown field(s): ${invalid.join(', ')}`);
-        fields = parts as SearchField[];
+        // Support both comma-separated (--fields author,text) and space-separated (--fields author text)
+        const parts: string[] = [];
+        for (const f of args[i + 1].split(/[, ]+/)) if (f) parts.push(f);
         i += 2;
+        const validSet = new Set<string>(SEARCH_FIELDS as readonly string[]);
+        while (i < args.length && !args[i].startsWith('--') && validSet.has(args[i])) {
+          parts.push(args[i++]);
+        }
+        const invalid = parts.filter((f) => !validSet.has(f));
+        if (invalid.length > 0) throw new Error(`Unknown field(s): ${invalid.join(', ')}\nValid fields: ${SEARCH_FIELDS.join(',')}`);
+        fields = parts as SearchField[];
         break;
       }
       default:

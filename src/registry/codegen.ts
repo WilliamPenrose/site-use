@@ -205,12 +205,29 @@ export function generateCliCommands(
             if (fields && Array.isArray(output.items)) {
               output = { ...output, items: applyFieldsFilter(output.items as SearchResultItem[], fields) };
             }
-            console.log(JSON.stringify(output, null, 2));
-            if (cacheResult.source === 'local') {
-              const age = cacheResult.ageMinutes != null ? `${cacheResult.ageMinutes}min old` : 'age unknown';
-              console.error(`Using cached data (${age}).`);
+
+            if (cacheFlags.quiet) {
+              const items = Array.isArray(output.items) ? output.items : [];
+              const meta = output.meta as { timeRange?: { from?: string; to?: string } } | undefined;
+              const from = meta?.timeRange?.from ?? '';
+              const to = meta?.timeRange?.to ?? '';
+              const timeStr = from && to
+                ? ` ${from.replace('T', ' ').slice(0, 25)} ~ ${to.replace('T', ' ').slice(11, 25)}`
+                : '';
+              if (cacheResult.source === 'local') {
+                const age = cacheResult.ageMinutes != null ? `${cacheResult.ageMinutes}min old` : 'age unknown';
+                console.error(`Using cached data (${age}). ${items.length} tweets in cache.`);
+              } else {
+                console.error(`Synced ${items.length} tweets (${variant},${timeStr}).`);
+              }
             } else {
-              console.error('Fetched from browser.');
+              console.log(JSON.stringify(output, null, 2));
+              if (cacheResult.source === 'local') {
+                const age = cacheResult.ageMinutes != null ? `${cacheResult.ageMinutes}min old` : 'age unknown';
+                console.error(`Using cached data (${age}).`);
+              } else {
+                console.error('Fetched from browser.');
+              }
             }
 
             if (dumpRawDir) {
@@ -218,7 +235,7 @@ export function generateCliCommands(
             }
           } else {
             // No cache support — always fetches
-            const { pluginArgs: noCachePluginArgs, fields: noCacheFields } = stripFrameworkFlags(remainingArgs, 120);
+            const { pluginArgs: noCachePluginArgs, fields: noCacheFields, cacheFlags: noCacheFlagsObj } = stripFrameworkFlags(remainingArgs, 120);
 
             if (dumpRawDir && isDefaultDir) {
               rotateDumpFiles(dumpRawDir);
@@ -239,7 +256,18 @@ export function generateCliCommands(
               if (noCacheFields && Array.isArray(noCacheOutput.items)) {
                 noCacheOutput = { ...noCacheOutput, items: applyFieldsFilter(noCacheOutput.items as SearchResultItem[], noCacheFields) };
               }
-              console.log(JSON.stringify(noCacheOutput, null, 2));
+              if (noCacheFlagsObj.quiet) {
+                const items = Array.isArray(noCacheOutput.items) ? noCacheOutput.items : [];
+                const meta = noCacheOutput.meta as { timeRange?: { from?: string; to?: string } } | undefined;
+                const from = meta?.timeRange?.from ?? '';
+                const to = meta?.timeRange?.to ?? '';
+                const timeStr = from && to
+                  ? ` ${from.replace('T', ' ').slice(0, 25)} ~ ${to.replace('T', ' ').slice(11, 25)}`
+                  : '';
+                console.error(`Synced ${items.length} tweets (default,${timeStr}).`);
+              } else {
+                console.log(JSON.stringify(noCacheOutput, null, 2));
+              }
             }
 
             if (dumpRawDir) {
@@ -374,6 +402,7 @@ function buildFeedHelp(
 
   lines.push('Output options:');
   lines.push(`  --fields <list>        Comma-separated fields: ${SEARCH_FIELDS.join(',')}`);
+  lines.push('  --quiet, -q            Suppress JSON output, show one-line summary only');
   lines.push('');
 
   return lines.join('\n');

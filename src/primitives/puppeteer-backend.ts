@@ -34,6 +34,7 @@ export class PuppeteerBackend implements Primitives {
   private siteDomains: Record<string, string[]>;
   private rateLimitDetector: RateLimitDetector | null;
   private listenedPages: WeakSet<Page> = new WeakSet();
+  private loggedPageHit: Set<string> = new Set();
 
   // Internal: uid -> backendDOMNodeId mapping from last takeSnapshot
   private uidToBackendNodeId: Map<string, number> = new Map();
@@ -114,7 +115,10 @@ export class PuppeteerBackend implements Primitives {
         // fall through to tab scan / new page
       }
       if (this.pages.has(key)) {
-        console.error(`[site-use] getPage: cache hit for "${key}" — ${cached.url()}`);
+        if (!this.loggedPageHit.has(key)) {
+          console.error(`[site-use] getPage: using tab for "${key}" — ${cached.url()}`);
+          this.loggedPageHit.add(key);
+        }
         this.installResponseListener(cached, key);
         return cached;
       }

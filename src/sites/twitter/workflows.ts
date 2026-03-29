@@ -95,6 +95,7 @@ export async function ensureTimeline(
   const ensure = makeEnsureState(primitives);
 
   // Step 1: Navigate to Twitter home
+  console.error('[site-use] navigating to timeline...');
   const { action: navAction } = await span.span('navigate', async (s) => {
     const result = await ensure({ url: TWITTER_HOME });
     s.set('action', result.action);
@@ -106,6 +107,7 @@ export async function ensureTimeline(
 
   // Step 2: Switch to target tab
   const tabName = tab === 'following' ? 'Following' : 'For you';
+  console.error(`[site-use] switching to "${tabName}" tab...`);
   const prevLength = collector.length;
   const { action: tabAction } = await span.span('switchTab', async (s) => {
     const result = await ensure({ role: 'tab', name: tabName, selected: true });
@@ -122,12 +124,14 @@ export async function ensureTimeline(
   });
 
   // Step 3: Wait for data
+  console.error('[site-use] waiting for timeline data...');
   await span.span('waitForData', async (s) => {
     const hasData = await timedWait('initial_data', () => collector.length > 0, WAIT_FOR_DATA_MS);
     s.set('satisfied', hasData);
     s.set('dataCount', collector.length);
 
     if (!hasData && !reloaded) {
+      console.error('[site-use] no data yet, reloading page...');
       reloaded = true;
       collector.clear();
       await primitives.navigate(TWITTER_HOME);
@@ -169,6 +173,7 @@ export async function ensureTweetDetail(
   }
 
   // Step 1: Navigate to tweet detail page
+  console.error('[site-use] navigating to tweet...');
   await span.span('navigate', async () => {
     await primitives.navigate(url);
   });
@@ -183,12 +188,14 @@ export async function ensureTweetDetail(
   });
 
   // Step 3: Wait for initial data
+  console.error('[site-use] waiting for tweet data...');
   await span.span('waitForData', async (s) => {
     const hasData = await timedWait('initial_data', () => collector.length > 0, WAIT_FOR_DATA_MS);
     s.set('satisfied', hasData);
     s.set('dataCount', collector.length);
 
     if (!hasData) {
+      console.error('[site-use] no data yet, reloading page...');
       reloaded = true;
       collector.clear();
       await primitives.navigate(url);
@@ -219,9 +226,11 @@ export async function collectData(
 
   // Fast path: already have enough data
   if (collector.length >= count) {
+    console.error(`[site-use] already have ${collector.length}/${count} items, skipping scroll`);
     return { scrollRounds: 0, waits };
   }
 
+  console.error(`[site-use] scrolling to collect ${count} items...`);
   let staleRounds = 0;
   let round = 0;
 
@@ -251,8 +260,10 @@ export async function collectData(
 
       if (satisfied) {
         staleRounds = 0;
+        console.error(`[site-use] scroll ${round}: collected ${collector.length}/${count} items`);
       } else {
         staleRounds++;
+        console.error(`[site-use] scroll ${round}: no new data (stale ${staleRounds}/${MAX_STALE_ROUNDS})`);
       }
     });
   }

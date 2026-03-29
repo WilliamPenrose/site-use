@@ -96,6 +96,7 @@ async function ensureElementState(
   }
 
   // Click to transition
+  console.error(`[site-use] clicking ${target.role} "${target.name}"...`);
   await primitives.click(match.uid);
 
   // Poll until condition met or timeout

@@ -181,11 +181,16 @@ export async function checkOcclusion(
 ): Promise<{ occluded: boolean; fallback?: Point }> {
   const client = await page.createCDPSession();
   try {
-    const result = await client.send('DOM.getNodeForLocation', {
+    const cdpTimeout = <T>(p: Promise<T>) => Promise.race([
+      p,
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('CDP call timeout')), 1000)),
+    ]);
+
+    const result = await cdpTimeout(client.send('DOM.getNodeForLocation', {
       x: Math.round(x),
       y: Math.round(y),
       includeUserAgentShadowDOM: true,
-    });
+    }));
 
     if (result.backendNodeId === expectedBackendNodeId) {
       return { occluded: false };
@@ -193,9 +198,9 @@ export async function checkOcclusion(
 
     // Occluded — compute element midpoint as fallback
     try {
-      const { model } = await client.send('DOM.getBoxModel', {
+      const { model } = await cdpTimeout(client.send('DOM.getBoxModel', {
         backendNodeId: expectedBackendNodeId,
-      });
+      }));
       const quad = model.content;
       const midX = (quad[0] + quad[2] + quad[4] + quad[6]) / 4;
       const midY = (quad[1] + quad[3] + quad[5] + quad[7]) / 4;
@@ -252,7 +257,12 @@ export async function waitForElementStable(
     while (Date.now() - startTime < timeoutMs) {
       let x: number, y: number;
       try {
-        const { model } = await client.send('DOM.getBoxModel', { backendNodeId });
+        const { model } = await Promise.race([
+          client.send('DOM.getBoxModel', { backendNodeId }),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('DOM.getBoxModel timeout')), 1000),
+          ),
+        ]);
         const quad = model.content;
         lastQuad = quad;
         x = (quad[0] + quad[2] + quad[4] + quad[6]) / 4;
