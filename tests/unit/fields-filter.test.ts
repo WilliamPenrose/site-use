@@ -47,11 +47,13 @@ describe('applyFieldsFilter', () => {
     expect(result[0].siteMeta).toBeUndefined();
   });
 
-  it('preserves siteMeta when text is requested', () => {
-    const items = [makeItem()];
+  it('keeps only scalar siteMeta metrics when text is requested', () => {
+    const items = [makeItem({
+      siteMeta: { likes: 42, retweets: 5, following: true, quotedTweet: { text: 'huge' } },
+    })];
     const result = applyFieldsFilter(items, ['text']);
-    expect(result[0].siteMeta).toBeDefined();
     expect(result[0].text).toBe('hello world');
+    expect(result[0].siteMeta).toEqual({ likes: 42, retweets: 5, following: true });
   });
 
   it('preserves following=false in siteMeta for author-only request', () => {
@@ -64,5 +66,29 @@ describe('applyFieldsFilter', () => {
     const items = [{ id: '1', site: 'twitter' }];
     const result = applyFieldsFilter(items, ['text']);
     expect(result).toHaveLength(0);
+  });
+
+  it('strips unknown fields like rawJson (whitelist mode)', () => {
+    const items = [makeItem({ rawJson: '{"huge":"blob"}' })];
+    const result = applyFieldsFilter(items, ['author', 'text']);
+    expect(result[0].author).toBe('alice');
+    expect(result[0].text).toBe('hello world');
+    expect((result[0] as Record<string, unknown>).rawJson).toBeUndefined();
+  });
+
+  it('strips nested siteMeta.quotedTweet when text is not requested', () => {
+    const items = [makeItem({
+      siteMeta: { likes: 10, quotedTweet: { text: 'huge quoted tweet data' } },
+    })];
+    const result = applyFieldsFilter(items, ['author', 'url']);
+    expect(result[0].siteMeta).toBeUndefined();
+    expect(result[0].author).toBe('alice');
+  });
+
+  it('always keeps id and site', () => {
+    const items = [makeItem()];
+    const result = applyFieldsFilter(items, ['text']);
+    expect(result[0].id).toBe('1');
+    expect(result[0].site).toBe('twitter');
   });
 });

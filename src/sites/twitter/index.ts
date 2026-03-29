@@ -1,5 +1,6 @@
 import type { SitePlugin } from '../../registry/types.js';
 import type { Primitives } from '../../primitives/types.js';
+import type { Trace } from '../../trace.js';
 import { twitterDetect, isLoggedIn } from './site.js';
 import { checkLogin, getFeed, getTweetDetail } from './workflows.js';
 import { feedItemsToIngestItems } from './store-adapter.js';
@@ -46,8 +47,8 @@ export const plugin: SitePlugin = {
         'Get a tweet with its replies. Returns the original tweet (with full text) as items[0] ' +
         'and replies as items[1..n].',
       params: TweetDetailParamsSchema,
-      execute: (primitives: Primitives, params: unknown) =>
-        getTweetDetail(primitives, params as Parameters<typeof getTweetDetail>[1]),
+      execute: (primitives: Primitives, params: unknown, trace?: Trace) =>
+        getTweetDetail(primitives, params as Parameters<typeof getTweetDetail>[1], trace),
       expose: ['mcp', 'cli'],
       cli: {
         description: 'Get a tweet and its replies',

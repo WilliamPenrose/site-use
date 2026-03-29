@@ -95,8 +95,15 @@ export function parseSearchArgs(args: string[]): SearchParams {
         break;
       }
       case '--fields': {
-        const raw = args[++i].split(',');
+        // Support both comma-separated (--fields author,text) and space-separated (--fields author text)
+        const raw: string[] = [];
+        const first = args[++i];
+        for (const f of first.split(/[, ]+/)) if (f) raw.push(f);
+        // Consume subsequent args that look like field names (not flags)
         const valid = new Set<string>(SEARCH_FIELDS);
+        while (i + 1 < args.length && !args[i + 1].startsWith('--') && valid.has(args[i + 1])) {
+          raw.push(args[++i]);
+        }
         const invalid = raw.filter((f) => !valid.has(f));
         if (invalid.length > 0) {
           process.stderr.write(`Unknown field(s): ${invalid.join(', ')}\nValid fields: ${SEARCH_FIELDS.join(',')}\n`);
