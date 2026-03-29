@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { checkFreshness } from './freshness.js';
 import { setLastFetchTime } from '../fetch-timestamps.js';
+import { SEARCH_FIELDS, type SearchField } from '../storage/types.js';
 
 export interface SmartCacheOptions {
   siteName: string;
@@ -71,13 +72,14 @@ export interface CacheFlags {
 export function stripFrameworkFlags(
   args: string[],
   defaultMaxAge: number,
-): { cacheFlags: CacheFlags; pluginArgs: string[] } {
+): { cacheFlags: CacheFlags; pluginArgs: string[]; fields: SearchField[] | undefined } {
   const cacheFlags: CacheFlags = {
     forceLocal: false,
     forceFetch: false,
     maxAge: defaultMaxAge,
   };
   const pluginArgs: string[] = [];
+  let fields: SearchField[] | undefined;
 
   let i = 0;
   while (i < args.length) {
@@ -98,6 +100,14 @@ export function stripFrameworkFlags(
         i += 2;
         break;
       }
+      case '--fields': {
+        const parts = args[i + 1].split(',');
+        const invalid = parts.filter((f) => !(SEARCH_FIELDS as readonly string[]).includes(f));
+        if (invalid.length > 0) throw new Error(`Unknown field(s): ${invalid.join(', ')}`);
+        fields = parts as SearchField[];
+        i += 2;
+        break;
+      }
       default:
         pluginArgs.push(arg);
         i++;
@@ -108,5 +118,5 @@ export function stripFrameworkFlags(
     throw new Error('--fetch and --local are mutually exclusive.');
   }
 
-  return { cacheFlags, pluginArgs };
+  return { cacheFlags, pluginArgs, fields };
 }

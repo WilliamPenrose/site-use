@@ -181,3 +181,22 @@ describe('stripFrameworkFlags', () => {
     );
   });
 });
+
+describe('stripFrameworkFlags --fields', () => {
+  it('extracts --fields from args', () => {
+    const result = stripFrameworkFlags(['--count', '30', '--fields', 'author,text,url'], 120);
+    expect(result.fields).toEqual(['author', 'text', 'url']);
+    expect(result.pluginArgs).toEqual(['--count', '30']);
+  });
+
+  it('returns undefined fields when --fields not provided', () => {
+    const result = stripFrameworkFlags(['--count', '30'], 120);
+    expect(result.fields).toBeUndefined();
+  });
+
+  it('throws on invalid field name', () => {
+    expect(() =>
+      stripFrameworkFlags(['--fields', 'author,invalid'], 120)
+    ).toThrow('Unknown field(s): invalid');
+  });
+});
