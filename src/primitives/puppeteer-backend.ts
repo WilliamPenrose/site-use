@@ -114,6 +114,7 @@ export class PuppeteerBackend implements Primitives {
         // fall through to tab scan / new page
       }
       if (this.pages.has(key)) {
+        console.error(`[site-use] getPage: cache hit for "${key}" — ${cached.url()}`);
         this.installResponseListener(cached, key);
         return cached;
       }

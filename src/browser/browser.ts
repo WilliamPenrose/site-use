@@ -212,12 +212,19 @@ async function applyCoordFix(pages: Page[]): Promise<void> {
  */
 export async function unfreezePages(pages: Page[]): Promise<void> {
   for (const page of pages) {
+    let pageUrl = '<unknown>';
+    try {
+      pageUrl = page.url();
+    } catch {}
     try {
       const cdp = await page.createCDPSession();
       await cdp.send('Page.setWebLifecycleState', { state: 'active' });
       await cdp.detach();
-    } catch {
-      // Tab may already be active, or the target was closed — safe to ignore
+      console.error(`[site-use] unfreezePages: OK — ${pageUrl}`);
+    } catch (err) {
+      console.error(
+        `[site-use] unfreezePages: FAILED — ${pageUrl} — ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }
 }
@@ -473,8 +480,10 @@ export async function launchAndDetach(extraArgs?: string[]): Promise<ChromeInfo>
 
 export async function ensureBrowser(opts?: { autoLaunch?: boolean; extraArgs?: string[] }): Promise<Browser> {
   if (browserInstance && browserInstance.connected) {
+    console.error('[site-use] ensureBrowser: reusing cached connection');
     return browserInstance;
   }
+  console.error('[site-use] ensureBrowser: creating new connection');
 
   const config = getConfig();
   const autoLaunch = opts?.autoLaunch ?? false;
