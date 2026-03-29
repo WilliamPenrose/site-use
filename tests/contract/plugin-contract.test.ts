@@ -175,6 +175,26 @@ describe('Plugin Contract', () => {
     stderrSpy.mockRestore();
   });
 
+  it('twitter plugin registers search workflow with correct schema', async () => {
+    const { plugin } = await import('../../src/sites/twitter/index.js');
+    const searchWf = plugin.customWorkflows?.find(w => w.name === 'search');
+    expect(searchWf).toBeDefined();
+    expect(searchWf!.expose).toEqual(['cli']);
+    expect(searchWf!.description).toContain('Search Twitter');
+
+    // Validate params schema accepts valid input
+    const validResult = searchWf!.params.safeParse({ query: 'AI agents' });
+    expect(validResult.success).toBe(true);
+
+    // Validate defaults
+    const parsed = searchWf!.params.parse({ query: 'test' });
+    expect(parsed).toMatchObject({ query: 'test', tab: 'top', count: 20, debug: false });
+
+    // Validate rejects empty query
+    const emptyResult = searchWf!.params.safeParse({ query: '' });
+    expect(emptyResult.success).toBe(false);
+  });
+
   it('FeedResult validation rejects invalid return via CLI handler', async () => {
     const plugin = fakePlugin({
       capabilities: {

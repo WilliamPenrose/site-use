@@ -2,9 +2,9 @@ import type { SitePlugin } from '../../registry/types.js';
 import type { Primitives } from '../../primitives/types.js';
 import type { Trace } from '../../trace.js';
 import { twitterDetect, isLoggedIn } from './site.js';
-import { checkLogin, getFeed, getTweetDetail } from './workflows.js';
+import { checkLogin, getFeed, getTweetDetail, getSearch } from './workflows.js';
 import { feedItemsToIngestItems } from './store-adapter.js';
-import { TwitterFeedParamsSchema, TweetDetailParamsSchema } from './types.js';
+import { TwitterFeedParamsSchema, TweetDetailParamsSchema, TwitterSearchParamsSchema } from './types.js';
 import { twitterLocalQuery } from './local-query.js';
 
 export const plugin: SitePlugin = {
@@ -53,6 +53,21 @@ export const plugin: SitePlugin = {
       cli: {
         description: 'Get a tweet and its replies',
         help: `Options:\n  --url <url>             Tweet URL (required)\n  --count <n>            Max replies (1-100, default: 20)\n  --debug                Include diagnostic info`,
+      },
+    },
+    {
+      name: 'search',
+      description:
+        'Search Twitter for tweets matching a query. Supports Twitter search operators ' +
+        '(from:user, min_faves:N, since:YYYY-MM-DD, filter:media, lang:en, etc.). ' +
+        'Returns structured tweet data. Use "top" tab for relevance or "latest" for chronological.',
+      params: TwitterSearchParamsSchema,
+      execute: (primitives: Primitives, params: unknown, trace?: Trace) =>
+        getSearch(primitives, params as Parameters<typeof getSearch>[1], trace),
+      expose: ['cli'],
+      cli: {
+        description: 'Search tweets on Twitter',
+        help: `Options:\n  --query <text>         Search query (required, supports Twitter operators)\n  --tab <name>           Search tab: top | latest (default: top)\n  --count <n>            Number of tweets (1-100, default: 20)\n  --dump-raw <dir>       Save raw GraphQL responses to directory\n  --debug                Include diagnostic info`,
       },
     },
   ],
