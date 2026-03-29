@@ -376,6 +376,31 @@ export function extractFromTweetResult(
   };
 }
 
+const GRAPHQL_SEARCH_PATTERN = /\/i\/api\/graphql\/.*\/SearchTimeline/;
+
+/** Parse GraphQL SearchTimeline response into RawTweetData[]. */
+export function parseGraphQLSearch(body: string): RawTweetData[] {
+  let data: any;
+  try {
+    data = JSON.parse(body);
+  } catch {
+    return [];
+  }
+
+  const instructions =
+    data?.data?.search_by_raw_query?.search_timeline?.timeline?.instructions ?? [];
+
+  const results: RawTweetData[] = [];
+
+  for (const instruction of instructions) {
+    if (instruction.type === 'TimelineAddEntries') {
+      processEntries(instruction.entries ?? [], results);
+    }
+  }
+
+  return results;
+}
+
 const GRAPHQL_TWEET_DETAIL_PATTERN = /\/i\/api\/graphql\/.*\/TweetDetail/;
 
 /** Parse GraphQL TweetDetail response into anchor + replies. */
@@ -431,5 +456,5 @@ export function parseTweetDetail(body: string): TweetDetailParsed {
   return { anchor, replies, hasCursor };
 }
 
-export { GRAPHQL_TIMELINE_PATTERN, GRAPHQL_TWEET_DETAIL_PATTERN };
+export { GRAPHQL_TIMELINE_PATTERN, GRAPHQL_TWEET_DETAIL_PATTERN, GRAPHQL_SEARCH_PATTERN };
 
