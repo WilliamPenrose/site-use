@@ -187,6 +187,23 @@ export const TweetDetailParamsSchema = z.object({
     .describe('Directory path to dump raw GraphQL responses'),
 });
 
+// --- TwitterSearchParams ---
+
+export type SearchTab = 'top' | 'latest';
+
+export const TwitterSearchParamsSchema = z.object({
+  query: z.string().min(1)
+    .describe('Search query (supports Twitter search operators like from:user, min_faves:100, since:2026-01-01)'),
+  tab: z.enum(['top', 'latest']).default('top')
+    .describe('Search tab: "top" (relevance) or "latest" (chronological)'),
+  count: z.number().min(1).max(100).default(20)
+    .describe('Number of tweets to collect'),
+  debug: z.boolean().default(false)
+    .describe('Include diagnostic info'),
+  dumpRaw: z.string().optional()
+    .describe('Directory path to dump raw GraphQL responses'),
+});
+
 // --- TweetDetailParsed (extractor output) ---
 
 export interface TweetDetailParsed {
