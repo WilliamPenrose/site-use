@@ -9,6 +9,9 @@ import path from 'node:path';
 import os from 'node:os';
 import { withSmartCache, stripFrameworkFlags } from '../cli/smart-cache.js';
 import { createStore } from '../storage/index.js';
+import { applyFieldsFilter } from '../storage/fields.js';
+import { SEARCH_FIELDS } from '../storage/types.js';
+import type { SearchResultItem } from '../storage/types.js';
 import fs from 'node:fs';
 import type { Trace } from '../trace.js';
 
@@ -128,7 +131,7 @@ export function generateCliCommands(
           const { dumpRawDir, isDefaultDir, remainingArgs } = extractDumpRaw(args, plugin.name);
 
           if (hasCacheSupport) {
-            const { cacheFlags, pluginArgs } = stripFrameworkFlags(remainingArgs, feedCap.cache!.defaultMaxAge);
+            const { cacheFlags, pluginArgs, fields } = stripFrameworkFlags(remainingArgs, feedCap.cache!.defaultMaxAge);
 
             // --dump-raw + --local are mutually exclusive
             if (dumpRawDir && cacheFlags.forceLocal) {
@@ -198,7 +201,11 @@ export function generateCliCommands(
               },
             );
 
-            console.log(JSON.stringify(localizeTimestamps(cacheResult.result), null, 2));
+            let output = localizeTimestamps(cacheResult.result) as Record<string, unknown>;
+            if (fields && Array.isArray(output.items)) {
+              output = { ...output, items: applyFieldsFilter(output.items as SearchResultItem[], fields) };
+            }
+            console.log(JSON.stringify(output, null, 2));
             if (cacheResult.source === 'local') {
               const age = cacheResult.ageMinutes != null ? `${cacheResult.ageMinutes}min old` : 'age unknown';
               console.error(`Using cached data (${age}).`);
@@ -211,11 +218,13 @@ export function generateCliCommands(
             }
           } else {
             // No cache support — always fetches
+            const { pluginArgs: noCachePluginArgs, fields: noCacheFields } = stripFrameworkFlags(remainingArgs, 120);
+
             if (dumpRawDir && isDefaultDir) {
               rotateDumpFiles(dumpRawDir);
             }
 
-            const params = parseCliArgs(remainingArgs, paramsSchema);
+            const params = parseCliArgs(noCachePluginArgs, paramsSchema);
             if (dumpRawDir) {
               (params as Record<string, unknown>).dumpRaw = dumpRawDir;
             }
@@ -226,7 +235,11 @@ export function generateCliCommands(
               console.log(text);
               process.exitCode = 1;
             } else {
-              console.log(JSON.stringify(localizeTimestamps(JSON.parse(text)), null, 2));
+              let noCacheOutput = localizeTimestamps(JSON.parse(text)) as Record<string, unknown>;
+              if (noCacheFields && Array.isArray(noCacheOutput.items)) {
+                noCacheOutput = { ...noCacheOutput, items: applyFieldsFilter(noCacheOutput.items as SearchResultItem[], noCacheFields) };
+              }
+              console.log(JSON.stringify(noCacheOutput, null, 2));
             }
 
             if (dumpRawDir) {
@@ -262,16 +275,22 @@ export function generateCliCommands(
               if (wf.cli?.help) {
                 console.log(wf.cli.help);
               }
+              console.log(`\nOutput options:\n  --fields <list>        Comma-separated fields: ${SEARCH_FIELDS.join(',')}`);
               return;
             }
-            const params = parseCliArgs(args, wf.params);
+            const { pluginArgs: wfPluginArgs, fields: wfFields } = stripFrameworkFlags(args, 120);
+            const params = parseCliArgs(wfPluginArgs, wf.params);
             const result = await wrappedWf(params);
             const text = (result.content[0] as { text: string }).text;
             if (result.isError) {
               console.log(text);
               process.exitCode = 1;
             } else {
-              console.log(JSON.stringify(localizeTimestamps(JSON.parse(text)), null, 2));
+              let wfOutput = localizeTimestamps(JSON.parse(text)) as Record<string, unknown>;
+              if (wfFields && Array.isArray(wfOutput.items)) {
+                wfOutput = { ...wfOutput, items: applyFieldsFilter(wfOutput.items as SearchResultItem[], wfFields) };
+              }
+              console.log(JSON.stringify(wfOutput, null, 2));
             }
           },
         });
@@ -352,6 +371,10 @@ function buildFeedHelp(
     lines.push(`  --max-age <minutes>    Max cache age before auto-fetching (default: ${defaultMaxAge ?? 120})`);
     lines.push('');
   }
+
+  lines.push('Output options:');
+  lines.push(`  --fields <list>        Comma-separated fields: ${SEARCH_FIELDS.join(',')}`);
+  lines.push('');
 
   return lines.join('\n');
 }
