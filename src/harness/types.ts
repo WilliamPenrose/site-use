@@ -40,8 +40,8 @@ export interface SiteHarnessDescriptor {
   domains: Record<string, DomainDescriptor>;
   storeAdapter: (items: FeedItem[]) => IngestItem[];
   displaySchema: DisplaySchema;
-  formatFn: (item: SearchResultItem) => string;
-  formatAssertions: Record<string, AssertionFn[]>;
+  formatFn?: (item: SearchResultItem) => string;
+  formatAssertions?: Record<string, AssertionFn[]>;
 }
 
 // --- Structural diff ---

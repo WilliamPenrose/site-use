@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseSearchArgs, localToUtc, formatSearchResults, formatJson } from '../../src/cli/knowledge.js';
-import type { SearchResult } from '../../src/storage/types.js';
+import { parseSearchArgs, localToUtc } from '../../src/cli/knowledge.js';
 
 describe('parseSearchArgs', () => {
   it('parses positional query', () => {
@@ -64,32 +63,6 @@ describe('parseSearchArgs', () => {
     expect(params.query).toBe('AI agent');
     expect(params.author).toBe('elonmusk');
     expect(params.max_results).toBe(5);
-  });
-});
-
-describe('formatSearchResults', () => {
-  it('formats search results for terminal', () => {
-    const result: SearchResult = {
-      items: [{
-        id: '1', site: 'twitter', text: 'Hello world',
-        author: 'alice', timestamp: '2026-03-20T14:32:00Z',
-        url: 'https://x.com/alice/status/1',
-        siteMeta: { likes: 42, retweets: 8, replies: 3, surfaceReason: 'original' },
-      }],
-    };
-    const output = formatSearchResults(result);
-    expect(output).toContain('@alice');
-    expect(output).toContain('1 result');
-  });
-});
-
-describe('formatJson', () => {
-  it('outputs valid JSON', () => {
-    const result: SearchResult = {
-      items: [{ id: '1', site: 'twitter', text: 'test', author: 'a', timestamp: 't', url: 'u' }],
-    };
-    const parsed = JSON.parse(formatJson(result));
-    expect(parsed.items).toHaveLength(1);
   });
 });
 

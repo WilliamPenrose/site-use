@@ -2,9 +2,8 @@ import path from 'node:path';
 import os from 'node:os';
 import { createStore } from '../storage/index.js';
 import { SEARCH_FIELDS } from '../storage/types.js';
-import type { SearchParams, SearchResult, SiteStats } from '../storage/types.js';
+import type { SearchParams, SiteStats } from '../storage/types.js';
 import { getAllTimestamps } from '../fetch-timestamps.js';
-import { formatTweetText } from '../sites/twitter/format.js';
 import { getKnowledgeDbPath } from '../config.js';
 
 function getDbPath(): string {
@@ -27,8 +26,8 @@ export function localToUtc(input: string): string {
   return d.toISOString();
 }
 
-export function parseSearchArgs(args: string[]): SearchParams & { json?: boolean } {
-  const params: SearchParams & { json?: boolean } = {};
+export function parseSearchArgs(args: string[]): SearchParams {
+  const params: SearchParams = {};
   let i = 0;
 
   const needsValue = new Set(['--author', '--start-date', '--end-date', '--max-results', '--hashtag', '--mention', '--min-likes', '--min-retweets', '--surface-reason', '--fields']);
@@ -106,9 +105,6 @@ export function parseSearchArgs(args: string[]): SearchParams & { json?: boolean
         params.fields = raw as SearchParams['fields'];
         break;
       }
-      case '--json':
-        params.json = true;
-        break;
       default:
         if (arg.startsWith('--')) {
           const renames: Record<string, string> = {
@@ -130,43 +126,6 @@ export function parseSearchArgs(args: string[]): SearchParams & { json?: boolean
   }
 
   return params;
-}
-
-export function formatSearchResults(result: SearchResult): string {
-  const parts = result.items
-    .map((item) => item.site === 'twitter' ? formatTweetText(item) : JSON.stringify(item));
-
-  const body = parts.join('\n\n---\n\n');
-  const noun = result.items.length === 1 ? 'result' : 'results';
-  return `${body}\n\nFound ${result.items.length} ${noun}`;
-}
-
-export function formatStatsHumanReadable(
-  stats: Record<string, SiteStats & { lastCollected?: Record<string, string> }>,
-): string {
-  const lines: string[] = [];
-  for (const [site, s] of Object.entries(stats)) {
-    lines.push(`${site}:`);
-    lines.push(`  Posts: ${s.totalPosts.toLocaleString()}`);
-    lines.push(`  Authors: ${s.uniqueAuthors.toLocaleString()}`);
-    if (s.oldestPost) {
-      lines.push(`  Content: ${s.oldestPost} — ${s.newestPost}`);
-    }
-    if (s.lastCollected && Object.keys(s.lastCollected).length > 0) {
-      lines.push('  Last collected:');
-      for (const [variant, ts] of Object.entries(s.lastCollected)) {
-        lines.push(`    ${variant}: ${ts}`);
-      }
-    }
-  }
-  if (lines.length === 0) {
-    lines.push('No data collected yet.');
-  }
-  return lines.join('\n');
-}
-
-export function formatJson(data: unknown): string {
-  return JSON.stringify(data, null, 2);
 }
 
 function writeError(error: string, message: string, hint: string): void {
@@ -210,20 +169,17 @@ Options:
   Output:
     --max-results <n>      Max results (default: 20)
     --fields <list>        Comma-separated fields: ${SEARCH_FIELDS.join(',')}
-    --json                 Output as JSON
 
 Examples:
   site-use search "bitcoin"
   site-use search --author elonmusk --start-date 2024-01-01
-  site-use search "AI" --min-likes 1000 --json
+  site-use search "AI" --min-likes 1000
   site-use search --fields author,url --max-results 5`);
         return;
       }
 
       const parsed = parseSearchArgs(args);
       if (process.exitCode) return;
-      const isJson = parsed.json;
-      delete parsed.json;
       const result = await store.search(parsed);
 
       if (result.items.length === 0) {
@@ -235,21 +191,12 @@ Examples:
         return;
       }
 
-      if (isJson) {
-        console.log(formatJson(result));
-      } else {
-        console.log(formatSearchResults(result));
-      }
+      console.log(JSON.stringify(result, null, 2));
     } else if (command === 'stats') {
       if (args.includes('--help') || args.includes('-h')) {
-        console.log(`site-use stats — Show storage statistics
-
-Options:
-  --json    Output as JSON
-`);
+        console.log(`site-use stats — Show storage statistics\n`);
         return;
       }
-      const isJson = args.includes('--json');
       const dbStats = await store.statsBySite();
       const tsPath = path.join(
         process.env.SITE_USE_DATA_DIR || path.join(os.homedir(), '.site-use'),
@@ -271,11 +218,7 @@ Options:
         }
       }
 
-      if (isJson) {
-        console.log(formatJson(merged));
-      } else {
-        console.log(formatStatsHumanReadable(merged));
-      }
+      console.log(JSON.stringify(merged, null, 2));
     } else if (command === 'rebuild') {
       if (args.includes('--help') || args.includes('-h')) {
         console.log(`site-use rebuild — Rebuild search index

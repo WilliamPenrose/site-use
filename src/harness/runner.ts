@@ -204,33 +204,37 @@ export async function runVariant(
   layers.push({ layer: 'Layer 4a→4b', pass: true, output: searchItem, errors: [] });
   db.close();
 
-  // Layer 5: formatFn
-  let formatted: string;
-  try {
-    formatted = descriptor.formatFn(searchItem);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    layers.push({ layer: 'Layer 5', pass: false, errors: [message] });
-    return { variant: variantName, pass: false, failedLayer: 'Layer 5', message, layers };
-  }
-  layers.push({ layer: 'Layer 5', pass: true, output: formatted, errors: [] });
+  // Layer 5: formatFn (optional — skipped when no human-readable formatter)
+  if (descriptor.formatFn) {
+    let formatted: string;
+    try {
+      formatted = descriptor.formatFn(searchItem);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      layers.push({ layer: 'Layer 5', pass: false, errors: [message] });
+      return { variant: variantName, pass: false, failedLayer: 'Layer 5', message, layers };
+    }
+    layers.push({ layer: 'Layer 5', pass: true, output: formatted, errors: [] });
 
-  // Layer 5 assertions: format assertions on formatted text
-  const formatAssertions = matchAssertions(descriptor.formatAssertions, variantName);
-  if (formatAssertions.length > 0) {
-    const errors: string[] = [];
-    for (const assertFn of formatAssertions) {
-      const ctx: AssertionContext = { variant: variantName, layer: 5, input: searchItem, output: formatted };
-      const result = assertFn(ctx);
-      if (!result.pass) {
-        errors.push(result.message ?? 'Format assertion failed');
+    // Layer 5 assertions: format assertions on formatted text
+    if (descriptor.formatAssertions) {
+      const formatAssertions = matchAssertions(descriptor.formatAssertions, variantName);
+      if (formatAssertions.length > 0) {
+        const errors: string[] = [];
+        for (const assertFn of formatAssertions) {
+          const ctx: AssertionContext = { variant: variantName, layer: 5, input: searchItem, output: formatted };
+          const result = assertFn(ctx);
+          if (!result.pass) {
+            errors.push(result.message ?? 'Format assertion failed');
+          }
+        }
+        if (errors.length > 0) {
+          layers.push({ layer: 'Layer 5 assertions', pass: false, errors });
+          return { variant: variantName, pass: false, failedLayer: 'Layer 5 assertions', message: errors[0], layers };
+        }
+        layers.push({ layer: 'Layer 5 assertions', pass: true, errors: [] });
       }
     }
-    if (errors.length > 0) {
-      layers.push({ layer: 'Layer 5 assertions', pass: false, errors });
-      return { variant: variantName, pass: false, failedLayer: 'Layer 5 assertions', message: errors[0], layers };
-    }
-    layers.push({ layer: 'Layer 5 assertions', pass: true, errors: [] });
   }
 
   return { variant: variantName, pass: true, layers };

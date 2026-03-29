@@ -5,7 +5,6 @@ import { extractTweetFromItemContent, parseTweet } from './extractors.js';
 import { tweetToFeedItem } from './feed-item.js';
 import { feedItemsToIngestItems } from './store-adapter.js';
 import { twitterDisplaySchema } from './display.js';
-import { formatTweetText } from './format.js';
 import { computeTimelineVariantSignature } from './variant-signature.js';
 import {
   surfacedByNotEmpty,
@@ -24,11 +23,6 @@ import {
   noteTweetTextExtracted,
   layer1ReturnsEmpty,
   outputMatchesDirectEquivalent,
-  formatContainsRetweetLine,
-  formatContainsQuoteBlock,
-  formatContainsAuthor,
-  formatContainsTimestamp,
-  formatContainsMetrics,
 } from './harness-assertions.js';
 
 // ---------------------------------------------------------------------------
@@ -109,10 +103,4 @@ export const twitterHarness: SiteHarnessDescriptor = {
   },
   storeAdapter: feedItemsToIngestItems,
   displaySchema: twitterDisplaySchema,
-  formatFn: formatTweetText,
-  formatAssertions: {
-    'retweet': [formatContainsRetweetLine],
-    'quote': [formatContainsQuoteBlock],
-    '*': [formatContainsAuthor, formatContainsTimestamp, formatContainsMetrics],
-  },
 };

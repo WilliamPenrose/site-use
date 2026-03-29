@@ -17,7 +17,6 @@ import { initializeDatabase } from '../../src/storage/schema.js';
 import { ingest } from '../../src/storage/ingest.js';
 import { search } from '../../src/storage/query.js';
 import { feedItemsToIngestItems } from '../../src/sites/twitter/store-adapter.js';
-import { formatTweetText } from '../../src/sites/twitter/format.js';
 import type { FeedItem } from '../../src/registry/types.js';
 
 const RETWEET_ITEM: FeedItem = {
@@ -163,34 +162,6 @@ describe('FeedItem round-trip: siteMeta resolution', () => {
     expect(item.siteMeta!.inReplyTo).toBeDefined();
     const replyTo = item.siteMeta!.inReplyTo as { handle: string };
     expect(replyTo.handle).toBe('bengio');
-  });
-});
-
-describe('FeedItem round-trip: text formatting', () => {
-  it('formatTweetText shows retweet attribution line', () => {
-    const result = search(db, { author: 'elonmusk' });
-    const text = formatTweetText(result.items[0]);
-    expect(text).toContain('↻ retweeted by karpathy');
-  });
-
-  it('formatTweetText shows reply attribution line', () => {
-    const result = search(db, { author: 'goodfellow' });
-    const text = formatTweetText(result.items[0]);
-    expect(text).toContain('↩ reply to @bengio');
-  });
-
-  it('formatTweetText shows quoted tweet block', () => {
-    const result = search(db, { author: 'ylecun' });
-    const text = formatTweetText(result.items[0]);
-    expect(text).toContain('@sama');
-    expect(text).toContain('AGI is near');
-  });
-
-  it('formatTweetText shows engagement metrics', () => {
-    const result = search(db, { author: 'karpathy' });
-    const text = formatTweetText(result.items[0]);
-    expect(text).toContain('♡');
-    expect(text).toContain('2.0k'); // likes = 2000
   });
 });
 

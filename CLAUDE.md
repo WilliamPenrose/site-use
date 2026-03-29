@@ -35,7 +35,7 @@ MCP Server (server.ts)
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **site-use** (923 symbols, 2094 relationships, 62 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **cli-for-llm** (895 symbols, 2005 relationships, 60 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
@@ -51,7 +51,7 @@ This project is indexed by GitNexus as **site-use** (923 symbols, 2094 relations
 
 1. `gitnexus_query({query: "<error or symptom>"})` — find execution flows related to the issue
 2. `gitnexus_context({name: "<suspect function>"})` — see all callers, callees, and process participation
-3. `READ gitnexus://repo/site-use/process/{processName}` — trace the full execution flow step by step
+3. `READ gitnexus://repo/cli-for-llm/process/{processName}` — trace the full execution flow step by step
 4. For regressions: `gitnexus_detect_changes({scope: "compare", base_ref: "main"})` — see what your branch changed
 
 ## When Refactoring
@@ -90,10 +90,10 @@ This project is indexed by GitNexus as **site-use** (923 symbols, 2094 relations
 
 | Resource | Use for |
 |----------|---------|
-| `gitnexus://repo/site-use/context` | Codebase overview, check index freshness |
-| `gitnexus://repo/site-use/clusters` | All functional areas |
-| `gitnexus://repo/site-use/processes` | All execution flows |
-| `gitnexus://repo/site-use/process/{name}` | Step-by-step execution trace |
+| `gitnexus://repo/cli-for-llm/context` | Codebase overview, check index freshness |
+| `gitnexus://repo/cli-for-llm/clusters` | All functional areas |
+| `gitnexus://repo/cli-for-llm/processes` | All execution flows |
+| `gitnexus://repo/cli-for-llm/process/{name}` | Step-by-step execution trace |
 
 ## Self-Check Before Finishing
 
