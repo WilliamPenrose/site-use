@@ -9,11 +9,13 @@ import {
   parseTweet,
   buildFeedMeta,
   parseTweetDetail,
+  parseGraphQLSearch,
   GRAPHQL_TIMELINE_PATTERN,
   GRAPHQL_TWEET_DETAIL_PATTERN,
+  GRAPHQL_SEARCH_PATTERN,
 } from './extractors.js';
 import { SiteUseError } from '../../errors.js';
-import type { RawTweetData } from './types.js';
+import type { RawTweetData, SearchTab } from './types.js';
 import type { FeedResult as FrameworkFeedResult } from '../../registry/types.js';
 import { tweetToFeedItem } from './feed-item.js';
 import { NOOP_TRACE, NOOP_SPAN, type Trace, type SpanHandle } from '../../trace.js';
@@ -207,6 +209,162 @@ export async function ensureTweetDetail(
   });
 
   return { reloaded, waits };
+}
+
+export interface EnsureSearchResult {
+  reloaded: boolean;
+  waits: WaitRecord[];
+}
+
+/**
+ * Navigate to Twitter search page and wait for GraphQL data.
+ * Builds the search URL from query and tab, then waits for SearchTimeline response.
+ */
+export async function ensureSearch(
+  primitives: Primitives,
+  collector: DataCollector<RawTweetData>,
+  opts: { query: string; tab: SearchTab; t0: number },
+  span: SpanHandle = NOOP_SPAN,
+): Promise<EnsureSearchResult> {
+  const { query, tab, t0 } = opts;
+  const waits: WaitRecord[] = [];
+  let reloaded = false;
+
+  async function timedWait(purpose: string, predicate: () => boolean, timeoutMs: number): Promise<boolean> {
+    const startedAt = Date.now() - t0;
+    const satisfied = await collector.waitUntil(predicate, timeoutMs);
+    waits.push({ purpose, startedAt, resolvedAt: Date.now() - t0, satisfied, dataCount: collector.length });
+    return satisfied;
+  }
+
+  // Build search URL
+  const tabParam = tab === 'latest' ? '&f=live' : '';
+  const searchUrl = `https://x.com/search?q=${encodeURIComponent(query)}&src=typed_query${tabParam}`;
+
+  // Step 1: Navigate to search page
+  console.error(`[site-use] searching: "${query}" (tab: ${tab})...`);
+  await span.span('navigate', async () => {
+    await primitives.navigate(searchUrl);
+  });
+
+  // Step 2: Check for login redirect
+  await span.span('checkLogin', async (s) => {
+    const currentUrl = await primitives.evaluate<string>('window.location.href');
+    s.set('currentUrl', currentUrl);
+    if (currentUrl.includes('/login') || currentUrl.includes('/i/flow/login')) {
+      throw new SiteUseError('SessionExpired', 'Not logged in — redirected to login page', { retryable: false });
+    }
+  });
+
+  // Step 3: Wait for initial data
+  console.error('[site-use] waiting for search results...');
+  await span.span('waitForData', async (s) => {
+    const hasData = await timedWait('initial_data', () => collector.length > 0, WAIT_FOR_DATA_MS);
+    s.set('satisfied', hasData);
+    s.set('dataCount', collector.length);
+
+    if (!hasData) {
+      console.error('[site-use] no data yet, reloading page...');
+      reloaded = true;
+      collector.clear();
+      await primitives.navigate(searchUrl);
+      const hasDataAfterReload = await timedWait('after_reload', () => collector.length > 0, WAIT_FOR_DATA_MS);
+      s.set('reloaded', true);
+      s.set('satisfiedAfterReload', hasDataAfterReload);
+      s.set('dataCountAfterReload', collector.length);
+    }
+  });
+
+  return { reloaded, waits };
+}
+
+export interface GetSearchOptions {
+  query: string;
+  tab?: SearchTab;
+  count?: number;
+  dumpRaw?: string;
+}
+
+/**
+ * Search Twitter and collect results.
+ * Sets up GraphQL interception, navigates to search page,
+ * scrolls to collect results, returns as FeedResult.
+ */
+export async function getSearch(
+  primitives: Primitives,
+  opts: GetSearchOptions,
+  trace: Trace = NOOP_TRACE,
+): Promise<FrameworkFeedResult> {
+  const { query, tab = 'top', count = 20, dumpRaw } = opts;
+  const t0 = Date.now();
+
+  return await trace.span('getSearch', async (rootSpan) => {
+    rootSpan.set('query', query);
+    rootSpan.set('tab', tab);
+    rootSpan.set('count', count);
+    let graphqlCount = 0;
+    let graphqlFailures = 0;
+
+    const collector = createDataCollector<RawTweetData>();
+    let dumpIndex = 0;
+
+    const cleanup = await primitives.interceptRequest(
+      GRAPHQL_SEARCH_PATTERN,
+      (response) => {
+        try {
+          if (dumpRaw) {
+            fs.mkdirSync(dumpRaw, { recursive: true });
+            const outPath = path.join(dumpRaw, `search-${dumpIndex++}.json`);
+            fs.writeFileSync(outPath, response.body);
+          }
+          const parsed = parseGraphQLSearch(response.body);
+          collector.push(...parsed);
+          graphqlCount++;
+          rootSpan.set('graphqlResponses', graphqlCount);
+        } catch {
+          graphqlFailures++;
+          rootSpan.set('graphqlFailures', graphqlFailures);
+        }
+      },
+    );
+
+    try {
+      await rootSpan.span('ensureSearch', async (s) => {
+        await ensureSearch(primitives, collector, { query, tab, t0 }, s);
+      });
+
+      if (collector.length < count) {
+        await rootSpan.span('collectData', async (s) => {
+          await collectData(primitives, collector, { count, t0 }, s);
+        });
+      }
+
+      const tweets = [...collector.items]
+        .map(parseTweet)
+        .filter((t) => !t.isAd)
+        .slice(0, count);
+
+      if (tweets.length === 0) {
+        console.error(`[site-use] no tweets found for "${query}"`);
+      }
+
+      const meta = buildFeedMeta(tweets);
+      const items = tweets.map(tweetToFeedItem);
+
+      rootSpan.set('rawBeforeFilter', collector.length);
+      rootSpan.set('itemsReturned', items.length);
+
+      return {
+        items,
+        meta: {
+          coveredUsers: meta.coveredUsers,
+          timeRange: { from: meta.timeRange.from, to: meta.timeRange.to },
+        },
+      };
+    } finally {
+      cleanup();
+    }
+  });
 }
 
 const MAX_STALE_ROUNDS = 3;
