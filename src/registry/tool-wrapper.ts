@@ -73,7 +73,9 @@ export function wrapToolHandler(opts: WrapOptions): (params: Record<string, unkn
 
     try {
       const result = await runtime.mutex.run(async () => {
-        return await opts.handler(rawParams, runtime, trace);
+        return await trace.span('handler', async () => {
+          return await opts.handler(rawParams, runtime, trace);
+        });
       });
 
       if (opts.resultSchema) {

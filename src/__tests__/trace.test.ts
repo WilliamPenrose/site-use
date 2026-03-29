@@ -102,6 +102,42 @@ describe('Trace', () => {
     });
     expect(result).toBe(42);
   });
+
+  it('reports ok when span succeeds', async () => {
+    const trace = new Trace('test_tool');
+    await trace.span('work', async () => 'done');
+    const data = trace.toJSON();
+    expect(data.status).toBe('ok');
+    expect(data.root.children[0].status).toBe('ok');
+  });
+
+  it('reports error when child span throws', async () => {
+    const trace = new Trace('test_tool');
+    await trace.span('work', async () => {
+      throw new Error('boom');
+    }).catch(() => {});
+    const data = trace.toJSON();
+    expect(data.status).toBe('error');
+    expect(data.root.children[0].status).toBe('error');
+    expect(data.root.children[0].error).toBe('boom');
+  });
+
+  it('captures error in trace when handler is wrapped in span', async () => {
+    const trace = new Trace('twitter_feed');
+
+    try {
+      await trace.span('handler', async () => {
+        throw new Error('Input.dispatchMouseEvent timed out');
+      });
+    } catch {}
+
+    const data = trace.toJSON();
+    expect(data.status).toBe('error');
+    expect(data.root.children).toHaveLength(1);
+    expect(data.root.children[0].name).toBe('handler');
+    expect(data.root.children[0].status).toBe('error');
+    expect(data.root.children[0].error).toContain('dispatchMouseEvent');
+  });
 });
 
 describe('NOOP_TRACE', () => {
