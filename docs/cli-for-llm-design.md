@@ -62,9 +62,9 @@ npx site-use screenshot --site twitter
 
 不受影响：wrapToolHandler、plugins、primitives、browser、storage —— 全部完好。
 
-## 待实现
+## 实现状态
 
-1. 去掉 MCP 层（删除上述文件和依赖）
-2. CLI search 去掉人类可读格式，默认 JSON
-3. JSON timestamp UTC → 本地时区
-4. 新增 `npx site-use screenshot` CLI 命令
+1. ~~去掉 MCP 层（删除上述文件和依赖）~~ ✓
+2. ~~CLI search 去掉人类可读格式，默认 JSON~~ ✓
+3. ~~JSON timestamp UTC → 本地时区~~ ✓
+4. ~~新增 `npx site-use screenshot` CLI 命令~~ ✓
