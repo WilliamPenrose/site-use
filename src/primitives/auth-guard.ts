@@ -74,7 +74,8 @@ export function createAuthGuardedPrimitives(
     // All other operations pass through unchanged
     takeSnapshot: () => inner.takeSnapshot(),
     click: (uid) => inner.click(uid),
-    type: (uid, text) => inner.type(uid, text),
+    type: (uid, text, options) => inner.type(uid, text, options),
+    pressKey: (key) => inner.pressKey(key),
     scroll: (options) => inner.scroll(options),
     scrollIntoView: (uid) => inner.scrollIntoView(uid),
     evaluate: <T = unknown>(expression: string) =>

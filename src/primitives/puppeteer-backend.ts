@@ -1,4 +1,4 @@
-import type { Browser, Page } from 'puppeteer-core';
+import type { Browser, Page, KeyInput } from 'puppeteer-core';
 import { ElementNotFound, NavigationFailed } from '../errors.js';
 import { getClickEnhancementConfig } from '../config.js';
 import { humanScroll, scrollElementIntoView } from './scroll-enhanced.js';
@@ -19,6 +19,15 @@ import type {
 import { RateLimitDetector } from './rate-limit-detect.js';
 
 const DEFAULT_SITE = '_default';
+
+/** Named keys that keyboard.press() understands (generates keydown/keypress/keyup sequence). */
+const KNOWN_KEYS = new Set([
+  'Enter', 'Tab', 'Escape', 'Backspace', 'Delete', 'Space',
+  'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
+  'Home', 'End', 'PageUp', 'PageDown',
+  'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12',
+  'Shift', 'Control', 'Alt', 'Meta',
+]);
 
 export interface PuppeteerBackendOptions {
   siteDomains?: Record<string, string[]>;
@@ -308,23 +317,30 @@ export class PuppeteerBackend implements Primitives {
     return false;
   }
 
-  async click(uid: string): Promise<void> {
-    this.checkRateLimit('click');
+  /**
+   * Resolve a snapshot uid to page + backendDOMNodeId.
+   * Shared validation for click/type/scrollIntoView.
+   */
+  private async resolveUid(uid: string, step: string): Promise<{ page: Page; backendNodeId: number }> {
     if (this.uidToBackendNodeId.size === 0) {
       throw new ElementNotFound(
-        'No snapshot available. Call takeSnapshot() before click().',
-        { step: 'click', retryable: false, hint: 'Take a snapshot first to populate the element map, then retry the click.' },
+        `No snapshot available. Call takeSnapshot() before ${step}().`,
+        { step, retryable: false, hint: 'Take a snapshot first to populate the element map, then retry.' },
       );
     }
 
     const backendNodeId = this.uidToBackendNodeId.get(uid);
     if (backendNodeId == null) {
-      throw new ElementNotFound(`Element with uid "${uid}" not found in snapshot`, {
-        step: 'click',
-      });
+      throw new ElementNotFound(`Element with uid "${uid}" not found in snapshot`, { step });
     }
 
     const page = await this.getPage();
+    return { page, backendNodeId };
+  }
+
+  async click(uid: string): Promise<void> {
+    this.checkRateLimit('click');
+    const { page, backendNodeId } = await this.resolveUid(uid, 'click');
     await this.ensurePageActive(page);
     const config = getClickEnhancementConfig();
 
@@ -359,8 +375,43 @@ export class PuppeteerBackend implements Primitives {
     await new Promise((r) => setTimeout(r, 100));
   }
 
-  async type(_uid: string, _text: string): Promise<void> {
-    throw new Error('type primitive is not implemented in M1 (planned for M2)');
+  async type(uid: string, text: string, options?: { delay?: number }): Promise<void> {
+    this.checkRateLimit('type');
+    const { page, backendNodeId } = await this.resolveUid(uid, 'type');
+    await this.ensurePageActive(page);
+
+    // Focus the element via CDP
+    const client = await page.createCDPSession();
+    try {
+      await client.send('DOM.focus', { backendNodeId });
+    } catch (err) {
+      throw new ElementNotFound(
+        `Failed to focus element with uid "${uid}": ${err instanceof Error ? err.message : String(err)}`,
+        { step: 'type', retryable: true, hint: 'The DOM may have changed since takeSnapshot(). Try taking a new snapshot and retrying.' },
+      );
+    } finally {
+      await client.detach();
+    }
+
+    // Type text via Puppeteer keyboard
+    await page.keyboard.type(text, { delay: options?.delay ?? 0 });
+
+    // Wait for DOM stability
+    await new Promise((r) => setTimeout(r, 100));
+  }
+
+  async pressKey(key: string): Promise<void> {
+    this.checkRateLimit('pressKey');
+    const page = await this.getPage();
+    // No ensurePageActive() here — keyboard events (Input.dispatchKeyEvent) are
+    // not subject to Chromium's background tab throttling, unlike mouse events.
+
+    if (KNOWN_KEYS.has(key)) {
+      await page.keyboard.press(key as KeyInput);
+    } else {
+      // Characters (ASCII, CJK, emoji, etc.) — use sendCharacter (CDP Input.insertText)
+      await page.keyboard.sendCharacter(key);
+    }
   }
 
   async scroll(options: ScrollOptions): Promise<void> {
@@ -376,21 +427,7 @@ export class PuppeteerBackend implements Primitives {
 
   async scrollIntoView(uid: string): Promise<void> {
     this.checkRateLimit('scrollIntoView');
-    if (this.uidToBackendNodeId.size === 0) {
-      throw new ElementNotFound(
-        'No snapshot available. Call takeSnapshot() before scrollIntoView().',
-        { step: 'scrollIntoView', retryable: false, hint: 'Take a snapshot first to populate the element map, then retry scrollIntoView.' },
-      );
-    }
-
-    const backendNodeId = this.uidToBackendNodeId.get(uid);
-    if (backendNodeId == null) {
-      throw new ElementNotFound(`Element with uid "${uid}" not found in snapshot`, {
-        step: 'scrollIntoView',
-      });
-    }
-
-    const page = await this.getPage();
+    const { page, backendNodeId } = await this.resolveUid(uid, 'scrollIntoView');
     await this.ensurePageActive(page);
     await scrollElementIntoView(page, backendNodeId);
   }

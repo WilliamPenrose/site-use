@@ -44,7 +44,8 @@ export function createThrottledPrimitives(
     // Counted toward rate limit
     navigate: (url) => throttledAndCounted(() => inner.navigate(url)),
     click: (uid) => throttledAndCounted(() => inner.click(uid)),
-    type: (uid, text) => throttledAndCounted(() => inner.type(uid, text)),
+    // Note: options.delay is per-keystroke delay inside keyboard.type — stacks with throttle delay above.
+    type: (uid, text, options) => throttledAndCounted(() => inner.type(uid, text, options)),
     scroll: (options) => throttledAndCounted(() => inner.scroll(options)),
     scrollIntoView: (uid) => throttledAndCounted(() => inner.scrollIntoView(uid)),
 
@@ -54,6 +55,9 @@ export function createThrottledPrimitives(
       inner.evaluate<T>(expression),
     interceptRequest: (pattern, handler) =>
       inner.interceptRequest(pattern, handler),
+
+    // Exempt — lightweight keyboard events, no page navigation or network
+    pressKey: (key) => inner.pressKey(key),
 
     // Fully exempt
     screenshot: () => inner.screenshot(),

@@ -15,6 +15,7 @@ function createMockPrimitives(overrides: Partial<Primitives> = {}): Primitives {
     takeSnapshot: vi.fn().mockResolvedValue({ idToNode: new Map() }),
     click: vi.fn().mockResolvedValue(undefined),
     type: vi.fn().mockResolvedValue(undefined),
+    pressKey: vi.fn().mockResolvedValue(undefined),
     scroll: vi.fn().mockResolvedValue(undefined),
     scrollIntoView: vi.fn().mockResolvedValue(undefined),
     evaluate: vi.fn().mockResolvedValue(undefined),
