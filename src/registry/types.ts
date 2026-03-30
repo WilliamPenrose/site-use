@@ -93,16 +93,6 @@ export interface AuthCapability {
   cli?: CliConfig;
 }
 
-export interface FeedCapability {
-  collect: (primitives: Primitives, params: unknown, trace?: Trace) => Promise<FeedResult>;
-  params: ZodType;
-  localQuery?: (store: KnowledgeStore, params: unknown) => Promise<FeedResult>;
-  cache?: CacheConfig;
-  description?: string;
-  expose?: ExposeTarget[];
-  cli?: CliConfig;
-}
-
 // ── Workflow declaration ───────────────────────────────────────
 
 export interface WorkflowDeclaration {
@@ -110,6 +100,13 @@ export interface WorkflowDeclaration {
   description: string;
   params: ZodType;
   execute: (primitives: Primitives, params: unknown, trace?: Trace) => Promise<unknown>;
+
+  // Optional framework capabilities
+  cache?: CacheConfig;
+  localQuery?: (store: KnowledgeStore, params: unknown) => Promise<unknown>;
+  dumpRaw?: boolean;
+
+  // Existing fields
   expose?: ExposeTarget[];
   cli?: CliConfig;
 }
@@ -133,15 +130,17 @@ export interface SiteErrorHints {
 // ── SitePlugin (the contract) ──────────────────────────────────
 
 export interface SitePlugin {
+  // ── Identity ──
   apiVersion: 1;
   name: string;
   domains: string[];
   detect?: DetectFn;
-  capabilities?: {
-    auth?: AuthCapability;
-    feed?: FeedCapability;
-  };
-  customWorkflows?: WorkflowDeclaration[];
+
+  // ── Site-wide capabilities ──
+  auth?: AuthCapability;
   storeAdapter?: StoreAdapter;
   hints?: SiteErrorHints;
+
+  // ── Per-operation capabilities ──
+  workflows?: WorkflowDeclaration[];
 }

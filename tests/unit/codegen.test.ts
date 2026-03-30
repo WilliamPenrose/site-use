@@ -20,32 +20,31 @@ function fakeManager(): SiteRuntimeManager {
 describe('generateCliCommands', () => {
   it('generates CLI entry for auth capability', () => {
     const plugin = fakePlugin({
-      capabilities: {
-        auth: { check: async () => ({ loggedIn: true }) },
-      },
+      auth: { check: async () => ({ loggedIn: true }) },
     });
     const cmds = generateCliCommands([plugin], fakeManager());
     const entry = cmds.find(c => c.site === 'testsite' && c.command === 'check-login');
     expect(entry).toBeDefined();
   });
 
-  it('generates CLI entry for feed capability', () => {
+  it('generates CLI entry for workflow with cache', () => {
     const plugin = fakePlugin({
-      capabilities: {
-        feed: {
-          collect: async () => ({ items: [], meta: { coveredUsers: [], timeRange: { from: '', to: '' } } }),
-          params: z.object({ count: z.number() }),
-        },
-      },
+      workflows: [{
+        name: 'feed',
+        description: 'Collect feed',
+        execute: async () => ({ items: [], meta: { coveredUsers: [], timeRange: { from: '', to: '' } } }),
+        params: z.object({ count: z.number().optional() }),
+        cache: { defaultMaxAge: 120 },
+      }],
     });
     const cmds = generateCliCommands([plugin], fakeManager());
     const entry = cmds.find(c => c.site === 'testsite' && c.command === 'feed');
     expect(entry).toBeDefined();
   });
 
-  it('generates CLI entry for custom workflow', () => {
+  it('generates CLI entry for workflow without cache', () => {
     const plugin = fakePlugin({
-      customWorkflows: [{
+      workflows: [{
         name: 'trending',
         description: 'Get trending',
         params: z.object({}),
@@ -59,11 +58,9 @@ describe('generateCliCommands', () => {
 
   it('respects expose: ["mcp"] — skips CLI command', () => {
     const plugin = fakePlugin({
-      capabilities: {
-        auth: {
-          check: async () => ({ loggedIn: true }),
-          expose: ['mcp'],
-        },
+      auth: {
+        check: async () => ({ loggedIn: true }),
+        expose: ['mcp'],
       },
     });
     const cmds = generateCliCommands([plugin], fakeManager());
@@ -72,8 +69,8 @@ describe('generateCliCommands', () => {
 
   it('returns site names for help text generation', () => {
     const cmds = generateCliCommands([
-      fakePlugin({ name: 'twitter', domains: ['x.com'], capabilities: { auth: { check: async () => ({ loggedIn: true }) } } }),
-      fakePlugin({ name: 'reddit', domains: ['reddit.com'], capabilities: { auth: { check: async () => ({ loggedIn: true }) } } }),
+      fakePlugin({ name: 'twitter', domains: ['x.com'], auth: { check: async () => ({ loggedIn: true }) } }),
+      fakePlugin({ name: 'reddit', domains: ['reddit.com'], auth: { check: async () => ({ loggedIn: true }) } }),
     ], fakeManager());
     const sites = [...new Set(cmds.map(c => c.site))];
     expect(sites.sort()).toEqual(['reddit', 'twitter']);
@@ -81,47 +78,48 @@ describe('generateCliCommands', () => {
 });
 
 describe('generateCliCommands — smart cache', () => {
-  it('generates feed command that accepts cache flags without error', () => {
+  it('generates workflow command that accepts cache flags without error', () => {
     const plugin = fakePlugin({
-      capabilities: {
-        feed: {
-          collect: async () => ({ items: [], meta: { coveredUsers: [], timeRange: { from: '', to: '' } } }),
-          params: z.object({ tab: z.string().optional() }),
-          localQuery: async () => ({ items: [], meta: { coveredUsers: [], timeRange: { from: '', to: '' } } }),
-          cache: { defaultMaxAge: 120, variantKey: 'tab', defaultVariant: 'for_you' },
-        },
-      },
+      workflows: [{
+        name: 'feed',
+        description: 'Collect feed',
+        execute: async () => ({ items: [], meta: { coveredUsers: [], timeRange: { from: '', to: '' } } }),
+        params: z.object({ tab: z.string().optional() }),
+        localQuery: async () => ({ items: [], meta: { coveredUsers: [], timeRange: { from: '', to: '' } } }),
+        cache: { defaultMaxAge: 120, variantKey: 'tab', defaultVariant: 'for_you' },
+      }],
     });
     const cmds = generateCliCommands([plugin], fakeManager());
     const entry = cmds.find(c => c.command === 'feed');
     expect(entry).toBeDefined();
   });
 
-  it('feed command without localQuery has no cache behavior', () => {
+  it('workflow with cache but no localQuery has no --local behavior', () => {
     const plugin = fakePlugin({
-      capabilities: {
-        feed: {
-          collect: async () => ({ items: [], meta: { coveredUsers: [], timeRange: { from: '', to: '' } } }),
-          params: z.object({ count: z.number().optional() }),
-        },
-      },
+      workflows: [{
+        name: 'feed',
+        description: 'Collect feed',
+        execute: async () => ({ items: [], meta: { coveredUsers: [], timeRange: { from: '', to: '' } } }),
+        params: z.object({ count: z.number().optional() }),
+        cache: { defaultMaxAge: 120 },
+      }],
     });
     const cmds = generateCliCommands([plugin], fakeManager());
     const entry = cmds.find(c => c.command === 'feed');
     expect(entry).toBeDefined();
   });
 
-  it('feed command with cache handles --help', async () => {
+  it('workflow with cache handles --help showing cache options', async () => {
     const plugin = fakePlugin({
-      capabilities: {
-        feed: {
-          collect: async () => ({ items: [], meta: { coveredUsers: [], timeRange: { from: '', to: '' } } }),
-          params: z.object({ tab: z.string().optional() }),
-          localQuery: async () => ({ items: [], meta: { coveredUsers: [], timeRange: { from: '', to: '' } } }),
-          cache: { defaultMaxAge: 120 },
-          cli: { description: 'Collect feed', help: 'Feed help text' },
-        },
-      },
+      workflows: [{
+        name: 'feed',
+        description: 'Collect feed',
+        execute: async () => ({ items: [], meta: { coveredUsers: [], timeRange: { from: '', to: '' } } }),
+        params: z.object({ tab: z.string().optional() }),
+        localQuery: async () => ({ items: [], meta: { coveredUsers: [], timeRange: { from: '', to: '' } } }),
+        cache: { defaultMaxAge: 120 },
+        cli: { description: 'Collect feed', help: 'Feed help text' },
+      }],
     });
     const cmds = generateCliCommands([plugin], fakeManager());
     const entry = cmds.find(c => c.command === 'feed')!;
@@ -138,9 +136,7 @@ describe('generateCliCommands — smart cache', () => {
 
   it('check-login command handles --help', async () => {
     const plugin = fakePlugin({
-      capabilities: {
-        auth: { check: async () => ({ loggedIn: true }) },
-      },
+      auth: { check: async () => ({ loggedIn: true }) },
     });
     const cmds = generateCliCommands([plugin], fakeManager());
     const entry = cmds.find(c => c.command === 'check-login')!;

@@ -44,7 +44,7 @@ export function buildSiteStack(
   const throttled = createThrottledPrimitives(backend);
 
   // Auth guard layer — skip if plugin explicitly opts out
-  const auth = plugin.capabilities?.auth;
+  const auth = plugin.auth;
   const authConfigs = auth && auth.guardNavigate !== false
     ? [{
         site: plugin.name,

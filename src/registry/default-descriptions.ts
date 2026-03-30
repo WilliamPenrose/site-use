@@ -3,7 +3,6 @@
 /** Default MCP tool descriptions for standard capabilities. */
 export const DEFAULT_TOOL_DESCRIPTIONS: Record<string, (site: string) => string> = {
   auth: (site) => `Check if user is logged in to ${site}`,
-  feed: (site) => `Collect feed items from ${site}`,
 };
 
 /** Default error hints, with {site} placeholder. */

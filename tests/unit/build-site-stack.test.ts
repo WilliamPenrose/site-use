@@ -25,7 +25,7 @@ describe('buildSiteStack', () => {
       apiVersion: 1,
       name: 'twitter',
       domains: ['x.com'],
-      capabilities: { auth: { check } },
+      auth: { check },
     };
     const { primitives } = buildSiteStack(mockPage(), plugin);
 
@@ -40,7 +40,7 @@ describe('buildSiteStack', () => {
       apiVersion: 1,
       name: 'xhs',
       domains: ['xiaohongshu.com'],
-      capabilities: { auth: { check, guardNavigate: false } },
+      auth: { check, guardNavigate: false },
     };
     const { primitives } = buildSiteStack(mockPage(), plugin);
 

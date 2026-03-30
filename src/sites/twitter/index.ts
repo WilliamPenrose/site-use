@@ -13,46 +13,35 @@ export const plugin: SitePlugin = {
   domains: ['x.com', 'twitter.com'],
   detect: twitterDetect,
 
-  capabilities: {
-    auth: {
-      check: checkLogin,
-      guard: isLoggedIn,  // returns { loggedIn, diagnostics }
-      description: 'Check if user is logged in to Twitter/X. Returns { loggedIn: boolean }.',
-    },
-    feed: {
-      collect: (primitives: Primitives, params: unknown) =>
-        getFeed(primitives, params as Parameters<typeof getFeed>[1]),
+  auth: {
+    check: checkLogin,
+    guard: isLoggedIn,
+    description: 'Check if user is logged in to Twitter/X. Returns { loggedIn: boolean }.',
+  },
+  storeAdapter: {
+    toIngestItems: feedItemsToIngestItems,
+  },
+
+  workflows: [
+    {
+      name: 'feed',
+      description:
+        'Collect tweets from Twitter/X timeline. Supports "following" (chronological) ' +
+        'and "for_you" (algorithmic) tabs. Returns structured tweet data with metrics, ' +
+        'media, and thread context.',
       params: TwitterFeedParamsSchema,
-      localQuery: twitterLocalQuery,
+      execute: (primitives: Primitives, params: unknown) =>
+        getFeed(primitives, params as Parameters<typeof getFeed>[1]),
       cache: {
         defaultMaxAge: 120,
         variantKey: 'tab',
         defaultVariant: 'for_you',
       },
-      description:
-        'Collect tweets from Twitter/X timeline. Supports "following" (chronological) ' +
-        'and "for_you" (algorithmic) tabs. Returns structured tweet data with metrics, ' +
-        'media, and thread context.',
+      localQuery: twitterLocalQuery,
+      dumpRaw: true,
       cli: {
         description: 'Collect tweets from the home timeline',
         help: `Options:\n  --count <n>            Number of tweets (1-100, default: 20)\n  --tab <name>           Feed tab: following | for_you (default: for_you)\n  --debug                Include diagnostic info`,
-      },
-    },
-  },
-
-  customWorkflows: [
-    {
-      name: 'tweet_detail',
-      description:
-        'Get a tweet with its replies. Returns the original tweet (with full text) as items[0] ' +
-        'and replies as items[1..n].',
-      params: TweetDetailParamsSchema,
-      execute: (primitives: Primitives, params: unknown, trace?: Trace) =>
-        getTweetDetail(primitives, params as Parameters<typeof getTweetDetail>[1], trace),
-      expose: ['mcp', 'cli'],
-      cli: {
-        description: 'Get a tweet and its replies',
-        help: `Options:\n  --url <url>             Tweet URL (required)\n  --count <n>            Max replies (1-100, default: 20)\n  --debug                Include diagnostic info`,
       },
     },
     {
@@ -64,17 +53,29 @@ export const plugin: SitePlugin = {
       params: TwitterSearchParamsSchema,
       execute: (primitives: Primitives, params: unknown, trace?: Trace) =>
         getSearch(primitives, params as Parameters<typeof getSearch>[1], trace),
+      dumpRaw: true,
       expose: ['cli'],
       cli: {
         description: 'Search tweets on Twitter',
-        help: `Options:\n  --query <text>         Search query (required, supports Twitter operators)\n  --tab <name>           Search tab: top | latest (default: top)\n  --count <n>            Number of tweets (1-100, default: 20)\n  --dump-raw <dir>       Save raw GraphQL responses to directory\n  --debug                Include diagnostic info`,
+        help: `Options:\n  --query <text>         Search query (required, supports Twitter operators)\n  --tab <name>           Search tab: top | latest (default: top)\n  --count <n>            Number of tweets (1-100, default: 20)\n  --debug                Include diagnostic info`,
+      },
+    },
+    {
+      name: 'tweet_detail',
+      description:
+        'Get a tweet with its replies. Returns the original tweet (with full text) as items[0] ' +
+        'and replies as items[1..n].',
+      params: TweetDetailParamsSchema,
+      execute: (primitives: Primitives, params: unknown, trace?: Trace) =>
+        getTweetDetail(primitives, params as Parameters<typeof getTweetDetail>[1], trace),
+      dumpRaw: true,
+      expose: ['mcp', 'cli'],
+      cli: {
+        description: 'Get a tweet and its replies',
+        help: `Options:\n  --url <url>             Tweet URL (required)\n  --count <n>            Max replies (1-100, default: 20)\n  --debug                Include diagnostic info`,
       },
     },
   ],
-
-  storeAdapter: {
-    toIngestItems: feedItemsToIngestItems,
-  },
 
   hints: {
     sessionExpired:

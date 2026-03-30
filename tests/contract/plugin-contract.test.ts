@@ -28,13 +28,13 @@ function fakePlugin(overrides: Partial<SitePlugin> = {}): SitePlugin {
     apiVersion: 1,
     name: 'fake',
     domains: ['fake.com'],
-    capabilities: {
-      auth: { check: async () => ({ loggedIn: true }) },
-      feed: {
-        collect: async () => ({ items: [], meta: { coveredUsers: [], timeRange: { from: '', to: '' } } }),
-        params: z.object({ count: z.number().default(10) }),
-      },
-    },
+    auth: { check: async () => ({ loggedIn: true }) },
+    workflows: [{
+      name: 'feed',
+      description: 'Collect feed',
+      execute: async () => ({ items: [], meta: { coveredUsers: [], timeRange: { from: '', to: '' } } }),
+      params: z.object({ count: z.number().default(10) }),
+    }],
     storeAdapter: {
       toIngestItems: (items) => items.map(item => ({
         site: 'fake', id: item.id, text: item.text, author: item.author.handle,
@@ -64,14 +64,22 @@ describe('Plugin Contract', () => {
     expect(cmds.find(c => c.command === 'feed')).toBeDefined();
   });
 
-  it('generates CLI commands from custom workflows', () => {
+  it('generates CLI commands from workflows', () => {
     const plugin = fakePlugin({
-      customWorkflows: [{
-        name: 'trending',
-        description: 'Get trending',
-        params: z.object({}),
-        execute: async () => ({}),
-      }],
+      workflows: [
+        {
+          name: 'feed',
+          description: 'Collect feed',
+          execute: async () => ({ items: [], meta: { coveredUsers: [], timeRange: { from: '', to: '' } } }),
+          params: z.object({ count: z.number().default(10) }),
+        },
+        {
+          name: 'trending',
+          description: 'Get trending',
+          params: z.object({}),
+          execute: async () => ({}),
+        },
+      ],
     });
     const cmds = generateCliCommands([plugin], fakeManager());
     expect(cmds.find(c => c.command === 'trending')).toBeDefined();
@@ -79,9 +87,7 @@ describe('Plugin Contract', () => {
 
   it('respects expose config (cli-only)', () => {
     const plugin = fakePlugin({
-      capabilities: {
-        auth: { check: async () => ({ loggedIn: true }), expose: ['cli'] },
-      },
+      auth: { check: async () => ({ loggedIn: true }), expose: ['cli'] },
     });
     const cliCmds = generateCliCommands([plugin], fakeManager());
     expect(cliCmds.find(c => c.command === 'check-login')).toBeDefined();
@@ -89,9 +95,7 @@ describe('Plugin Contract', () => {
 
   it('respects expose config (mcp-only skips CLI)', () => {
     const plugin = fakePlugin({
-      capabilities: {
-        auth: { check: async () => ({ loggedIn: true }), expose: ['mcp'] },
-      },
+      auth: { check: async () => ({ loggedIn: true }), expose: ['mcp'] },
     });
     const cliCmds = generateCliCommands([plugin], fakeManager());
     expect(cliCmds.find(c => c.command === 'check-login')).toBeUndefined();
@@ -99,10 +103,8 @@ describe('Plugin Contract', () => {
 
   it('wraps unknown plugin errors as PluginError via CLI handler', async () => {
     const plugin = fakePlugin({
-      capabilities: {
-        auth: {
-          check: async () => { throw new TypeError('plugin bug'); },
-        },
+      auth: {
+        check: async () => { throw new TypeError('plugin bug'); },
       },
     });
     const mockRuntime = makeMockRuntime(plugin);
@@ -124,19 +126,19 @@ describe('Plugin Contract', () => {
     validatePlugins([alpha, beta]);
   });
 
-  it('calls storeAdapter after feed.collect via CLI handler', async () => {
+  it('calls storeAdapter after workflow execute via CLI handler', async () => {
     const storeAdapterSpy = vi.fn(() => []);
     const plugin = fakePlugin({
       storeAdapter: { toIngestItems: storeAdapterSpy },
-      capabilities: {
-        feed: {
-          collect: async () => ({
-            items: [{ id: '1', author: { handle: 'a', name: 'A' }, text: 't', timestamp: '', url: '', media: [], links: [], siteMeta: {} }],
-            meta: { coveredUsers: [], timeRange: { from: '', to: '' } },
-          }),
-          params: z.object({}),
-        },
-      },
+      workflows: [{
+        name: 'feed',
+        description: 'Collect feed',
+        execute: async () => ({
+          items: [{ id: '1', author: { handle: 'a', name: 'A' }, text: 't', timestamp: '', url: '', media: [], links: [], siteMeta: {} }],
+          meta: { coveredUsers: [], timeRange: { from: '', to: '' } },
+        }),
+        params: z.object({}),
+      }],
     });
     const mockRuntime = makeMockRuntime(plugin);
     const mgr = { get: vi.fn(async () => mockRuntime), clearAll: vi.fn() } as unknown as SiteRuntimeManager;
@@ -152,15 +154,15 @@ describe('Plugin Contract', () => {
 
   it('does not call storeAdapter when not declared via CLI handler', async () => {
     const plugin = fakePlugin({
-      capabilities: {
-        feed: {
-          collect: async () => ({
-            items: [{ id: '1', author: { handle: 'a', name: 'A' }, text: 't', timestamp: '', url: '', media: [], links: [], siteMeta: {} }],
-            meta: { coveredUsers: [], timeRange: { from: '', to: '' } },
-          }),
-          params: z.object({}),
-        },
-      },
+      workflows: [{
+        name: 'feed',
+        description: 'Collect feed',
+        execute: async () => ({
+          items: [{ id: '1', author: { handle: 'a', name: 'A' }, text: 't', timestamp: '', url: '', media: [], links: [], siteMeta: {} }],
+          meta: { coveredUsers: [], timeRange: { from: '', to: '' } },
+        }),
+        params: z.object({}),
+      }],
     });
     delete (plugin as Record<string, unknown>).storeAdapter;
     const mockRuntime = makeMockRuntime(plugin);
@@ -177,7 +179,7 @@ describe('Plugin Contract', () => {
 
   it('twitter plugin registers search workflow with correct schema', async () => {
     const { plugin } = await import('../../src/sites/twitter/index.js');
-    const searchWf = plugin.customWorkflows?.find(w => w.name === 'search');
+    const searchWf = plugin.workflows?.find(w => w.name === 'search');
     expect(searchWf).toBeDefined();
     expect(searchWf!.expose).toEqual(['cli']);
     expect(searchWf!.description).toContain('Search Twitter');
@@ -193,29 +195,6 @@ describe('Plugin Contract', () => {
     // Validate rejects empty query
     const emptyResult = searchWf!.params.safeParse({ query: '' });
     expect(emptyResult.success).toBe(false);
-  });
-
-  it('FeedResult validation rejects invalid return via CLI handler', async () => {
-    const plugin = fakePlugin({
-      capabilities: {
-        feed: {
-          collect: async () => ({ bad: 'data' }) as never,
-          params: z.object({}),
-        },
-      },
-    });
-    const mockRuntime = makeMockRuntime(plugin);
-    const mgr = { get: vi.fn(async () => mockRuntime), clearAll: vi.fn() } as unknown as SiteRuntimeManager;
-    const cmds = generateCliCommands([plugin], mgr);
-    const feedCmd = cmds.find(c => c.command === 'feed')!;
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
-    await feedCmd.handler([]);
-    const output = consoleSpy.mock.calls.map(c => c[0]).join('\n');
-    const body = JSON.parse(output);
-    expect(body.type).toBe('PluginError');
-    consoleSpy.mockRestore();
-    stderrSpy.mockRestore();
   });
 });
 
@@ -239,10 +218,8 @@ describe('Error Scenario Tests', () => {
 
   it('plugin detect runtime error is wrapped as PluginError via CLI', async () => {
     const plugin = fakePlugin({
-      capabilities: {
-        auth: {
-          check: async () => { throw new TypeError('detect crashed'); },
-        },
+      auth: {
+        check: async () => { throw new TypeError('detect crashed'); },
       },
     });
     const mockRuntime = makeMockRuntime(plugin);

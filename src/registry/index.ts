@@ -6,7 +6,6 @@ export type {
   MediaItem,
   CheckLoginResult,
   AuthCapability,
-  FeedCapability,
   WorkflowDeclaration,
   StoreAdapter,
   SiteErrorHints,

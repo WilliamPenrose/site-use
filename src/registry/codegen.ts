@@ -15,31 +15,12 @@ import type { SearchResultItem } from '../storage/types.js';
 import fs from 'node:fs';
 import type { Trace } from '../trace.js';
 
-// ── FeedResult Zod schema for return value validation ──────────
-const MediaItemSchema = z.object({
-  type: z.string(), url: z.string(), width: z.number(), height: z.number(),
-  duration: z.number().optional(), thumbnailUrl: z.string().optional(),
-});
-const FeedItemSchema = z.object({
-  id: z.string(), author: z.object({ handle: z.string(), name: z.string() }),
-  text: z.string(), timestamp: z.string(), url: z.string(),
-  media: z.array(MediaItemSchema), links: z.array(z.string()),
-  siteMeta: z.record(z.unknown()),
-});
-const FeedResultSchema = z.object({
-  items: z.array(FeedItemSchema),
-  meta: z.object({
-    coveredUsers: z.array(z.string()),
-    timeRange: z.object({ from: z.string(), to: z.string() }),
-  }),
-});
-
 function shouldExposeCli(expose?: Array<'mcp' | 'cli'>): boolean {
   if (!expose) return true;
   return expose.includes('cli');
 }
 
-// ── CLI command generation ─────────────────────────────────────
+// ── CLI command generation ─────────────────────────────────
 
 export interface GeneratedCliCommand {
   site: string;
@@ -55,10 +36,10 @@ export function generateCliCommands(
   const commands: GeneratedCliCommand[] = [];
 
   for (const plugin of plugins) {
-    const { capabilities, customWorkflows } = plugin;
+    const { workflows } = plugin;
 
-    if (capabilities?.auth && shouldExposeCli(capabilities.auth.expose)) {
-      const authCheck = capabilities.auth.check;
+    if (plugin.auth && shouldExposeCli(plugin.auth.expose)) {
+      const authCheck = plugin.auth.check;
       const wrappedAuth = wrapToolHandler({
         siteName: plugin.name,
         toolName: `${plugin.name}_check_login`,
@@ -69,11 +50,11 @@ export function generateCliCommands(
       commands.push({
         site: plugin.name,
         command: 'check-login',
-        description: capabilities.auth.cli?.description
+        description: plugin.auth.cli?.description
           ?? `Check login status for ${plugin.name}`,
         handler: async (args) => {
           if (args?.includes('--help') || args?.includes('-h')) {
-            const desc = capabilities.auth!.cli?.description ?? `Check login status for ${plugin.name}`;
+            const desc = plugin.auth!.cli?.description ?? `Check login status for ${plugin.name}`;
             console.log(`site-use ${plugin.name} check-login — ${desc}\n`);
             return;
           }
@@ -85,202 +66,13 @@ export function generateCliCommands(
       });
     }
 
-    if (capabilities?.feed && shouldExposeCli(capabilities.feed.expose)) {
-      const feedCollect = capabilities.feed.collect;
-      const paramsSchema = capabilities.feed.params;
-      const feedCap = capabilities.feed;
-      const wrappedFeed = wrapToolHandler({
-        siteName: plugin.name,
-        toolName: `${plugin.name}_feed`,
-        getRuntime: () => runtimeManager.get(plugin.name),
-        onBrowserDisconnected: () => runtimeManager.clearAll(),
-        paramsSchema,
-        resultSchema: FeedResultSchema,
-        autoIngest: plugin.storeAdapter
-          ? { storeAdapter: plugin.storeAdapter as { toIngestItems: (items: any[]) => any[] }, siteName: plugin.name }
-          : undefined,
-        handler: async (params, runtime, trace) => {
-          const result = await feedCollect(runtime.primitives, params, trace);
-          const cfg = getConfig();
-          const tsPath = path.join(cfg.dataDir, 'fetch-timestamps.json');
-          const tab = (params as Record<string, unknown>).tab as string | undefined;
-          setLastFetchTime(tsPath, plugin.name, tab ?? 'default');
-          return result;
-        },
-      });
-
-      const hasCacheSupport = !!(feedCap.localQuery && feedCap.cache);
-
-      commands.push({
-        site: plugin.name,
-        command: 'feed',
-        description: feedCap.cli?.description
-          ?? `Collect feed from ${plugin.name}`,
-        handler: async (args) => {
-          if (args?.includes('--help') || args?.includes('-h')) {
-            console.log(buildFeedHelp(
-              plugin.name,
-              feedCap.cli,
-              hasCacheSupport,
-              feedCap.cache?.defaultMaxAge,
-            ));
-            return;
-          }
-
-          // Extract --dump-raw before any branch
-          const { dumpRawDir, isDefaultDir, remainingArgs } = extractDumpRaw(args, plugin.name);
-
-          if (hasCacheSupport) {
-            const { cacheFlags, pluginArgs, fields } = stripFrameworkFlags(remainingArgs, feedCap.cache!.defaultMaxAge);
-
-            // --dump-raw + --local are mutually exclusive
-            if (dumpRawDir && cacheFlags.forceLocal) {
-              throw new Error('--dump-raw and --local are mutually exclusive.');
-            }
-            // --dump-raw implies --fetch
-            if (dumpRawDir) {
-              cacheFlags.forceFetch = true;
-            }
-
-            // Backup rotation (default dir only)
-            if (dumpRawDir && isDefaultDir) {
-              rotateDumpFiles(dumpRawDir);
-            }
-
-            const params = parseCliArgs(pluginArgs, paramsSchema);
-            if (dumpRawDir) {
-              (params as Record<string, unknown>).dumpRaw = dumpRawDir;
-            }
-
-            const variantKey = feedCap.cache!.variantKey;
-            const variant = variantKey
-              ? ((params as Record<string, unknown>)[variantKey] as string | undefined) ?? feedCap.cache!.defaultVariant ?? 'default'
-              : feedCap.cache!.defaultVariant ?? 'default';
-
-            const cfg = getConfig();
-            const dbPath = getKnowledgeDbPath(cfg.dataDir);
-
-            const cacheResult = await withSmartCache(
-              {
-                siteName: plugin.name,
-                variant,
-                maxAge: cacheFlags.maxAge,
-                forceLocal: cacheFlags.forceLocal,
-                forceFetch: cacheFlags.forceFetch,
-                dataDir: cfg.dataDir,
-              },
-              {
-                localQuery: async () => {
-                  const store = createStore(dbPath);
-                  try {
-                    return await feedCap.localQuery!(store, params);
-                  } finally {
-                    store.close();
-                  }
-                },
-                remoteFetch: async () => {
-                  const result = await wrappedFeed(params);
-                  if (result.isError) {
-                    const text = (result.content[0] as { text: string }).text;
-                    throw new Error(text);
-                  }
-                  return JSON.parse((result.content[0] as { text: string }).text);
-                },
-                hasLocalData: async () => {
-                  if (!fs.existsSync(dbPath)) return false;
-                  const store = createStore(dbPath);
-                  try {
-                    const count = await store.countItems({ site: plugin.name });
-                    return count > 0;
-                  } catch {
-                    return false;
-                  } finally {
-                    store.close();
-                  }
-                },
-              },
-            );
-
-            let output = localizeTimestamps(cacheResult.result) as Record<string, unknown>;
-            if (fields && Array.isArray(output.items)) {
-              output = { ...output, items: applyFieldsFilter(output.items as SearchResultItem[], fields) };
-            }
-
-            if (cacheFlags.quiet) {
-              const items = Array.isArray(output.items) ? output.items : [];
-              const meta = output.meta as { timeRange?: { from?: string; to?: string } } | undefined;
-              const from = meta?.timeRange?.from ?? '';
-              const to = meta?.timeRange?.to ?? '';
-              const timeStr = from && to
-                ? ` ${from.replace('T', ' ').slice(0, 25)} ~ ${to.replace('T', ' ').slice(11, 25)}`
-                : '';
-              if (cacheResult.source === 'local') {
-                const age = cacheResult.ageMinutes != null ? `${cacheResult.ageMinutes}min old` : 'age unknown';
-                console.error(`Using cached data (${age}). ${items.length} tweets in cache.`);
-              } else {
-                console.error(`Synced ${items.length} tweets (${variant},${timeStr}).`);
-              }
-            } else {
-              console.log(JSON.stringify(output, null, 2));
-              if (cacheResult.source === 'local') {
-                const age = cacheResult.ageMinutes != null ? `${cacheResult.ageMinutes}min old` : 'age unknown';
-                console.error(`Using cached data (${age}).`);
-              } else {
-                console.error('Fetched from browser.');
-              }
-            }
-
-            if (dumpRawDir) {
-              console.error(`Dumped to ${dumpRawDir}`);
-            }
-          } else {
-            // No cache support — always fetches
-            const { pluginArgs: noCachePluginArgs, fields: noCacheFields, cacheFlags: noCacheFlagsObj } = stripFrameworkFlags(remainingArgs, 120);
-
-            if (dumpRawDir && isDefaultDir) {
-              rotateDumpFiles(dumpRawDir);
-            }
-
-            const params = parseCliArgs(noCachePluginArgs, paramsSchema);
-            if (dumpRawDir) {
-              (params as Record<string, unknown>).dumpRaw = dumpRawDir;
-            }
-
-            const result = await wrappedFeed(params);
-            const text = (result.content[0] as { text: string }).text;
-            if (result.isError) {
-              console.log(text);
-              process.exitCode = 1;
-            } else {
-              let noCacheOutput = localizeTimestamps(JSON.parse(text)) as Record<string, unknown>;
-              if (noCacheFields && Array.isArray(noCacheOutput.items)) {
-                noCacheOutput = { ...noCacheOutput, items: applyFieldsFilter(noCacheOutput.items as SearchResultItem[], noCacheFields) };
-              }
-              if (noCacheFlagsObj.quiet) {
-                const items = Array.isArray(noCacheOutput.items) ? noCacheOutput.items : [];
-                const meta = noCacheOutput.meta as { timeRange?: { from?: string; to?: string } } | undefined;
-                const from = meta?.timeRange?.from ?? '';
-                const to = meta?.timeRange?.to ?? '';
-                const timeStr = from && to
-                  ? ` ${from.replace('T', ' ').slice(0, 25)} ~ ${to.replace('T', ' ').slice(11, 25)}`
-                  : '';
-                console.error(`Synced ${items.length} tweets (default,${timeStr}).`);
-              } else {
-                console.log(JSON.stringify(noCacheOutput, null, 2));
-              }
-            }
-
-            if (dumpRawDir) {
-              console.error(`Dumped to ${dumpRawDir}`);
-            }
-          }
-        },
-      });
-    }
-
-    if (customWorkflows) {
-      for (const wf of customWorkflows) {
+    if (workflows) {
+      for (const wf of workflows) {
         if (!shouldExposeCli(wf.expose)) continue;
+
+        const hasCacheSupport = !!(wf.localQuery && wf.cache);
+        const hasCacheOnly = !!(wf.cache && !wf.localQuery);
+
         const wrappedWf = wrapToolHandler({
           siteName: plugin.name,
           toolName: `${plugin.name}_${wf.name}`,
@@ -290,35 +82,195 @@ export function generateCliCommands(
           autoIngest: plugin.storeAdapter
             ? { storeAdapter: plugin.storeAdapter as { toIngestItems: (items: any[]) => any[] }, siteName: plugin.name }
             : undefined,
-          handler: async (params, runtime, trace) => wf.execute(runtime.primitives, params, trace),
+          handler: async (params, runtime, trace) => {
+            const result = await wf.execute(runtime.primitives, params, trace);
+            if (wf.cache) {
+              const cfg = getConfig();
+              const tsPath = path.join(cfg.dataDir, 'fetch-timestamps.json');
+              const variant = wf.cache.variantKey
+                ? ((params as Record<string, unknown>)[wf.cache.variantKey] as string | undefined) ?? wf.cache.defaultVariant ?? 'default'
+                : wf.cache.defaultVariant ?? 'default';
+              setLastFetchTime(tsPath, plugin.name, variant);
+            }
+            return result;
+          },
         });
+
         commands.push({
           site: plugin.name,
           command: wf.name,
           description: wf.cli?.description ?? wf.description,
           handler: async (args) => {
             if (args?.includes('--help') || args?.includes('-h')) {
-              const desc = wf.cli?.description ?? wf.description;
-              console.log(`site-use ${plugin.name} ${wf.name} — ${desc}\n`);
-              if (wf.cli?.help) {
-                console.log(wf.cli.help);
-              }
-              console.log(`\nOutput options:\n  --fields <list>        Comma-separated fields: ${SEARCH_FIELDS.join(',')}`);
+              console.log(buildWorkflowHelp(plugin.name, wf));
               return;
             }
-            const { pluginArgs: wfPluginArgs, fields: wfFields } = stripFrameworkFlags(args, 120);
-            const params = parseCliArgs(wfPluginArgs, wf.params);
-            const result = await wrappedWf(params);
-            const text = (result.content[0] as { text: string }).text;
-            if (result.isError) {
-              console.log(text);
-              process.exitCode = 1;
-            } else {
-              let wfOutput = localizeTimestamps(JSON.parse(text)) as Record<string, unknown>;
-              if (wfFields && Array.isArray(wfOutput.items)) {
-                wfOutput = { ...wfOutput, items: applyFieldsFilter(wfOutput.items as SearchResultItem[], wfFields) };
+
+            // Extract --dump-raw if workflow declares it
+            let remainingArgs = args;
+            let dumpRawDir: string | null = null;
+            let isDefaultDir = false;
+            if (wf.dumpRaw) {
+              const extracted = extractDumpRaw(args, plugin.name);
+              remainingArgs = extracted.remainingArgs;
+              dumpRawDir = extracted.dumpRawDir;
+              isDefaultDir = extracted.isDefaultDir;
+
+              if (dumpRawDir && isDefaultDir) {
+                rotateDumpFiles(dumpRawDir);
               }
-              console.log(JSON.stringify(wfOutput, null, 2));
+            }
+
+            if (hasCacheSupport || hasCacheOnly) {
+              const { cacheFlags, pluginArgs, fields } = stripFrameworkFlags(remainingArgs, wf.cache!.defaultMaxAge);
+
+              // --dump-raw + --local are mutually exclusive
+              if (dumpRawDir && cacheFlags.forceLocal) {
+                throw new Error('--dump-raw and --local are mutually exclusive.');
+              }
+              // --dump-raw implies --fetch
+              if (dumpRawDir) {
+                cacheFlags.forceFetch = true;
+              }
+
+              const params = parseCliArgs(pluginArgs, wf.params);
+              if (dumpRawDir) {
+                (params as Record<string, unknown>).dumpRaw = dumpRawDir;
+              }
+
+              const variantKey = wf.cache!.variantKey;
+              const variant = variantKey
+                ? ((params as Record<string, unknown>)[variantKey] as string | undefined) ?? wf.cache!.defaultVariant ?? 'default'
+                : wf.cache!.defaultVariant ?? 'default';
+
+              const cfg = getConfig();
+              const dbPath = getKnowledgeDbPath(cfg.dataDir);
+
+              if (hasCacheSupport) {
+                // Full smart-cache with --local support
+                const cacheResult = await withSmartCache(
+                  {
+                    siteName: plugin.name,
+                    variant,
+                    maxAge: cacheFlags.maxAge,
+                    forceLocal: cacheFlags.forceLocal,
+                    forceFetch: cacheFlags.forceFetch,
+                    dataDir: cfg.dataDir,
+                  },
+                  {
+                    localQuery: async () => {
+                      const store = createStore(dbPath);
+                      try {
+                        return await wf.localQuery!(store, params);
+                      } finally {
+                        store.close();
+                      }
+                    },
+                    remoteFetch: async () => {
+                      const result = await wrappedWf(params);
+                      if (result.isError) {
+                        const text = (result.content[0] as { text: string }).text;
+                        throw new Error(text);
+                      }
+                      return JSON.parse((result.content[0] as { text: string }).text);
+                    },
+                    hasLocalData: async () => {
+                      if (!fs.existsSync(dbPath)) return false;
+                      const store = createStore(dbPath);
+                      try {
+                        const count = await store.countItems({ site: plugin.name });
+                        return count > 0;
+                      } catch {
+                        return false;
+                      } finally {
+                        store.close();
+                      }
+                    },
+                  },
+                );
+
+                let output = localizeTimestamps(cacheResult.result) as Record<string, unknown>;
+                if (fields && Array.isArray(output.items)) {
+                  output = { ...output, items: applyFieldsFilter(output.items as SearchResultItem[], fields) };
+                }
+
+                if (cacheFlags.quiet) {
+                  const items = Array.isArray(output.items) ? output.items : [];
+                  const meta = output.meta as { timeRange?: { from?: string; to?: string } } | undefined;
+                  const from = meta?.timeRange?.from ?? '';
+                  const to = meta?.timeRange?.to ?? '';
+                  const timeStr = from && to
+                    ? ` ${from.replace('T', ' ').slice(0, 25)} ~ ${to.replace('T', ' ').slice(11, 25)}`
+                    : '';
+                  if (cacheResult.source === 'local') {
+                    const age = cacheResult.ageMinutes != null ? `${cacheResult.ageMinutes}min old` : 'age unknown';
+                    console.error(`Using cached data (${age}). ${items.length} items in cache.`);
+                  } else {
+                    console.error(`Synced ${items.length} items (${variant},${timeStr}).`);
+                  }
+                } else {
+                  console.log(JSON.stringify(output, null, 2));
+                  if (cacheResult.source === 'local') {
+                    const age = cacheResult.ageMinutes != null ? `${cacheResult.ageMinutes}min old` : 'age unknown';
+                    console.error(`Using cached data (${age}).`);
+                  } else {
+                    console.error('Fetched from browser.');
+                  }
+                }
+              } else {
+                // Cache without localQuery — always fetches, respects --fetch / --max-age
+                const result = await wrappedWf(params);
+                const text = (result.content[0] as { text: string }).text;
+                if (result.isError) {
+                  console.log(text);
+                  process.exitCode = 1;
+                } else {
+                  let noCacheOutput = localizeTimestamps(JSON.parse(text)) as Record<string, unknown>;
+                  if (fields && Array.isArray(noCacheOutput.items)) {
+                    noCacheOutput = { ...noCacheOutput, items: applyFieldsFilter(noCacheOutput.items as SearchResultItem[], fields) };
+                  }
+                  if (cacheFlags.quiet) {
+                    const items = Array.isArray(noCacheOutput.items) ? noCacheOutput.items : [];
+                    const meta = noCacheOutput.meta as { timeRange?: { from?: string; to?: string } } | undefined;
+                    const from = meta?.timeRange?.from ?? '';
+                    const to = meta?.timeRange?.to ?? '';
+                    const timeStr = from && to
+                      ? ` ${from.replace('T', ' ').slice(0, 25)} ~ ${to.replace('T', ' ').slice(11, 25)}`
+                      : '';
+                    console.error(`Synced ${items.length} items (default,${timeStr}).`);
+                  } else {
+                    console.log(JSON.stringify(noCacheOutput, null, 2));
+                  }
+                }
+              }
+
+              if (dumpRawDir) {
+                console.error(`Dumped to ${dumpRawDir}`);
+              }
+            } else {
+              // No cache — simple direct execution
+              const { pluginArgs: wfPluginArgs, fields: wfFields } = stripFrameworkFlags(remainingArgs, 120);
+              const params = parseCliArgs(wfPluginArgs, wf.params);
+              if (dumpRawDir) {
+                (params as Record<string, unknown>).dumpRaw = dumpRawDir;
+              }
+
+              const result = await wrappedWf(params);
+              const text = (result.content[0] as { text: string }).text;
+              if (result.isError) {
+                console.log(text);
+                process.exitCode = 1;
+              } else {
+                let wfOutput = localizeTimestamps(JSON.parse(text)) as Record<string, unknown>;
+                if (wfFields && Array.isArray(wfOutput.items)) {
+                  wfOutput = { ...wfOutput, items: applyFieldsFilter(wfOutput.items as SearchResultItem[], wfFields) };
+                }
+                console.log(JSON.stringify(wfOutput, null, 2));
+              }
+
+              if (dumpRawDir) {
+                console.error(`Dumped to ${dumpRawDir}`);
+              }
             }
           },
         });
@@ -373,30 +325,32 @@ function rotateDumpFiles(dir: string): void {
   }
 }
 
-function buildFeedHelp(
+function buildWorkflowHelp(
   siteName: string,
-  cli: { description?: string; help?: string } | undefined,
-  hasCacheSupport: boolean,
-  defaultMaxAge?: number,
+  wf: { name: string; cache?: { defaultMaxAge: number }; localQuery?: unknown; dumpRaw?: boolean; cli?: { description?: string; help?: string } },
 ): string {
   const lines: string[] = [];
-  const desc = cli?.description ?? `Collect feed from ${siteName}`;
-  lines.push(`site-use ${siteName} feed — ${desc}\n`);
+  const desc = wf.cli?.description ?? wf.name;
+  lines.push(`site-use ${siteName} ${wf.name} — ${desc}\n`);
 
-  if (cli?.help) {
-    lines.push(cli.help);
+  if (wf.cli?.help) {
+    lines.push(wf.cli.help);
     lines.push('');
   }
 
-  lines.push('Dump options:');
-  lines.push('  --dump-raw [dir]       Dump raw responses to directory (default: ~/.site-use/dump/{site}/)');
-  lines.push('');
+  if (wf.dumpRaw) {
+    lines.push('Dump options:');
+    lines.push('  --dump-raw [dir]       Dump raw responses to directory (default: ~/.site-use/dump/{site}/)');
+    lines.push('');
+  }
 
-  if (hasCacheSupport) {
+  if (wf.cache) {
     lines.push('Cache options:');
-    lines.push('  --local                Force local cache query (no browser)');
+    if (wf.localQuery) {
+      lines.push('  --local                Force local cache query (no browser)');
+    }
     lines.push('  --fetch                Force fetch from browser (skip freshness check)');
-    lines.push(`  --max-age <minutes>    Max cache age before auto-fetching (default: ${defaultMaxAge ?? 120})`);
+    lines.push(`  --max-age <minutes>    Max cache age before auto-fetching (default: ${wf.cache.defaultMaxAge})`);
     lines.push('');
   }
 
