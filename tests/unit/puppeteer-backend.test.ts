@@ -41,6 +41,7 @@ function createMockPage() {
     close: mockClose,
     url: mockUrl,
     createCDPSession: mockCreateCDPSession,
+    bringToFront: vi.fn().mockResolvedValue(undefined),
     on: vi.fn(),
     off: vi.fn(),
     mouse: { click: vi.fn(), wheel: vi.fn(), move: vi.fn() },

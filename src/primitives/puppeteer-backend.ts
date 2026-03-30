@@ -38,6 +38,7 @@ export class PuppeteerBackend implements Primitives {
 
   // Internal: uid -> backendDOMNodeId mapping from last takeSnapshot
   private uidToBackendNodeId: Map<string, number> = new Map();
+  private pageActivated: boolean = false;
 
   constructor(
     browserOrOptions: Browser | PuppeteerBackendOptions,
@@ -102,6 +103,31 @@ export class PuppeteerBackend implements Primitives {
     this.rateLimitDetector?.checkAndThrow(step, this.currentSite);
   }
 
+  /**
+   * Ensure the page tab is active so CDP input events are not throttled.
+   *
+   * Chromium throttles Input.dispatchMouseEvent on background/hidden tabs:
+   * - mouseWheel events never resolve (timeout after protocolTimeout)
+   * - mouseMoved events are rate-limited to 1 per 5 seconds
+   * See: https://github.com/ChromeDevTools/devtools-protocol/issues/89
+   *
+   * page.bringToFront() calls Target.activateTarget, making the tab the
+   * active foreground tab so input events dispatch immediately.
+   *
+   * Called once per connection — subsequent calls are no-ops.
+   * The flag resets on getPage() cache miss (new page / reconnect).
+   *
+   * Fallback note: if bringToFront causes issues (e.g. steals OS window
+   * focus disruptively), replace scroll() internals with
+   * page.evaluate(() => window.scrollBy(x, y)) which bypasses the input
+   * pipeline entirely. Click trajectory would need a similar JS fallback.
+   */
+  private async ensurePageActive(page: Page): Promise<void> {
+    if (this.pageActivated) return;
+    await page.bringToFront();
+    this.pageActivated = true;
+  }
+
   private async getPage(): Promise<Page> {
     const key = this.currentSite;
 
@@ -125,6 +151,7 @@ export class PuppeteerBackend implements Primitives {
     }
 
     // 2. Scan existing browser tabs for domain match
+    this.pageActivated = false; // new page — needs re-activation
     const domains = this.siteDomains[key];
     if (domains && this.browser) {
       try {
@@ -298,6 +325,7 @@ export class PuppeteerBackend implements Primitives {
     }
 
     const page = await this.getPage();
+    await this.ensurePageActive(page);
     const config = getClickEnhancementConfig();
 
     // Step 1: Wait for element position to stabilize (CSS animations)
@@ -338,6 +366,7 @@ export class PuppeteerBackend implements Primitives {
   async scroll(options: ScrollOptions): Promise<void> {
     this.checkRateLimit('scroll');
     const page = await this.getPage();
+    await this.ensurePageActive(page);
     const amount = options.amount ?? 600;
     const direction = options.direction === 'up' ? -1 : 1;
     const totalDelta = amount * direction;
@@ -362,6 +391,7 @@ export class PuppeteerBackend implements Primitives {
     }
 
     const page = await this.getPage();
+    await this.ensurePageActive(page);
     await scrollElementIntoView(page, backendNodeId);
   }
 
