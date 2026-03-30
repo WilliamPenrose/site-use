@@ -26,6 +26,9 @@ function run(cmd, label) {
 // Step 1: Main TypeScript compilation
 run('npx tsc', 'tsc (main)');
 
+// Step 1a: Compile tools/diagnose Node files (separate rootDir, imports dist/ declarations)
+run('npx tsc -p tools/diagnose/tsconfig.json', 'tsc (tools/diagnose)');
+
 // Step 1.5: Stamp BUILD_HASH, BUILD_DATE, and package.json version
 try {
   const hash = execSync('git rev-parse --short HEAD', { cwd: ROOT, encoding: 'utf-8' }).trim();
@@ -53,7 +56,7 @@ try {
 
 // Step 2: Generate browser barrel (must happen before type-check since page.ts imports it)
 console.log('[build] Generating browser barrel...');
-const checksDir = path.join(ROOT, 'src', 'diagnose', 'checks');
+const checksDir = path.join(ROOT, 'tools', 'diagnose', 'checks');
 const excludePrefix = '_';
 const excludeFiles = new Set(['input-trusted.ts', 'input-coords.ts', 'scroll-deltas.ts']);
 
@@ -116,14 +119,14 @@ console.log(`[build] Wrote ${barrelPath}`);
 
 // Step 3: Type-check browser checks (DOM lib, no emit) — barrel must exist first
 run(
-  'npx tsc -p src/diagnose/tsconfig.checks.json --noEmit',
+  'npx tsc -p tools/diagnose/tsconfig.checks.json --noEmit',
   'tsc (browser checks type-check)',
 );
 
 // Step 4: Bundle page.ts with esbuild
 run(
   [
-    'npx esbuild src/diagnose/page.ts',
+    'npx esbuild tools/diagnose/page.ts',
     '--bundle',
     '--format=iife',
     '--platform=browser',
@@ -134,7 +137,7 @@ run(
 );
 
 // Step 5: Copy index.html
-const srcHtml = path.join(ROOT, 'src', 'diagnose', 'index.html');
+const srcHtml = path.join(ROOT, 'tools', 'diagnose', 'index.html');
 const distDir = path.join(ROOT, 'dist', 'diagnose');
 fs.mkdirSync(distDir, { recursive: true });
 fs.copyFileSync(srcHtml, path.join(distDir, 'index.html'));

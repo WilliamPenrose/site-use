@@ -4,7 +4,7 @@ import { getConfig } from './config.js';
 import { runKnowledgeCli } from './cli/knowledge.js';
 import { runCleanCli } from './cli/clean.js';
 import { ensureBrowser } from './browser/browser.js';
-import { runDiagnose } from './diagnose/runner.js';
+
 import { BUILD_HASH, BUILD_DATE } from './build-info.js';
 import { discoverPlugins } from './registry/discovery.js';
 import { generateCliCommands } from './registry/codegen.js';
@@ -110,7 +110,6 @@ Global commands:
   rebuild            Rebuild search index (Phase 2)
   clean              Delete stored items by filter (interactive)
   screenshot         Take a screenshot of a site's browser tab
-  diagnose           Run anti-detection diagnostic checks
   harness            Diagnostic harness (run / capture / promote / status)
   help               Show this help message
 
@@ -189,21 +188,6 @@ async function run(): Promise<boolean> {
     case 'screenshot':
       await runScreenshotCli(args.slice(1));
       break;
-
-    case 'diagnose': {
-      if (args.includes('--help') || args.includes('-h') || args.includes('help')) {
-        console.log(`site-use diagnose — Run anti-detection diagnostic checks
-
-Options:
-  --keep-open    Keep the diagnose page open after checks complete
-`);
-        break;
-      }
-      const keepOpen = args.includes('--keep-open');
-      const browser = await ensureBrowser({ autoLaunch: true });
-      await runDiagnose(browser, { keepOpen });
-      break;
-    }
 
     case '--version':
     case '-v':

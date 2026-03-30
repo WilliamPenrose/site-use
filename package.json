@@ -48,6 +48,7 @@
     "test:contract": "vitest run tests/contract",
     "test:e2e": "vitest run tests/e2e",
     "test:watch": "vitest",
+    "diagnose": "node dist/diagnose/main.js",
     "lint": "oxlint"
   },
   "keywords": [

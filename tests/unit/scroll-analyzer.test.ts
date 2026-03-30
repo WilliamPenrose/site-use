@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import type { ScrollDelta } from '../../src/diagnose/scroll-analyzer.js';
-import { analyzeScrollTrajectory } from '../../src/diagnose/scroll-analyzer.js';
+import type { ScrollDelta } from '../../tools/diagnose/scroll-analyzer.js';
+import { analyzeScrollTrajectory } from '../../tools/diagnose/scroll-analyzer.js';
 
 function makeUniformDeltas(count: number, deltaY: number, intervalMs: number): ScrollDelta[] {
   return Array.from({ length: count }, (_, i) => ({

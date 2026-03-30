@@ -2,7 +2,7 @@ import type { Browser } from 'puppeteer-core';
 import type { CheckResult, CheckMeta } from './types.js';
 import { createDiagnoseServer } from './server.js';
 import { nodeChecks } from './registry.js';
-import { humanScroll } from '../primitives/scroll-enhanced.js';
+import { humanScroll } from '../../dist/primitives/scroll-enhanced.js';
 import { analyzeScrollTrajectory } from './scroll-analyzer.js';
 import type { ScrollDelta } from './scroll-analyzer.js';
 
