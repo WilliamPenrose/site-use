@@ -97,3 +97,14 @@ export class BrowserNotRunning extends SiteUseError {
     this.name = 'BrowserNotRunning';
   }
 }
+
+export class CdpThrottled extends SiteUseError {
+  constructor(message: string, context: ErrorContext = {}) {
+    super('CdpThrottled', message, {
+      retryable: true,
+      hint: 'Browser window may be in background or minimized. Bring it to the foreground, or restart Chrome.',
+      ...context,
+    });
+    this.name = 'CdpThrottled';
+  }
+}
