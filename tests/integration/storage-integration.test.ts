@@ -1,13 +1,19 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach } from 'vitest';
 import { createStore } from '../../src/storage/index.js';
 import type { KnowledgeStore } from '../../src/storage/types.js';
 import { tweetsToIngestItems } from '../../src/sites/twitter/store-adapter.js';
 import type { Tweet } from '../../src/sites/twitter/types.js';
+import { registerDisplaySchema } from '../../src/storage/query.js';
+import { twitterDisplaySchema } from '../../src/sites/twitter/display.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
 let store: KnowledgeStore;
+
+beforeEach(() => {
+  registerDisplaySchema('twitter', twitterDisplaySchema);
+});
 
 afterEach(() => {
   store?.close();

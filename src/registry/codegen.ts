@@ -3,15 +3,13 @@ import type { SitePlugin } from './types.js';
 import type { SiteRuntimeManager } from '../runtime/manager.js';
 import { wrapToolHandler } from './tool-wrapper.js';
 import { setLastFetchTime } from '../fetch-timestamps.js';
-import { localizeTimestamps } from '../format-date.js';
 import { getConfig, getKnowledgeDbPath } from '../config.js';
 import path from 'node:path';
 import os from 'node:os';
 import { withSmartCache, stripFrameworkFlags } from '../cli/smart-cache.js';
 import { createStore } from '../storage/index.js';
-import { applyFieldsFilter } from '../storage/fields.js';
 import { SEARCH_FIELDS } from '../storage/types.js';
-import type { SearchResultItem } from '../storage/types.js';
+import { unwrapToolResult, formatCliOutput } from './cli-output.js';
 import fs from 'node:fs';
 import type { Trace } from '../trace.js';
 
@@ -71,7 +69,6 @@ export function generateCliCommands(
         if (!shouldExposeCli(wf.expose)) continue;
 
         const hasCacheSupport = !!(wf.localQuery && wf.cache);
-        const hasCacheOnly = !!(wf.cache && !wf.localQuery);
 
         const wrappedWf = wrapToolHandler({
           siteName: plugin.name,
@@ -106,7 +103,7 @@ export function generateCliCommands(
               return;
             }
 
-            // Extract --dump-raw if workflow declares it
+            // ── Pre-processing (shared by all paths) ──────────
             let remainingArgs = args;
             let dumpRawDir: string | null = null;
             let isDefaultDir = false;
@@ -115,163 +112,77 @@ export function generateCliCommands(
               remainingArgs = extracted.remainingArgs;
               dumpRawDir = extracted.dumpRawDir;
               isDefaultDir = extracted.isDefaultDir;
-
-              if (dumpRawDir && isDefaultDir) {
-                rotateDumpFiles(dumpRawDir);
-              }
+              if (dumpRawDir && isDefaultDir) rotateDumpFiles(dumpRawDir);
             }
 
-            if (hasCacheSupport || hasCacheOnly) {
-              const { cacheFlags, pluginArgs, fields } = stripFrameworkFlags(remainingArgs, wf.cache!.defaultMaxAge);
+            const { cacheFlags, pluginArgs, fields } = stripFrameworkFlags(
+              remainingArgs,
+              wf.cache?.defaultMaxAge ?? 120,
+            );
+            const params = parseCliArgs(pluginArgs, wf.params);
 
-              // --dump-raw + --local are mutually exclusive
-              if (dumpRawDir && cacheFlags.forceLocal) {
-                throw new Error('--dump-raw and --local are mutually exclusive.');
-              }
-              // --dump-raw implies --fetch
-              if (dumpRawDir) {
-                cacheFlags.forceFetch = true;
-              }
+            if (dumpRawDir) {
+              if (cacheFlags.forceLocal) throw new Error('--dump-raw and --local are mutually exclusive.');
+              cacheFlags.forceFetch = true;
+              (params as Record<string, unknown>).dumpRaw = dumpRawDir;
+            }
 
-              const params = parseCliArgs(pluginArgs, wf.params);
-              if (dumpRawDir) {
-                (params as Record<string, unknown>).dumpRaw = dumpRawDir;
-              }
+            const variantKey = wf.cache?.variantKey;
+            const variant = variantKey
+              ? ((params as Record<string, unknown>)[variantKey] as string | undefined) ?? wf.cache!.defaultVariant ?? 'default'
+              : wf.cache?.defaultVariant ?? 'default';
 
-              const variantKey = wf.cache!.variantKey;
-              const variant = variantKey
-                ? ((params as Record<string, unknown>)[variantKey] as string | undefined) ?? wf.cache!.defaultVariant ?? 'default'
-                : wf.cache!.defaultVariant ?? 'default';
+            // ── Data fetch ────────────────────────────────────
+            let data: unknown;
+            let source: 'local' | 'remote' | undefined;
+            let ageMinutes: number | undefined;
 
+            if (hasCacheSupport) {
               const cfg = getConfig();
               const dbPath = getKnowledgeDbPath(cfg.dataDir);
-
-              if (hasCacheSupport) {
-                // Full smart-cache with --local support
-                const cacheResult = await withSmartCache(
-                  {
-                    siteName: plugin.name,
-                    variant,
-                    maxAge: cacheFlags.maxAge,
-                    forceLocal: cacheFlags.forceLocal,
-                    forceFetch: cacheFlags.forceFetch,
-                    dataDir: cfg.dataDir,
+              const cacheResult = await withSmartCache(
+                {
+                  siteName: plugin.name,
+                  variant,
+                  maxAge: cacheFlags.maxAge,
+                  forceLocal: cacheFlags.forceLocal,
+                  forceFetch: cacheFlags.forceFetch,
+                  dataDir: cfg.dataDir,
+                },
+                {
+                  localQuery: async () => {
+                    const store = createStore(dbPath);
+                    try { return await wf.localQuery!(store, params); }
+                    finally { store.close(); }
                   },
-                  {
-                    localQuery: async () => {
-                      const store = createStore(dbPath);
-                      try {
-                        return await wf.localQuery!(store, params);
-                      } finally {
-                        store.close();
-                      }
-                    },
-                    remoteFetch: async () => {
-                      const result = await wrappedWf(params);
-                      if (result.isError) {
-                        const text = (result.content[0] as { text: string }).text;
-                        throw new Error(text);
-                      }
-                      return JSON.parse((result.content[0] as { text: string }).text);
-                    },
-                    hasLocalData: async () => {
-                      if (!fs.existsSync(dbPath)) return false;
-                      const store = createStore(dbPath);
-                      try {
-                        const count = await store.countItems({ site: plugin.name });
-                        return count > 0;
-                      } catch {
-                        return false;
-                      } finally {
-                        store.close();
-                      }
-                    },
+                  remoteFetch: async () => {
+                    const result = await wrappedWf(params);
+                    const unwrapped = unwrapToolResult(result);
+                    if (unwrapped === null) throw new Error('tool returned error');
+                    return unwrapped;
                   },
-                );
-
-                let output = localizeTimestamps(cacheResult.result) as Record<string, unknown>;
-                if (fields && Array.isArray(output.items)) {
-                  output = { ...output, items: applyFieldsFilter(output.items as SearchResultItem[], fields) };
-                }
-
-                if (cacheFlags.quiet) {
-                  const items = Array.isArray(output.items) ? output.items : [];
-                  const meta = output.meta as { timeRange?: { from?: string; to?: string } } | undefined;
-                  const from = meta?.timeRange?.from ?? '';
-                  const to = meta?.timeRange?.to ?? '';
-                  const timeStr = from && to
-                    ? ` ${from.replace('T', ' ').slice(0, 25)} ~ ${to.replace('T', ' ').slice(11, 25)}`
-                    : '';
-                  if (cacheResult.source === 'local') {
-                    const age = cacheResult.ageMinutes != null ? `${cacheResult.ageMinutes}min old` : 'age unknown';
-                    console.error(`Using cached data (${age}). ${items.length} items in cache.`);
-                  } else {
-                    console.error(`Synced ${items.length} items (${variant},${timeStr}).`);
-                  }
-                } else {
-                  console.log(JSON.stringify(output, null, 2));
-                  if (cacheResult.source === 'local') {
-                    const age = cacheResult.ageMinutes != null ? `${cacheResult.ageMinutes}min old` : 'age unknown';
-                    console.error(`Using cached data (${age}).`);
-                  } else {
-                    console.error('Fetched from browser.');
-                  }
-                }
-              } else {
-                // Cache without localQuery — always fetches, respects --fetch / --max-age
-                const result = await wrappedWf(params);
-                const text = (result.content[0] as { text: string }).text;
-                if (result.isError) {
-                  console.log(text);
-                  process.exitCode = 1;
-                } else {
-                  let noCacheOutput = localizeTimestamps(JSON.parse(text)) as Record<string, unknown>;
-                  if (fields && Array.isArray(noCacheOutput.items)) {
-                    noCacheOutput = { ...noCacheOutput, items: applyFieldsFilter(noCacheOutput.items as SearchResultItem[], fields) };
-                  }
-                  if (cacheFlags.quiet) {
-                    const items = Array.isArray(noCacheOutput.items) ? noCacheOutput.items : [];
-                    const meta = noCacheOutput.meta as { timeRange?: { from?: string; to?: string } } | undefined;
-                    const from = meta?.timeRange?.from ?? '';
-                    const to = meta?.timeRange?.to ?? '';
-                    const timeStr = from && to
-                      ? ` ${from.replace('T', ' ').slice(0, 25)} ~ ${to.replace('T', ' ').slice(11, 25)}`
-                      : '';
-                    console.error(`Synced ${items.length} items (default,${timeStr}).`);
-                  } else {
-                    console.log(JSON.stringify(noCacheOutput, null, 2));
-                  }
-                }
-              }
-
-              if (dumpRawDir) {
-                console.error(`Dumped to ${dumpRawDir}`);
-              }
+                  hasLocalData: async () => {
+                    if (!fs.existsSync(dbPath)) return false;
+                    const store = createStore(dbPath);
+                    try { return (await store.countItems({ site: plugin.name })) > 0; }
+                    catch { return false; }
+                    finally { store.close(); }
+                  },
+                },
+              );
+              data = cacheResult.result;
+              source = cacheResult.source;
+              ageMinutes = cacheResult.ageMinutes;
             } else {
-              // No cache — simple direct execution
-              const { pluginArgs: wfPluginArgs, fields: wfFields } = stripFrameworkFlags(remainingArgs, 120);
-              const params = parseCliArgs(wfPluginArgs, wf.params);
-              if (dumpRawDir) {
-                (params as Record<string, unknown>).dumpRaw = dumpRawDir;
-              }
-
-              const result = await wrappedWf(params);
-              const text = (result.content[0] as { text: string }).text;
-              if (result.isError) {
-                console.log(text);
-                process.exitCode = 1;
-              } else {
-                let wfOutput = localizeTimestamps(JSON.parse(text)) as Record<string, unknown>;
-                if (wfFields && Array.isArray(wfOutput.items)) {
-                  wfOutput = { ...wfOutput, items: applyFieldsFilter(wfOutput.items as SearchResultItem[], wfFields) };
-                }
-                console.log(JSON.stringify(wfOutput, null, 2));
-              }
-
-              if (dumpRawDir) {
-                console.error(`Dumped to ${dumpRawDir}`);
-              }
+              data = unwrapToolResult(await wrappedWf(params));
+              if (data === null) return;  // error already printed to stdout + exitCode set
             }
+
+            // ── Output ────────────────────────────────────────
+            // source is undefined for non-cache paths → no stderr hint (preserves original behavior)
+            formatCliOutput(data, { fields, quiet: cacheFlags.quiet, source, ageMinutes, variant });
+
+            if (dumpRawDir) console.error(`Dumped to ${dumpRawDir}`);
           },
         });
       }

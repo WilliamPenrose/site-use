@@ -2,8 +2,9 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { DatabaseSync } from 'node:sqlite';
 import { initializeDatabase } from '../../src/storage/schema.js';
 import { ingest } from '../../src/storage/ingest.js';
-import { search, statsBySite } from '../../src/storage/query.js';
+import { search, statsBySite, registerDisplaySchema } from '../../src/storage/query.js';
 import type { DisplaySchema } from '../../src/display/resolve.js';
+import { twitterDisplaySchema } from '../../src/sites/twitter/display.js';
 import type { IngestItem } from '../../src/storage/types.js';
 
 function feedItemJson(overrides: {
@@ -54,6 +55,7 @@ let db: DatabaseSync;
 
 beforeEach(() => {
   db = initializeDatabase(':memory:');
+  registerDisplaySchema('twitter', twitterDisplaySchema);
   ingest(db, [
     makeItem({
       id: '1',

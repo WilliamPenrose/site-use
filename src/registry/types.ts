@@ -4,6 +4,7 @@ import type { DetectFn } from '../primitives/rate-limit-detect.js';
 import type { IngestItem } from '../storage/types.js';
 import type { KnowledgeStore } from '../storage/index.js';
 import type { Trace } from '../trace.js';
+import type { DisplaySchema } from '../display/resolve.js';
 
 // ── Expose target ──────────────────────────────────────────────
 
@@ -140,6 +141,8 @@ export interface SitePlugin {
   auth?: AuthCapability;
   storeAdapter?: StoreAdapter;
   hints?: SiteErrorHints;
+  /** Display schema for resolving site-specific fields from raw_json in search results. */
+  displaySchema?: DisplaySchema;
 
   // ── Per-operation capabilities ──
   workflows?: WorkflowDeclaration[];

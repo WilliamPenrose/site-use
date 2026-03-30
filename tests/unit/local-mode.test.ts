@@ -14,6 +14,8 @@ import os from 'node:os';
 import { createStore } from '../../src/storage/index.js';
 import { feedItemsToIngestItems } from '../../src/sites/twitter/store-adapter.js';
 import type { FeedItem } from '../../src/registry/types.js';
+import { registerDisplaySchema } from '../../src/storage/query.js';
+import { twitterDisplaySchema } from '../../src/sites/twitter/display.js';
 
 // ---------------------------------------------------------------------------
 // Test data helpers
@@ -61,6 +63,7 @@ describe('local mode: storage layer', () => {
   let dbPath: string;
 
   beforeEach(async () => {
+    registerDisplaySchema('twitter', twitterDisplaySchema);
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'local-mode-'));
     dbPath = path.join(tmpDir, 'knowledge.db');
     const store = createStore(dbPath);
@@ -301,6 +304,7 @@ describe('local mode: tab indistinguishable (known limitation)', () => {
   let dbPath: string;
 
   beforeEach(async () => {
+    registerDisplaySchema('twitter', twitterDisplaySchema);
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'local-tab-'));
     dbPath = path.join(tmpDir, 'knowledge.db');
     const store = createStore(dbPath);

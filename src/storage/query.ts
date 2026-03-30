@@ -3,14 +3,11 @@ import type { DatabaseSync } from 'node:sqlite';
 import type { SearchParams, SearchResult, SearchResultItem, CountItemsParams, SiteStats } from './types.js';
 import { resolveItem } from '../display/resolve.js';
 import { applyFieldsFilter } from './fields.js';
-import { twitterDisplaySchema } from '../sites/twitter/display.js';
 import type { DisplaySchema } from '../display/resolve.js';
 
 type SqlValue = null | number | bigint | string;
 
-const displaySchemas: Record<string, DisplaySchema> = {
-  twitter: twitterDisplaySchema,
-};
+const displaySchemas: Record<string, DisplaySchema> = {};
 
 // Top-level fields already on SearchResultItem — exclude from siteMeta.
 // Also excludes display-only formatting fields (authorTag) that should not

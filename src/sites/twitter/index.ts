@@ -6,6 +6,7 @@ import { checkLogin, getFeed, getTweetDetail, getSearch } from './workflows.js';
 import { feedItemsToIngestItems } from './store-adapter.js';
 import { TwitterFeedParamsSchema, TweetDetailParamsSchema, TwitterSearchParamsSchema } from './types.js';
 import { twitterLocalQuery } from './local-query.js';
+import { twitterDisplaySchema } from './display.js';
 
 export const plugin: SitePlugin = {
   apiVersion: 1,
@@ -76,6 +77,8 @@ export const plugin: SitePlugin = {
       },
     },
   ],
+
+  displaySchema: twitterDisplaySchema,
 
   hints: {
     sessionExpired:

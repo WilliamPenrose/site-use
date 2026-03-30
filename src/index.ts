@@ -9,6 +9,7 @@ import { BUILD_HASH, BUILD_DATE } from './build-info.js';
 import { discoverPlugins } from './registry/discovery.js';
 import { generateCliCommands } from './registry/codegen.js';
 import { SiteRuntimeManager } from './runtime/manager.js';
+import { registerDisplaySchema } from './storage/query.js';
 import { runScreenshotCli } from './cli/screenshot.js';
 
 function getVersion(): string {
@@ -129,6 +130,11 @@ async function run(): Promise<boolean> {
 
   // Discover plugins for dynamic CLI dispatch
   const plugins = await discoverPlugins();
+  for (const plugin of plugins) {
+    if (plugin.displaySchema) {
+      registerDisplaySchema(plugin.name, plugin.displaySchema);
+    }
+  }
   const runtimeManager = new SiteRuntimeManager(plugins);
   const siteCommands = generateCliCommands(plugins, runtimeManager);
   const siteNames = new Set(siteCommands.map(c => c.site));

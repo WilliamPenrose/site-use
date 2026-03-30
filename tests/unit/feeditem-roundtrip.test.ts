@@ -15,9 +15,10 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { DatabaseSync } from 'node:sqlite';
 import { initializeDatabase } from '../../src/storage/schema.js';
 import { ingest } from '../../src/storage/ingest.js';
-import { search } from '../../src/storage/query.js';
+import { search, registerDisplaySchema } from '../../src/storage/query.js';
 import { feedItemsToIngestItems } from '../../src/sites/twitter/store-adapter.js';
 import type { FeedItem } from '../../src/registry/types.js';
+import { twitterDisplaySchema } from '../../src/sites/twitter/display.js';
 
 const RETWEET_ITEM: FeedItem = {
   id: 'rt-1',
@@ -108,6 +109,7 @@ let db: DatabaseSync;
 
 beforeEach(() => {
   db = initializeDatabase(':memory:');
+  registerDisplaySchema('twitter', twitterDisplaySchema);
   const items = feedItemsToIngestItems([RETWEET_ITEM, ORIGINAL_ITEM, QUOTE_ITEM, REPLY_ITEM]);
   ingest(db, items);
 });
