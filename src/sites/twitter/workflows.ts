@@ -19,6 +19,10 @@ import type { RawTweetData, SearchTab } from './types.js';
 import type { FeedResult as FrameworkFeedResult } from '../../registry/types.js';
 import { tweetToFeedItem } from './feed-item.js';
 import { NOOP_TRACE, NOOP_SPAN, type Trace, type SpanHandle } from '../../trace.js';
+import { ensurePage, type WaitRecord } from './ensure-page.js';
+
+// Re-export WaitRecord so existing imports from workflows.ts don't break
+export type { WaitRecord } from './ensure-page.js';
 
 const TWITTER_HOME = 'https://x.com/home';
 
@@ -37,6 +41,25 @@ export async function checkLogin(primitives: Primitives): Promise<CheckLoginResu
 }
 
 /**
+ * Check if browser was redirected to Twitter login page.
+ * Twitter-specific: detects /login and /i/flow/login URL patterns.
+ */
+async function checkLoginRedirect(
+  primitives: Primitives,
+  span: SpanHandle = NOOP_SPAN,
+): Promise<void> {
+  await span.span('checkLogin', async (s) => {
+    const url = await primitives.evaluate<string>('window.location.href');
+    s.set('currentUrl', url);
+    if (url.includes('/login') || url.includes('/i/flow/login')) {
+      throw new SiteUseError('SessionExpired', 'Not logged in — redirected to login page', {
+        retryable: false,
+      });
+    }
+  });
+}
+
+/**
  * Collect timeline tweets.
  * Sets up GraphQL interception before navigation so the initial
  * page load response is captured. Scroll + collection is delegated
@@ -50,13 +73,6 @@ export interface GetFeedOptions {
   dumpRaw?: string;
 }
 
-export interface WaitRecord {
-  purpose: string;
-  startedAt: number;
-  resolvedAt: number;
-  satisfied: boolean;
-  dataCount: number;
-}
 
 export interface EnsureTimelineResult {
   navAction: 'already_there' | 'transitioned';
@@ -70,8 +86,6 @@ export interface CollectDataResult {
   waits: Array<WaitRecord & { round: number }>;
 }
 
-const WAIT_FOR_DATA_MS = 3000;
-
 /**
  * Ensure browser is on Twitter home with the target tab selected
  * and the DataCollector has received GraphQL data for that tab.
@@ -83,69 +97,42 @@ export async function ensureTimeline(
   span: SpanHandle = NOOP_SPAN,
 ): Promise<EnsureTimelineResult> {
   const { tab, t0 } = opts;
-  const waits: WaitRecord[] = [];
-  let reloaded = false;
-
-  // Helper to record a timed waitUntil call
-  async function timedWait(purpose: string, predicate: () => boolean, timeoutMs: number): Promise<boolean> {
-    const startedAt = Date.now() - t0;
-    const satisfied = await collector.waitUntil(predicate, timeoutMs);
-    waits.push({ purpose, startedAt, resolvedAt: Date.now() - t0, satisfied, dataCount: collector.length });
-    return satisfied;
-  }
-
   const ensure = makeEnsureState(primitives);
-
-  // Step 1: Navigate to Twitter home
-  console.error('[site-use] navigating to timeline...');
-  const { action: navAction } = await span.span('navigate', async (s) => {
-    const result = await ensure({ url: TWITTER_HOME });
-    s.set('action', result.action);
-    if (result.action === 'already_there') {
-      await primitives.navigate(TWITTER_HOME);
-    }
-    return result;
-  });
-
-  // Step 2: Switch to target tab
   const tabName = tab === 'following' ? 'Following' : 'For you';
-  console.error(`[site-use] switching to "${tabName}" tab...`);
-  const prevLength = collector.length;
-  const { action: tabAction } = await span.span('switchTab', async (s) => {
-    const result = await ensure({ role: 'tab', name: tabName, selected: true });
-    s.set('action', result.action);
-    s.set('tabName', tabName);
-    if (result.action !== 'already_there') {
-      const dataFromSwitch = collector.items.slice(prevLength);
-      collector.clear();
-      if (dataFromSwitch.length > 0) {
-        collector.push(...dataFromSwitch);
+  let navAction: 'already_there' | 'transitioned' = 'already_there';
+  let tabAction: 'already_there' | 'transitioned' = 'already_there';
+
+  const result = await ensurePage(primitives, {
+    collector,
+    t0,
+    label: `timeline/${tabName}`,
+    navigate: async (p) => {
+      const navResult = await ensure({ url: TWITTER_HOME });
+      navAction = navResult.action;
+      if (navResult.action === 'already_there') {
+        await p.navigate(TWITTER_HOME);
       }
-    }
-    return result;
-  });
-
-  // Step 3: Wait for data
-  console.error('[site-use] waiting for timeline data...');
-  await span.span('waitForData', async (s) => {
-    const hasData = await timedWait('initial_data', () => collector.length > 0, WAIT_FOR_DATA_MS);
-    s.set('satisfied', hasData);
-    s.set('dataCount', collector.length);
-
-    if (!hasData && !reloaded) {
-      console.error('[site-use] no data yet, reloading page...');
-      reloaded = true;
-      collector.clear();
-      await primitives.navigate(TWITTER_HOME);
+    },
+    afterNavigate: async (_p, s) => {
+      const prevLength = collector.length;
+      const tabResult = await ensure({ role: 'tab', name: tabName, selected: true });
+      tabAction = tabResult.action;
+      s.set('tabAction', tabAction);
+      s.set('tabName', tabName);
+      if (tabAction !== 'already_there') {
+        const dataFromSwitch = collector.items.slice(prevLength);
+        collector.clear();
+        if (dataFromSwitch.length > 0) {
+          collector.push(...dataFromSwitch);
+        }
+      }
+    },
+    afterReload: async () => {
       await ensure({ role: 'tab', name: tabName, selected: true });
-      const hasDataAfterReload = await timedWait('after_reload', () => collector.length > 0, WAIT_FOR_DATA_MS);
-      s.set('reloaded', true);
-      s.set('satisfiedAfterReload', hasDataAfterReload);
-      s.set('dataCountAfterReload', collector.length);
-    }
-  });
+    },
+  }, span);
 
-  return { navAction, tabAction, reloaded, waits };
+  return { navAction, tabAction, ...result };
 }
 
 export interface EnsureTweetDetailResult {
@@ -163,52 +150,13 @@ export async function ensureTweetDetail(
   opts: { url: string; t0: number },
   span: SpanHandle = NOOP_SPAN,
 ): Promise<EnsureTweetDetailResult> {
-  const { url, t0 } = opts;
-  const waits: WaitRecord[] = [];
-  let reloaded = false;
-
-  async function timedWait(purpose: string, predicate: () => boolean, timeoutMs: number): Promise<boolean> {
-    const startedAt = Date.now() - t0;
-    const satisfied = await collector.waitUntil(predicate, timeoutMs);
-    waits.push({ purpose, startedAt, resolvedAt: Date.now() - t0, satisfied, dataCount: collector.length });
-    return satisfied;
-  }
-
-  // Step 1: Navigate to tweet detail page
-  console.error('[site-use] navigating to tweet...');
-  await span.span('navigate', async () => {
-    await primitives.navigate(url);
-  });
-
-  // Step 2: Check for login redirect
-  await span.span('checkLogin', async (s) => {
-    const currentUrl = await primitives.evaluate<string>('window.location.href');
-    s.set('currentUrl', currentUrl);
-    if (currentUrl.includes('/login') || currentUrl.includes('/i/flow/login')) {
-      throw new SiteUseError('SessionExpired', 'Not logged in — redirected to login page', { retryable: false });
-    }
-  });
-
-  // Step 3: Wait for initial data
-  console.error('[site-use] waiting for tweet data...');
-  await span.span('waitForData', async (s) => {
-    const hasData = await timedWait('initial_data', () => collector.length > 0, WAIT_FOR_DATA_MS);
-    s.set('satisfied', hasData);
-    s.set('dataCount', collector.length);
-
-    if (!hasData) {
-      console.error('[site-use] no data yet, reloading page...');
-      reloaded = true;
-      collector.clear();
-      await primitives.navigate(url);
-      const hasDataAfterReload = await timedWait('after_reload', () => collector.length > 0, WAIT_FOR_DATA_MS);
-      s.set('reloaded', true);
-      s.set('satisfiedAfterReload', hasDataAfterReload);
-      s.set('dataCountAfterReload', collector.length);
-    }
-  });
-
-  return { reloaded, waits };
+  return ensurePage(primitives, {
+    collector,
+    t0: opts.t0,
+    label: 'tweet-detail',
+    navigate: (p) => p.navigate(opts.url),
+    afterNavigate: (p, s) => checkLoginRedirect(p, s),
+  }, span);
 }
 
 export interface EnsureSearchResult {
@@ -226,56 +174,16 @@ export async function ensureSearch(
   opts: { query: string; tab: SearchTab; t0: number },
   span: SpanHandle = NOOP_SPAN,
 ): Promise<EnsureSearchResult> {
-  const { query, tab, t0 } = opts;
-  const waits: WaitRecord[] = [];
-  let reloaded = false;
+  const tabParam = opts.tab === 'latest' ? '&f=live' : '';
+  const searchUrl = `https://x.com/search?q=${encodeURIComponent(opts.query)}&src=typed_query${tabParam}`;
 
-  async function timedWait(purpose: string, predicate: () => boolean, timeoutMs: number): Promise<boolean> {
-    const startedAt = Date.now() - t0;
-    const satisfied = await collector.waitUntil(predicate, timeoutMs);
-    waits.push({ purpose, startedAt, resolvedAt: Date.now() - t0, satisfied, dataCount: collector.length });
-    return satisfied;
-  }
-
-  // Build search URL
-  const tabParam = tab === 'latest' ? '&f=live' : '';
-  const searchUrl = `https://x.com/search?q=${encodeURIComponent(query)}&src=typed_query${tabParam}`;
-
-  // Step 1: Navigate to search page
-  console.error(`[site-use] searching: "${query}" (tab: ${tab})...`);
-  await span.span('navigate', async () => {
-    await primitives.navigate(searchUrl);
-  });
-
-  // Step 2: Check for login redirect
-  await span.span('checkLogin', async (s) => {
-    const currentUrl = await primitives.evaluate<string>('window.location.href');
-    s.set('currentUrl', currentUrl);
-    if (currentUrl.includes('/login') || currentUrl.includes('/i/flow/login')) {
-      throw new SiteUseError('SessionExpired', 'Not logged in — redirected to login page', { retryable: false });
-    }
-  });
-
-  // Step 3: Wait for initial data
-  console.error('[site-use] waiting for search results...');
-  await span.span('waitForData', async (s) => {
-    const hasData = await timedWait('initial_data', () => collector.length > 0, WAIT_FOR_DATA_MS);
-    s.set('satisfied', hasData);
-    s.set('dataCount', collector.length);
-
-    if (!hasData) {
-      console.error('[site-use] no data yet, reloading page...');
-      reloaded = true;
-      collector.clear();
-      await primitives.navigate(searchUrl);
-      const hasDataAfterReload = await timedWait('after_reload', () => collector.length > 0, WAIT_FOR_DATA_MS);
-      s.set('reloaded', true);
-      s.set('satisfiedAfterReload', hasDataAfterReload);
-      s.set('dataCountAfterReload', collector.length);
-    }
-  });
-
-  return { reloaded, waits };
+  return ensurePage(primitives, {
+    collector,
+    t0: opts.t0,
+    label: `search/${opts.query}`,
+    navigate: (p) => p.navigate(searchUrl),
+    afterNavigate: (p, s) => checkLoginRedirect(p, s),
+  }, span);
 }
 
 export interface GetSearchOptions {

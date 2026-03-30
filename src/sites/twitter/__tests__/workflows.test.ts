@@ -305,7 +305,7 @@ describe('getFeed', () => {
     expect(ensureSpan).toBeDefined();
     const ensureChildNames = ensureSpan!.children.map((c: any) => c.name);
     expect(ensureChildNames).toContain('navigate');
-    expect(ensureChildNames).toContain('switchTab');
+    expect(ensureChildNames).toContain('afterNavigate');
     expect(ensureChildNames).toContain('waitForData');
   });
 
