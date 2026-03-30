@@ -45,6 +45,11 @@ function createMockPage() {
     on: vi.fn(),
     off: vi.fn(),
     mouse: { click: vi.fn(), wheel: vi.fn(), move: vi.fn() },
+    keyboard: {
+      type: vi.fn().mockResolvedValue(undefined),
+      press: vi.fn().mockResolvedValue(undefined),
+      sendCharacter: vi.fn().mockResolvedValue(undefined),
+    },
   };
 }
 
@@ -497,12 +502,145 @@ describe('PuppeteerBackend', () => {
     });
   });
 
-  describe('type (not implemented)', () => {
-    it('throws NotImplemented error', async () => {
+  describe('type()', () => {
+    function setupTypeMocks() {
+      const session = {
+        send: vi.fn().mockImplementation((method: string) => {
+          if (method === 'Accessibility.getFullAXTree') {
+            return Promise.resolve({
+              nodes: [
+                {
+                  nodeId: 'ax-1',
+                  role: { value: 'textbox' },
+                  name: { value: 'Search' },
+                  backendDOMNodeId: 101,
+                  ignored: false,
+                  properties: [],
+                },
+              ],
+            });
+          }
+          if (method === 'DOM.focus') {
+            return Promise.resolve({});
+          }
+          return Promise.resolve({});
+        }),
+        detach: vi.fn().mockResolvedValue(undefined),
+      };
+      mockCreateCDPSession.mockResolvedValue(session);
+      return session;
+    }
+
+    it('throws ElementNotFound when no snapshot taken', async () => {
       const backend = new PuppeteerBackend(mockBrowser as any);
-      await expect(backend.type('5', 'hello')).rejects.toThrow(
-        /not implemented/i,
-      );
+      await expect(backend.type('1', 'hello')).rejects.toThrow(/No snapshot available/);
+    });
+
+    it('throws ElementNotFound for unknown uid', async () => {
+      setupTypeMocks();
+      const backend = new PuppeteerBackend(mockBrowser as any);
+      await backend.takeSnapshot();
+      await expect(backend.type('99', 'hello')).rejects.toThrow(/not found in snapshot/);
+    });
+
+    it('focuses element and types text via keyboard', async () => {
+      const session = setupTypeMocks();
+      const page = createMockPage();
+      mockNewPage.mockResolvedValue(page);
+
+      const backend = new PuppeteerBackend(mockBrowser as any);
+      await backend.takeSnapshot();
+      await backend.type('1', 'hello');
+
+      // Verify CDP DOM.focus called with backendNodeId
+      expect(session.send).toHaveBeenCalledWith('DOM.focus', { backendNodeId: 101 });
+      // Verify keyboard.type called with text and default delay
+      expect(page.keyboard.type).toHaveBeenCalledWith('hello', { delay: 0 });
+    });
+
+    it('wraps DOM.focus failure as ElementNotFound', async () => {
+      const session = {
+        send: vi.fn().mockImplementation((method: string) => {
+          if (method === 'Accessibility.getFullAXTree') {
+            return Promise.resolve({
+              nodes: [{
+                nodeId: 'ax-1', role: { value: 'textbox' }, name: { value: 'Search' },
+                backendDOMNodeId: 101, ignored: false, properties: [],
+              }],
+            });
+          }
+          if (method === 'DOM.focus') {
+            return Promise.reject(new Error('Could not find node'));
+          }
+          return Promise.resolve({});
+        }),
+        detach: vi.fn().mockResolvedValue(undefined),
+      };
+      mockCreateCDPSession.mockResolvedValue(session);
+
+      const page = createMockPage();
+      mockNewPage.mockResolvedValue(page);
+
+      const backend = new PuppeteerBackend(mockBrowser as any);
+      await backend.takeSnapshot();
+      await expect(backend.type('1', 'hello')).rejects.toThrow(/Failed to focus element/);
+    });
+
+    it('passes delay option to keyboard.type', async () => {
+      setupTypeMocks();
+      const page = createMockPage();
+      mockNewPage.mockResolvedValue(page);
+
+      const backend = new PuppeteerBackend(mockBrowser as any);
+      await backend.takeSnapshot();
+      await backend.type('1', '咖啡', { delay: 100 });
+
+      expect(page.keyboard.type).toHaveBeenCalledWith('咖啡', { delay: 100 });
+    });
+  });
+
+  describe('pressKey()', () => {
+    it('presses a named key via keyboard.press', async () => {
+      const page = createMockPage();
+      mockNewPage.mockResolvedValue(page);
+
+      const backend = new PuppeteerBackend(mockBrowser as any);
+      await backend.pressKey('Enter');
+
+      expect(page.keyboard.press).toHaveBeenCalledWith('Enter');
+      expect(page.keyboard.sendCharacter).not.toHaveBeenCalled();
+    });
+
+    it('sends CJK characters via keyboard.sendCharacter', async () => {
+      const page = createMockPage();
+      mockNewPage.mockResolvedValue(page);
+
+      const backend = new PuppeteerBackend(mockBrowser as any);
+      await backend.pressKey('咖');
+
+      expect(page.keyboard.sendCharacter).toHaveBeenCalledWith('咖');
+      expect(page.keyboard.press).not.toHaveBeenCalled();
+    });
+
+    it('sends single ASCII characters via keyboard.sendCharacter', async () => {
+      const page = createMockPage();
+      mockNewPage.mockResolvedValue(page);
+
+      const backend = new PuppeteerBackend(mockBrowser as any);
+      await backend.pressKey('#');
+
+      expect(page.keyboard.sendCharacter).toHaveBeenCalledWith('#');
+    });
+
+    it('sends emoji via keyboard.sendCharacter', async () => {
+      const page = createMockPage();
+      mockNewPage.mockResolvedValue(page);
+
+      const backend = new PuppeteerBackend(mockBrowser as any);
+      await backend.pressKey('🔥');
+
+      expect(page.keyboard.sendCharacter).toHaveBeenCalledWith('🔥');
+      expect(page.keyboard.press).not.toHaveBeenCalled();
     });
   });
 

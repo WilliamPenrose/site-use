@@ -11,6 +11,7 @@ export function createMockPrimitives(overrides: Partial<Primitives> = {}): Primi
     takeSnapshot: vi.fn(async () => ({ idToNode: new Map() })),
     click: vi.fn(async () => {}),
     type: vi.fn(async () => {}),
+    pressKey: vi.fn(async () => {}),
     scroll: vi.fn(async () => {}),
     scrollIntoView: vi.fn(async () => {}),
     evaluate: vi.fn(async () => undefined as never),

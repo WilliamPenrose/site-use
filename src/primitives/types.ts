@@ -65,7 +65,14 @@ export interface Primitives {
   click(uid: string): Promise<void>;
 
   /** Type text into element by snapshot uid. Aligned with devtools-mcp type. */
-  type(uid: string, text: string): Promise<void>;
+  type(uid: string, text: string, options?: { delay?: number }): Promise<void>;
+
+  /**
+   * Press a keyboard key. For named keys (Enter, ArrowDown, Tab, etc.) uses
+   * keyboard.press(). For characters (including CJK, emoji) uses
+   * keyboard.sendCharacter() which bypasses IME via CDP Input.insertText.
+   */
+  pressKey(key: string): Promise<void>;
 
   /** Scroll the page. Aligned with devtools-mcp scroll. */
   scroll(options: ScrollOptions): Promise<void>;
