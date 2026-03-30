@@ -1,5 +1,5 @@
 import type { Browser, Page, KeyInput } from 'puppeteer-core';
-import { ElementNotFound, NavigationFailed } from '../errors.js';
+import { ElementNotFound, NavigationFailed, CdpThrottled } from '../errors.js';
 import { getClickEnhancementConfig } from '../config.js';
 import { humanScroll, scrollElementIntoView } from './scroll-enhanced.js';
 import {
@@ -139,6 +139,30 @@ export class PuppeteerBackend implements Primitives {
     // input events won't be throttled even on background/minimized windows.
     await page.bringToFront();
     this.pageActivated = true;
+  }
+
+  /**
+   * Attempt to recover from CDP input throttling.
+   * Level 1: Activate tab within Chrome (bringToFront).
+   * Level 2: Un-minimize the OS window (Browser.setWindowBounds).
+   */
+  private async recoverFromThrottle(page: Page, level: 1 | 2): Promise<void> {
+    if (level >= 1) {
+      await page.bringToFront();
+    }
+    if (level >= 2) {
+      let client;
+      try {
+        client = await page.createCDPSession();
+        const { windowId } = await client.send('Browser.getWindowForTarget') as { windowId: number };
+        await client.send('Browser.setWindowBounds', {
+          windowId,
+          bounds: { windowState: 'normal' },
+        });
+      } finally {
+        try { await client?.detach(); } catch {}
+      }
+    }
   }
 
   /**
@@ -390,12 +414,24 @@ export class PuppeteerBackend implements Primitives {
       : { x: centerX, y: centerY };
 
     if (config.trajectory) {
-      const result = await clickWithTrajectory(page, clickTarget.x, clickTarget.y, {
+      const doClick = () => clickWithTrajectory(page, clickTarget.x, clickTarget.y, {
         box: elementBox,
       });
+
+      let result = await doClick();
       if (result === 'throttled') {
-        console.error('[site-use] click: CDP input throttled, falling back to JS click');
-        await this.jsClick(page, backendNodeId);
+        await this.recoverFromThrottle(page, 1);
+        result = await doClick();
+      }
+      if (result === 'throttled') {
+        await this.recoverFromThrottle(page, 2);
+        result = await doClick();
+      }
+      if (result === 'throttled') {
+        throw new CdpThrottled(
+          'CDP input events are throttled — click failed after recovery attempts',
+          { step: 'click' },
+        );
       }
     } else {
       await page.mouse.click(clickTarget.x, clickTarget.y);

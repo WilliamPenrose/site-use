@@ -65,10 +65,13 @@ let PuppeteerBackend: typeof import('../../src/primitives/puppeteer-backend.js')
 
 beforeEach(async () => {
   vi.resetModules();
+  vi.clearAllMocks();
   mockNewPage.mockClear();
   mockGoto.mockClear();
   mockEvaluate.mockClear();
   mockScreenshot.mockClear();
+  // Restore default resolved values after clearAllMocks
+  mockNewPage.mockResolvedValue(createMockPage());
   const mod = await import('../../src/primitives/puppeteer-backend.js');
   PuppeteerBackend = mod.PuppeteerBackend;
 });
@@ -368,6 +371,114 @@ describe('PuppeteerBackend', () => {
     it('throws when takeSnapshot has not been called', async () => {
       const backend = new PuppeteerBackend(mockBrowser as any);
       await expect(backend.click('1')).rejects.toThrow(/snapshot/i);
+    });
+
+    it('recovers from CDP throttle via bringToFront (level 1)', async () => {
+      setupClickMocks();
+      const page = createMockPage();
+      mockNewPage.mockResolvedValue(page);
+
+      const { getClickEnhancementConfig } = await import('../../src/config.js');
+      vi.mocked(getClickEnhancementConfig).mockReturnValue({
+        trajectory: true,
+        jitter: false,
+        occlusionCheck: false,
+      });
+
+      const { clickWithTrajectory } = await import('../../src/primitives/click-enhanced.js');
+      vi.mocked(clickWithTrajectory)
+        .mockResolvedValueOnce('throttled')
+        .mockResolvedValueOnce('ok');
+
+      const backend = new PuppeteerBackend(mockBrowser as any);
+      await backend.takeSnapshot();
+      await backend.click('1');
+
+      expect(page.bringToFront).toHaveBeenCalled();
+      expect(clickWithTrajectory).toHaveBeenCalledTimes(2);
+    });
+
+    it('recovers from CDP throttle via un-minimize (level 2)', async () => {
+      setupClickMocks();
+      const page = createMockPage();
+      mockNewPage.mockResolvedValue(page);
+
+      const { getClickEnhancementConfig } = await import('../../src/config.js');
+      vi.mocked(getClickEnhancementConfig).mockReturnValue({
+        trajectory: true,
+        jitter: false,
+        occlusionCheck: false,
+      });
+
+      const { clickWithTrajectory } = await import('../../src/primitives/click-enhanced.js');
+      vi.mocked(clickWithTrajectory)
+        .mockResolvedValueOnce('throttled')
+        .mockResolvedValueOnce('throttled')
+        .mockResolvedValueOnce('ok');
+
+      const cdpSession = {
+        send: vi.fn().mockImplementation((method: string) => {
+          if (method === 'Browser.getWindowForTarget') return Promise.resolve({ windowId: 1 });
+          if (method === 'Browser.setWindowBounds') return Promise.resolve({});
+          if (method === 'Accessibility.getFullAXTree') {
+            return Promise.resolve({ nodes: [{ nodeId: 'ax-1', role: { value: 'button' }, name: { value: 'Follow' }, backendDOMNodeId: 101, ignored: false, properties: [] }] });
+          }
+          if (method === 'DOM.describeNode') return Promise.resolve({ node: { nodeId: 10 } });
+          if (method === 'DOM.getBoxModel') return Promise.resolve({ model: { content: [100, 200, 200, 200, 200, 240, 100, 240] } });
+          return Promise.resolve({});
+        }),
+        detach: vi.fn().mockResolvedValue(undefined),
+      };
+      mockCreateCDPSession.mockResolvedValue(cdpSession);
+
+      const backend = new PuppeteerBackend(mockBrowser as any);
+      await backend.takeSnapshot();
+      await backend.click('1');
+
+      expect(page.bringToFront).toHaveBeenCalled();
+      expect(cdpSession.send).toHaveBeenCalledWith('Browser.getWindowForTarget');
+      expect(cdpSession.send).toHaveBeenCalledWith('Browser.setWindowBounds', {
+        windowId: 1,
+        bounds: { windowState: 'normal' },
+      });
+      expect(clickWithTrajectory).toHaveBeenCalledTimes(3);
+    });
+
+    it('throws CdpThrottled when all recovery levels fail', async () => {
+      setupClickMocks();
+      const page = createMockPage();
+      mockNewPage.mockResolvedValue(page);
+
+      const { getClickEnhancementConfig } = await import('../../src/config.js');
+      vi.mocked(getClickEnhancementConfig).mockReturnValue({
+        trajectory: true,
+        jitter: false,
+        occlusionCheck: false,
+      });
+
+      const { clickWithTrajectory } = await import('../../src/primitives/click-enhanced.js');
+      vi.mocked(clickWithTrajectory).mockResolvedValue('throttled');
+
+      const cdpSession = {
+        send: vi.fn().mockImplementation((method: string) => {
+          if (method === 'Browser.getWindowForTarget') return Promise.resolve({ windowId: 1 });
+          if (method === 'Browser.setWindowBounds') return Promise.resolve({});
+          if (method === 'Accessibility.getFullAXTree') {
+            return Promise.resolve({ nodes: [{ nodeId: 'ax-1', role: { value: 'button' }, name: { value: 'Follow' }, backendDOMNodeId: 101, ignored: false, properties: [] }] });
+          }
+          if (method === 'DOM.describeNode') return Promise.resolve({ node: { nodeId: 10 } });
+          if (method === 'DOM.getBoxModel') return Promise.resolve({ model: { content: [100, 200, 200, 200, 200, 240, 100, 240] } });
+          return Promise.resolve({});
+        }),
+        detach: vi.fn().mockResolvedValue(undefined),
+      };
+      mockCreateCDPSession.mockResolvedValue(cdpSession);
+
+      const { CdpThrottled } = await import('../../src/errors.js');
+      const backend = new PuppeteerBackend(mockBrowser as any);
+      await backend.takeSnapshot();
+
+      await expect(backend.click('1')).rejects.toThrow(CdpThrottled);
     });
   });
 
