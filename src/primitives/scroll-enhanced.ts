@@ -46,12 +46,16 @@ export interface HumanScrollOptions {
  * Site-use enhancements: per-step size jitter (±10%) and randomized
  * inter-step delays (base 20ms ±30%).
  */
+/**
+ * Returns 'throttled' if the first wheel event takes >1s (CDP input throttled).
+ * Caller should fall back to JS window.scrollBy().
+ */
 export async function humanScroll(
   page: Page,
   deltaX: number,
   deltaY: number,
   options: HumanScrollOptions = {},
-): Promise<void> {
+): Promise<'ok' | 'throttled'> {
   const {
     scrollSpeed: rawSpeed = DEFAULT_SCROLL_SPEED,
     scrollDelay = DEFAULT_SCROLL_DELAY,
@@ -77,7 +81,7 @@ export async function humanScroll(
     if (scrollDelay > 0) {
       await new Promise((r) => setTimeout(r, scrollDelay));
     }
-    return;
+    return 'ok';
   }
 
   // Step size for the primary axis (ghost-cursor algorithm)
@@ -107,6 +111,9 @@ export async function humanScroll(
   }
   const bellNorm = bellSum > 0 ? numSteps / bellSum : 1;
 
+  /** Threshold (ms): if a single CDP input event takes longer, input is throttled. */
+  const THROTTLE_THRESHOLD_MS = 1000;
+
   for (let i = 0; i < numSteps; i++) {
     const isLast = i === numSteps - 1;
 
@@ -124,7 +131,10 @@ export async function humanScroll(
     const wheelDeltaX = primaryIsX ? pStep * xSign : sStep * xSign;
     const wheelDeltaY = primaryIsX ? sStep * ySign : pStep * ySign;
 
+    // First wheel event doubles as throttle probe
+    const t0 = i === 0 ? Date.now() : 0;
     await page.mouse.wheel({ deltaX: wheelDeltaX, deltaY: wheelDeltaY });
+    if (t0 && Date.now() - t0 > THROTTLE_THRESHOLD_MS) return 'throttled';
 
     // Inter-step delay (skip after last step)
     if (!isLast && stepDelayBase > 0) {
@@ -147,6 +157,7 @@ export async function humanScroll(
   if (scrollDelay > 0) {
     await new Promise((r) => setTimeout(r, scrollDelay));
   }
+  return 'ok';
 }
 
 export interface ScrollIntoViewOptions extends HumanScrollOptions {

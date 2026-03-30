@@ -117,15 +117,39 @@ export class PuppeteerBackend implements Primitives {
    * Called once per connection — subsequent calls are no-ops.
    * The flag resets on getPage() cache miss (new page / reconnect).
    *
-   * Fallback note: if bringToFront causes issues (e.g. steals OS window
-   * focus disruptively), replace scroll() internals with
-   * page.evaluate(() => window.scrollBy(x, y)) which bypasses the input
-   * pipeline entirely. Click trajectory would need a similar JS fallback.
+   * Additionally restores minimized windows via Browser.setWindowBounds.
+   * bringToFront alone only activates the tab within Chrome; if the OS
+   * window is minimized (or hidden via Win+D), CDP input events are
+   * throttled to 1 per 5 seconds. Explicitly un-minimizing fixes this.
    */
   private async ensurePageActive(page: Page): Promise<void> {
     if (this.pageActivated) return;
+    // Activate this tab within Chrome (needed for multi-tab scenarios).
+    // Focus emulation (Emulation.setFocusEmulationEnabled) is already
+    // applied by applyConnectionSetup in browser.ts on connect, so CDP
+    // input events won't be throttled even on background/minimized windows.
     await page.bringToFront();
     this.pageActivated = true;
+  }
+
+  /**
+   * Click a DOM element via JavaScript, bypassing CDP Input.dispatch* entirely.
+   * Used as fallback when Chromium throttles input events on background windows.
+   */
+  private async jsClick(page: Page, backendNodeId: number): Promise<void> {
+    let client;
+    try {
+      client = await page.createCDPSession();
+      const { object } = await client.send('DOM.resolveNode', { backendNodeId });
+      if (object.objectId) {
+        await client.send('Runtime.callFunctionOn', {
+          objectId: object.objectId,
+          functionDeclaration: 'function() { this.click(); }',
+        });
+      }
+    } finally {
+      try { await client?.detach(); } catch {}
+    }
   }
 
   private async getPage(): Promise<Page> {
@@ -329,6 +353,8 @@ export class PuppeteerBackend implements Primitives {
     const config = getClickEnhancementConfig();
 
     // Step 1: Wait for element position to stabilize (CSS animations)
+    // These use DOM/AX APIs (not input events), so they work even when
+    // Chrome is in the background.
     const { center, box: elementBox } = await waitForElementStable(page, backendNodeId);
     let centerX = center.x;
     let centerY = center.y;
@@ -342,15 +368,19 @@ export class PuppeteerBackend implements Primitives {
       }
     }
 
-    // Step 3: Compute click target, then click (with or without trajectory)
+    // Step 3: Compute click target, then click
     const clickTarget = config.jitter
       ? applyJitter(centerX, centerY, 3, elementBox)
       : { x: centerX, y: centerY };
 
     if (config.trajectory) {
-      await clickWithTrajectory(page, clickTarget.x, clickTarget.y, {
+      const result = await clickWithTrajectory(page, clickTarget.x, clickTarget.y, {
         box: elementBox,
       });
+      if (result === 'throttled') {
+        console.error('[site-use] click: CDP input throttled, falling back to JS click');
+        await this.jsClick(page, backendNodeId);
+      }
     } else {
       await page.mouse.click(clickTarget.x, clickTarget.y);
     }
@@ -371,7 +401,11 @@ export class PuppeteerBackend implements Primitives {
     const direction = options.direction === 'up' ? -1 : 1;
     const totalDelta = amount * direction;
 
-    await humanScroll(page, 0, totalDelta);
+    const result = await humanScroll(page, 0, totalDelta);
+    if (result === 'throttled') {
+      console.error('[site-use] scroll: CDP input throttled, falling back to JS scrollBy');
+      await page.evaluate((dy: number) => window.scrollBy(0, dy), totalDelta);
+    }
   }
 
   async scrollIntoView(uid: string): Promise<void> {

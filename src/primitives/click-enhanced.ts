@@ -327,19 +327,45 @@ function generateOvershootPoint(
 /** Distance threshold beyond which overshoot is applied (pixels). */
 const OVERSHOOT_THRESHOLD = 500;
 
+/** Threshold (ms): if a single CDP input event takes longer, input is throttled. */
+const THROTTLE_THRESHOLD_MS = 1000;
+
+/**
+ * Execute a series of mouse.move calls along a path.
+ * The first move doubles as a throttle probe: if it takes >1s,
+ * returns 'throttled' immediately so the caller can fall back.
+ */
+async function movePath(
+  page: Page,
+  path: Point[],
+  stepDelayMs: number,
+): Promise<'ok' | 'throttled'> {
+  for (let i = 0; i < path.length; i++) {
+    const t0 = i === 0 ? Date.now() : 0;
+    await page.mouse.move(path[i].x, path[i].y);
+    if (t0 && Date.now() - t0 > THROTTLE_THRESHOLD_MS) return 'throttled';
+    await new Promise((r) => setTimeout(r, stepDelayMs));
+  }
+  return 'ok';
+}
+
 /**
  * Move mouse along a Bezier curve from current position to (targetX, targetY),
  * then click with optional jitter.
  *
  * For long-distance moves (>500px), simulates human overshoot:
  * the cursor first moves past the target, then corrects back.
+ *
+ * Returns 'throttled' if CDP input events are being throttled (background
+ * window). The first mouse.move doubles as a probe — no wasted time.
+ * Caller should fall back to a non-CDP click (e.g. JS element.click()).
  */
 export async function clickWithTrajectory(
   page: Page,
   targetX: number,
   targetY: number,
   options: { stepDelayMs?: number; overshoot?: boolean; box?: BoundingBox } = {},
-): Promise<void> {
+): Promise<'ok' | 'throttled'> {
   const { stepDelayMs = 18, overshoot = true } = options;
 
   const startX = 0;
@@ -356,30 +382,23 @@ export async function clickWithTrajectory(
     const overshootPt = generateOvershootPoint(startX, startY, finalTarget.x, finalTarget.y);
     const pathToOvershoot = generateBezierPath(startX, startY, overshootPt.x, overshootPt.y);
 
-    for (const point of pathToOvershoot) {
-      await page.mouse.move(point.x, point.y);
-      await new Promise((r) => setTimeout(r, stepDelayMs));
-    }
+    const result = await movePath(page, pathToOvershoot, stepDelayMs);
+    if (result === 'throttled') return 'throttled';
 
     // Brief pause at overshoot — human "oops" moment
     await new Promise((r) => setTimeout(r, 40 + Math.random() * 60));
 
     // Phase 2: Correction curve back to actual target
     const correctionPath = generateBezierPath(overshootPt.x, overshootPt.y, finalTarget.x, finalTarget.y);
-
-    for (const point of correctionPath) {
-      await page.mouse.move(point.x, point.y);
-      await new Promise((r) => setTimeout(r, stepDelayMs));
-    }
+    await movePath(page, correctionPath, stepDelayMs);
   } else {
     // Direct path (short distance or overshoot disabled)
     const path = generateBezierPath(startX, startY, finalTarget.x, finalTarget.y);
 
-    for (const point of path) {
-      await page.mouse.move(point.x, point.y);
-      await new Promise((r) => setTimeout(r, stepDelayMs));
-    }
+    const result = await movePath(page, path, stepDelayMs);
+    if (result === 'throttled') return 'throttled';
   }
 
   await page.mouse.click(finalTarget.x, finalTarget.y);
+  return 'ok';
 }
