@@ -36,10 +36,6 @@ function buildSnapshot(nodes: SnapshotNode[]): Snapshot {
  * Build an evaluate mock that routes by expression content.
  * @param overrides - keyed by substring match on the expression
  */
-/**
- * Build an evaluate mock that routes by expression content.
- * @param overrides - keyed by substring match on the expression
- */
 function mockEvaluate(overrides: Record<string, unknown> = {}) {
   const defaults: Record<string, unknown> = {
     'location.href': 'https://x.com/home',
