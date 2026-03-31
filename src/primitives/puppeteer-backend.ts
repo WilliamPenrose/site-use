@@ -150,11 +150,14 @@ export class PuppeteerBackend implements Primitives {
     const stateBefore = await this.diagnoseBrowserState(page);
     console.error(`[site-use] CDP input throttled — ${stateBefore}`);
     if (level === 1) {
-      console.error('[site-use] recovering (level 1: re-apply focus emulation)');
+      console.error('[site-use] recovering (level 1: DOM.enable + Overlay.enable)');
       let client;
       try {
         client = await page.createCDPSession();
-        await client.send('Emulation.setFocusEmulationEnabled', { enabled: true });
+        await client.send('DOM.enable');
+        await client.send('Overlay.enable');
+      } catch {
+        // Overlay.enable may fail on some Chrome versions — non-fatal
       } finally {
         try { await client?.detach(); } catch {}
       }

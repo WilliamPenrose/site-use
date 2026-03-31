@@ -283,6 +283,8 @@ function buildLaunchArgs(config: ReturnType<typeof getConfig>, extraArgs?: strin
     '--no-default-browser-check',
     '--hide-crash-restore-bubble',
     '--disable-blink-features=AutomationControlled',
+    '--disable-backgrounding-occluded-windows',
+    // '--disable-features=CalculateNativeWinOcclusion', // Windows-only: disable occlusion detection entirely. Try if the above flag alone is insufficient.
     '--window-size=1920,1080',
     `--window-position=${30 + Math.floor(Math.random() * 120)},${20 + Math.floor(Math.random() * 80)}`,
     '--lang=en-US',
