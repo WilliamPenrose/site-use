@@ -1,8 +1,6 @@
 /** Twitter site definition — single source of truth for site identity. */
 import type { DetectFn } from '../../primitives/rate-limit-detect.js';
 import type { Primitives } from '../../primitives/types.js';
-import { matchByRule } from '../../ops/matchers.js';
-import type { MatcherRule } from '../../ops/matchers.js';
 
 export interface AuthCheckDiagnostic {
   step: string;
@@ -75,7 +73,6 @@ export const twitterDetect: DetectFn = (response) => {
   return null;
 };
 
-const homeNavLink: MatcherRule = { role: 'link', name: /^Home$/i };
 
 export async function isLoggedIn(primitives: Primitives): Promise<AuthCheckResult> {
   const diag: AuthCheckDiagnostic[] = [];
@@ -98,18 +95,20 @@ export async function isLoggedIn(primitives: Primitives): Promise<AuthCheckResul
   let attempts = 0;
   while (Date.now() < deadline) {
     attempts++;
-    const snapshot = await primitives.takeSnapshot();
-    if (matchByRule(snapshot, homeNavLink)) {
-      diag.push({ step: 'snapshotPoll', elapsed: Date.now() - pollStart, attempts, foundHome: true });
+    const hasHomeLink = await primitives.evaluate<boolean>(
+      `!!document.querySelector('[data-testid="AppTabBar_Home_Link"]')`,
+    );
+    if (hasHomeLink) {
+      diag.push({ step: 'testidPoll', elapsed: Date.now() - pollStart, attempts, foundHome: true });
       return { loggedIn: true, diagnostics: diag };
     }
     const url = await primitives.evaluate<string>('window.location.href');
     if (url.includes('/login') || url.includes('/i/flow/login')) {
-      diag.push({ step: 'snapshotPoll', elapsed: Date.now() - pollStart, attempts, foundHome: false, reason: 'login_redirect', url });
+      diag.push({ step: 'testidPoll', elapsed: Date.now() - pollStart, attempts, foundHome: false, reason: 'login_redirect', url });
       return { loggedIn: false, diagnostics: diag };
     }
     await new Promise(r => setTimeout(r, 500));
   }
-  diag.push({ step: 'snapshotPoll', elapsed: Date.now() - pollStart, attempts, foundHome: false, reason: 'timeout' });
+  diag.push({ step: 'testidPoll', elapsed: Date.now() - pollStart, attempts, foundHome: false, reason: 'timeout' });
   return { loggedIn: false, diagnostics: diag };
 }

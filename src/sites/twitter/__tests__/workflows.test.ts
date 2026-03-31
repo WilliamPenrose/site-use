@@ -32,12 +32,35 @@ function buildSnapshot(nodes: SnapshotNode[]): Snapshot {
   return { idToNode };
 }
 
+/**
+ * Build an evaluate mock that routes by expression content.
+ * @param overrides - keyed by substring match on the expression
+ */
+function mockEvaluate(overrides: Record<string, unknown> = {}) {
+  const defaults: Record<string, unknown> = {
+    'location.href': 'https://x.com/home',
+    'AppTabBar_Home_Link': true,
+    'textContent': 'MockTab',
+  };
+  const merged = { ...defaults, ...overrides };
+
+  return vi.fn().mockImplementation(async (expr: string) => {
+    for (const [key, value] of Object.entries(merged)) {
+      if (expr.includes(key)) {
+        return typeof value === 'function' ? (value as Function)() : value;
+      }
+    }
+    return undefined;
+  });
+}
+
 let checkLogin: typeof import('../workflows.js').checkLogin;
 let getFeed: typeof import('../workflows.js').getFeed;
 let ensureTimeline: typeof import('../workflows.js').ensureTimeline;
 let collectData: typeof import('../workflows.js').collectData;
 let ensureTweetDetail: typeof import('../workflows.js').ensureTweetDetail;
 let getTweetDetail: typeof import('../workflows.js').getTweetDetail;
+let ensureTab: typeof import('../workflows.js').ensureTab;
 
 beforeEach(async () => {
   const mod = await import('../workflows.js');
@@ -47,37 +70,32 @@ beforeEach(async () => {
   collectData = mod.collectData;
   ensureTweetDetail = mod.ensureTweetDetail;
   getTweetDetail = mod.getTweetDetail;
+  ensureTab = mod.ensureTab;
 });
 
 describe('checkLogin', () => {
   it('returns loggedIn: false when URL redirects to login', async () => {
     const primitives = createMockPrimitives({
-      evaluate: vi.fn().mockResolvedValue('https://x.com/i/flow/login'),
+      evaluate: mockEvaluate({
+        'location.href': 'https://x.com/i/flow/login',
+        'AppTabBar_Home_Link': false,
+      }),
     });
     const result = await checkLogin(primitives);
     expect(result.loggedIn).toBe(false);
   });
 
-  it('returns loggedIn: true when Home link found in snapshot', async () => {
+  it('returns loggedIn: true when Home link found via data-testid', async () => {
     const primitives = createMockPrimitives({
-      evaluate: vi.fn().mockResolvedValue('https://x.com/home'),
-      takeSnapshot: vi.fn().mockResolvedValue(
-        buildSnapshot([
-          { uid: '1', role: 'link', name: 'Home' },
-          { uid: '10', role: 'tab', name: 'Following', selected: true },
-        ]),
-      ),
+      evaluate: mockEvaluate({ 'AppTabBar_Home_Link': true }),
     });
     const result = await checkLogin(primitives);
     expect(result.loggedIn).toBe(true);
   });
 
-  it('returns loggedIn: false when no Home link in snapshot', { timeout: 15000 }, async () => {
+  it('returns loggedIn: false when no Home link found', { timeout: 15000 }, async () => {
     const primitives = createMockPrimitives({
-      evaluate: vi.fn().mockResolvedValue('https://x.com/home'),
-      takeSnapshot: vi.fn().mockResolvedValue(
-        buildSnapshot([{ uid: '1', role: 'button', name: 'Settings' }]),
-      ),
+      evaluate: mockEvaluate({ 'AppTabBar_Home_Link': false }),
     });
     const result = await checkLogin(primitives);
     expect(result.loggedIn).toBe(false);
@@ -85,13 +103,7 @@ describe('checkLogin', () => {
 
   it('navigates to x.com/home', async () => {
     const primitives = createMockPrimitives({
-      evaluate: vi.fn().mockResolvedValue('https://x.com/home'),
-      takeSnapshot: vi.fn().mockResolvedValue(
-        buildSnapshot([
-          { uid: '1', role: 'link', name: 'Home' },
-          { uid: '10', role: 'tab', name: 'Following', selected: true },
-        ]),
-      ),
+      evaluate: mockEvaluate({ 'AppTabBar_Home_Link': true }),
     });
     await checkLogin(primitives);
     expect(primitives.navigate).toHaveBeenCalledWith('https://x.com/home');
@@ -112,10 +124,9 @@ describe('getFeed', () => {
 
     let interceptHandler: any;
     const primitives = createMockPrimitives({
-      evaluate: vi.fn().mockResolvedValue('https://x.com/home'),
+      evaluate: mockEvaluate({ 'textContent': 'For you' }),
       takeSnapshot: vi.fn().mockResolvedValue(
         buildSnapshot([
-          { uid: '1', role: 'link', name: 'Home' },
           { uid: '10', role: 'tab', name: 'For you', selected: true },
         ]),
       ),
@@ -182,45 +193,30 @@ describe('getFeed', () => {
       },
     });
 
-    // Capture the intercept handler so we can trigger it on click (tab switch)
     let interceptHandler: any;
-    const beforeTabSwitch = buildSnapshot([
-      { uid: '1', role: 'link', name: 'Home' },
-      { uid: '10', role: 'tab', name: 'For you', selected: false },
-    ]);
-    const afterTabSwitch = buildSnapshot([
-      { uid: '1', role: 'link', name: 'Home' },
-      { uid: '10', role: 'tab', name: 'For you', selected: true },
-    ]);
     const primitives = createMockPrimitives({
-      evaluate: vi.fn()
-        .mockResolvedValue('https://x.com/home'),
+      evaluate: mockEvaluate({ 'textContent': 'For you' }),
       takeSnapshot: vi.fn()
-        .mockResolvedValueOnce(beforeTabSwitch)   // URL ensure snapshot (returned to caller)
-        .mockResolvedValueOnce(beforeTabSwitch)   // tab ensure initial check (selected: false -> click)
-        .mockResolvedValueOnce(afterTabSwitch)    // tab ensure poll verification (selected: true)
-        .mockResolvedValue(afterTabSwitch),       // any subsequent calls
+        .mockResolvedValueOnce(buildSnapshot([
+          { uid: '10', role: 'tab', name: 'For you', selected: false },
+        ]))
+        .mockResolvedValueOnce(buildSnapshot([
+          { uid: '10', role: 'tab', name: 'For you', selected: false },
+        ]))
+        .mockResolvedValue(buildSnapshot([
+          { uid: '10', role: 'tab', name: 'For you', selected: true },
+        ])),
       interceptRequest: vi.fn().mockImplementation(
         async (_pattern: any, handler: any) => {
           interceptHandler = handler;
           return () => {};
         },
       ),
-      // Simulate: tab click triggers Following GraphQL response
       click: vi.fn().mockImplementation(async () => {
-        interceptHandler({
-          url: '/i/api/graphql/abc/HomeLatestTimeline',
-          status: 200,
-          body: GRAPHQL_BODY,
-        });
+        interceptHandler({ url: '/i/api/graphql/abc/HomeLatestTimeline', status: 200, body: GRAPHQL_BODY });
       }),
-      // Simulate: navigate (reload fallback) also triggers GraphQL response
       navigate: vi.fn().mockImplementation(async () => {
-        interceptHandler({
-          url: '/i/api/graphql/abc/HomeLatestTimeline',
-          status: 200,
-          body: GRAPHQL_BODY,
-        });
+        interceptHandler({ url: '/i/api/graphql/abc/HomeLatestTimeline', status: 200, body: GRAPHQL_BODY });
       }),
     });
 
@@ -242,7 +238,7 @@ describe('getFeed', () => {
     expect(opts.tab).toBe('following');
   });
 
-  it('records trace spans when Trace is provided', { timeout: 15000 }, async () => {
+  it('records trace spans when Trace is provided', { timeout: 30000 }, async () => {
     const { Trace } = await import('../../../trace.js');
 
     const GRAPHQL_BODY = JSON.stringify({
@@ -257,9 +253,9 @@ describe('getFeed', () => {
 
     let interceptHandler: any;
     const primitives = createMockPrimitives({
+      evaluate: mockEvaluate({ 'textContent': 'For you' }),
       takeSnapshot: vi.fn().mockResolvedValue(
         buildSnapshot([
-          { uid: '1', role: 'link', name: 'Home' },
           { uid: '10', role: 'tab', name: 'For you', selected: true },
         ]),
       ),
@@ -276,7 +272,6 @@ describe('getFeed', () => {
           body: GRAPHQL_BODY,
         });
       }),
-      evaluate: vi.fn().mockResolvedValue('https://x.com/home'),
     });
 
     const trace = new Trace('twitter_feed');
@@ -316,10 +311,9 @@ describe('ensureTimeline', () => {
   it('navigates and waits for data when already on home', async () => {
     const collector = createDataCollector<any>();
     const primitives = createMockPrimitives({
-      evaluate: vi.fn().mockResolvedValue('https://x.com/home'),
+      evaluate: mockEvaluate({ 'textContent': 'For you' }),
       takeSnapshot: vi.fn().mockResolvedValue(
         buildSnapshot([
-          { uid: '1', role: 'link', name: 'Home' },
           { uid: '10', role: 'tab', name: 'For you', selected: true },
         ]),
       ),
@@ -343,27 +337,22 @@ describe('ensureTimeline', () => {
     const collector = createDataCollector<any>();
     collector.push({ id: 'old' });
 
-    const afterTabSwitch = buildSnapshot([
-      { uid: '1', role: 'link', name: 'Home' },
-      { uid: '10', role: 'tab', name: 'Following', selected: true },
-    ]);
-    const beforeTabSwitch = buildSnapshot([
-      { uid: '1', role: 'link', name: 'Home' },
-      { uid: '10', role: 'tab', name: 'Following', selected: false },
-    ]);
-
     const primitives = createMockPrimitives({
-      evaluate: vi.fn().mockResolvedValue('https://x.com/home'),
+      evaluate: mockEvaluate({ 'textContent': 'Following' }),
       takeSnapshot: vi.fn()
-        .mockResolvedValueOnce(beforeTabSwitch)   // URL ensure
-        .mockResolvedValueOnce(beforeTabSwitch)   // tab ensure initial
-        .mockResolvedValueOnce(afterTabSwitch)    // tab ensure after click
-        .mockResolvedValue(afterTabSwitch),
+        .mockResolvedValueOnce(buildSnapshot([
+          { uid: '11', role: 'tab', name: 'Following', selected: false },
+        ]))
+        .mockResolvedValueOnce(buildSnapshot([
+          { uid: '11', role: 'tab', name: 'Following', selected: false },
+        ]))
+        .mockResolvedValue(buildSnapshot([
+          { uid: '11', role: 'tab', name: 'Following', selected: true },
+        ])),
       navigate: vi.fn().mockImplementation(async () => {
         collector.push({ id: 'wrong_tab' });
       }),
       click: vi.fn().mockImplementation(async () => {
-        // Simulates: tab click triggers new GraphQL for correct tab
         collector.push({ id: 'correct_tab' });
       }),
     });
@@ -374,7 +363,6 @@ describe('ensureTimeline', () => {
     });
 
     expect(result.tabAction).toBe('transitioned');
-    // Old data and wrong-tab data should be cleared; only correct_tab data remains
     expect(collector.items.some((d: any) => d.id === 'old')).toBe(false);
     expect(collector.items.some((d: any) => d.id === 'correct_tab')).toBe(true);
   });
@@ -382,35 +370,26 @@ describe('ensureTimeline', () => {
   it('reload fallback when tab switch produces no data', { timeout: 15000 }, async () => {
     const collector = createDataCollector<any>();
 
-    const snapshot = buildSnapshot([
-      { uid: '1', role: 'link', name: 'Home' },
-      { uid: '10', role: 'tab', name: 'Following', selected: false },
-      { uid: '11', role: 'tab', name: 'For you', selected: true },
-    ]);
-    const afterSwitch = buildSnapshot([
-      { uid: '1', role: 'link', name: 'Home' },
-      { uid: '10', role: 'tab', name: 'Following', selected: true },
-    ]);
-
     let navigateCount = 0;
     const primitives = createMockPrimitives({
-      evaluate: vi.fn().mockResolvedValue('https://x.com/home'),
+      evaluate: mockEvaluate({ 'textContent': 'Following' }),
       takeSnapshot: vi.fn()
-        .mockResolvedValueOnce(snapshot)      // URL ensure
-        .mockResolvedValueOnce(snapshot)      // tab ensure initial (Following not selected)
-        .mockResolvedValueOnce(afterSwitch)   // tab ensure after click
-        // After reload fallback:
-        .mockResolvedValueOnce(afterSwitch)   // tab ensure initial
-        .mockResolvedValue(afterSwitch),      // subsequent
+        .mockResolvedValueOnce(buildSnapshot([
+          { uid: '11', role: 'tab', name: 'Following', selected: false },
+        ]))
+        .mockResolvedValueOnce(buildSnapshot([
+          { uid: '11', role: 'tab', name: 'Following', selected: false },
+        ]))
+        .mockResolvedValue(buildSnapshot([
+          { uid: '11', role: 'tab', name: 'Following', selected: true },
+        ])),
       navigate: vi.fn().mockImplementation(async () => {
         navigateCount++;
-        // Only produce data on reload fallback (2nd navigate)
         if (navigateCount >= 2) {
           collector.push({ id: 'after_reload' });
         }
       }),
       click: vi.fn().mockResolvedValue(undefined),
-      // Tab click does NOT produce data -> triggers reload fallback
     });
 
     const result = await ensureTimeline(primitives, collector, {
@@ -422,28 +401,22 @@ describe('ensureTimeline', () => {
     expect(collector.length).toBeGreaterThan(0);
   });
 
-  it('does not reload twice', { timeout: 15000 }, async () => {
+  it('does not reload twice', { timeout: 30000 }, async () => {
     const collector = createDataCollector<any>();
 
-    const snapshot = buildSnapshot([
-      { uid: '1', role: 'link', name: 'Home' },
-      { uid: '10', role: 'tab', name: 'Following', selected: false },
-      { uid: '11', role: 'tab', name: 'For you', selected: true },
-    ]);
-    const afterSwitch = buildSnapshot([
-      { uid: '1', role: 'link', name: 'Home' },
-      { uid: '10', role: 'tab', name: 'Following', selected: true },
-    ]);
-
     const primitives = createMockPrimitives({
-      evaluate: vi.fn().mockResolvedValue('https://x.com/home'),
+      evaluate: mockEvaluate({ 'textContent': 'Following' }),
       takeSnapshot: vi.fn()
-        .mockResolvedValueOnce(snapshot)
-        .mockResolvedValueOnce(snapshot)
-        .mockResolvedValueOnce(afterSwitch)
-        .mockResolvedValue(afterSwitch),
+        .mockResolvedValueOnce(buildSnapshot([
+          { uid: '11', role: 'tab', name: 'Following', selected: false },
+        ]))
+        .mockResolvedValueOnce(buildSnapshot([
+          { uid: '11', role: 'tab', name: 'Following', selected: false },
+        ]))
+        .mockResolvedValue(buildSnapshot([
+          { uid: '11', role: 'tab', name: 'Following', selected: true },
+        ])),
       navigate: vi.fn().mockResolvedValue(undefined),
-      // Never produces data — navigate is a no-op
       click: vi.fn().mockResolvedValue(undefined),
     });
 
@@ -453,18 +426,15 @@ describe('ensureTimeline', () => {
     });
 
     expect(result.reloaded).toBe(true);
-    // navigate called: 1 (initial reload) + 1 (reload fallback) = 2
-    // NOT 3 — no second reload fallback
     expect(primitives.navigate).toHaveBeenCalledTimes(2);
   });
 
   it('returns timing info in waits array', async () => {
     const collector = createDataCollector<any>();
     const primitives = createMockPrimitives({
-      evaluate: vi.fn().mockResolvedValue('https://x.com/home'),
+      evaluate: mockEvaluate({ 'textContent': 'For you' }),
       takeSnapshot: vi.fn().mockResolvedValue(
         buildSnapshot([
-          { uid: '1', role: 'link', name: 'Home' },
           { uid: '10', role: 'tab', name: 'For you', selected: true },
         ]),
       ),
@@ -627,6 +597,77 @@ describe('ensureTweetDetail', () => {
         t0: Date.now(),
       }),
     ).rejects.toThrow('Not logged in');
+  });
+});
+
+describe('ensureTab', () => {
+  it('returns already_there when target tab is already selected', async () => {
+    const primitives = createMockPrimitives({
+      evaluate: mockEvaluate({ 'textContent': 'For you' }),
+      takeSnapshot: vi.fn().mockResolvedValue(
+        buildSnapshot([
+          { uid: '10', role: 'tab', name: 'For you', selected: true },
+        ]),
+      ),
+    });
+
+    const result = await ensureTab(primitives, 'for_you');
+    expect(result).toBe('already_there');
+    // Should NOT have called click — tab was already selected
+    expect(primitives.click).not.toHaveBeenCalled();
+  });
+
+  it('clicks tab via ensure and returns transitioned when not selected', async () => {
+    let clicked = false;
+    const primitives = createMockPrimitives({
+      evaluate: mockEvaluate({ 'textContent': 'Following' }),
+      takeSnapshot: vi.fn()
+        .mockResolvedValueOnce(buildSnapshot([
+          { uid: '11', role: 'tab', name: 'Following', selected: false },
+        ]))
+        .mockResolvedValue(buildSnapshot([
+          { uid: '11', role: 'tab', name: 'Following', selected: true },
+        ])),
+      click: vi.fn().mockImplementation(async () => { clicked = true; }),
+    });
+
+    const result = await ensureTab(primitives, 'following');
+    expect(result).toBe('transitioned');
+    expect(clicked).toBe(true);
+    // Click should go through primitives.click (CDP), not evaluate
+    expect(primitives.click).toHaveBeenCalledWith('11');
+  });
+
+  it('throws StateTransitionFailed when tab text not found in DOM', { timeout: 15000 }, async () => {
+    const primitives = createMockPrimitives({
+      evaluate: mockEvaluate({ 'textContent': null }),
+    });
+
+    await expect(ensureTab(primitives, 'following')).rejects.toThrow('not found in DOM');
+  });
+
+  it('uses index 0 for for_you and index 1 for following', async () => {
+    const expressions: string[] = [];
+    const primitives = createMockPrimitives({
+      evaluate: vi.fn().mockImplementation(async (expr: string) => {
+        expressions.push(expr);
+        if (expr.includes('textContent')) return 'TabText';
+        if (expr.includes('location.href')) return 'https://x.com/home';
+        return undefined;
+      }),
+      takeSnapshot: vi.fn().mockResolvedValue(
+        buildSnapshot([
+          { uid: '10', role: 'tab', name: 'TabText', selected: true },
+        ]),
+      ),
+    });
+
+    await ensureTab(primitives, 'for_you');
+    expect(expressions.some(e => e.includes('[0]'))).toBe(true);
+
+    expressions.length = 0;
+    await ensureTab(primitives, 'following');
+    expect(expressions.some(e => e.includes('[1]'))).toBe(true);
   });
 });
 

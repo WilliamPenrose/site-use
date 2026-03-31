@@ -14,7 +14,7 @@ import {
   GRAPHQL_TWEET_DETAIL_PATTERN,
   GRAPHQL_SEARCH_PATTERN,
 } from './extractors.js';
-import { SiteUseError } from '../../errors.js';
+import { SiteUseError, StateTransitionFailed } from '../../errors.js';
 import type { RawTweetData, SearchTab } from './types.js';
 import type { FeedResult as FrameworkFeedResult } from '../../registry/types.js';
 import { tweetToFeedItem } from './feed-item.js';
@@ -67,6 +67,58 @@ async function checkLoginRedirect(
  */
 export type TimelineFeed = 'following' | 'for_you';
 
+const TAB_INDICES: Record<TimelineFeed, number> = {
+  for_you: 0,
+  following: 1,
+};
+
+const TAB_SELECTOR = '[data-testid="primaryColumn"] [role="tablist"] [role="tab"]';
+
+const TAB_DISCOVERY_POLL_MS = 500;
+const TAB_DISCOVERY_TIMEOUT_MS = 10_000;
+
+/**
+ * Ensure the given tab is selected on the Twitter home timeline.
+ *
+ * Two-phase approach (JS discovery + ensure interaction):
+ * 1. evaluate() reads the tab's textContent by position index (locale-agnostic),
+ *    polling until the tab element appears in the DOM (SPA may still be rendering)
+ * 2. ensure() uses that text as ARIA name to click via CDP Input (human-like)
+ *
+ * This preserves the full anti-detection path (Bezier mouse trajectory,
+ * coordinate jitter, throttle) while being language-independent.
+ */
+export async function ensureTab(
+  primitives: Primitives,
+  tab: TimelineFeed,
+): Promise<'already_there' | 'transitioned'> {
+  const index = TAB_INDICES[tab];
+  const ensure = makeEnsureState(primitives);
+
+  // Phase 1: JS discovery — poll for the tab's locale-specific text by position
+  const deadline = Date.now() + TAB_DISCOVERY_TIMEOUT_MS;
+  let tabText: string | null = null;
+  while (Date.now() < deadline) {
+    tabText = await primitives.evaluate<string | null>(`(() => {
+      const tabs = document.querySelectorAll('${TAB_SELECTOR}');
+      return tabs[${index}]?.textContent?.trim() ?? null;
+    })()`);
+    if (tabText) break;
+    await new Promise(r => setTimeout(r, TAB_DISCOVERY_POLL_MS));
+  }
+
+  if (!tabText) {
+    throw new StateTransitionFailed(
+      `Tab at index ${index} not found in DOM after ${TAB_DISCOVERY_TIMEOUT_MS}ms`,
+      { step: `ensureTab: reading tab text at index ${index}` },
+    );
+  }
+
+  // Phase 2: ensure interaction — click via CDP with human-like behavior
+  const result = await ensure({ role: 'tab', name: tabText, selected: true });
+  return result.action;
+}
+
 export interface GetFeedOptions {
   count?: number;
   tab?: TimelineFeed;
@@ -98,14 +150,13 @@ export async function ensureTimeline(
 ): Promise<EnsureTimelineResult> {
   const { tab, t0 } = opts;
   const ensure = makeEnsureState(primitives);
-  const tabName = tab === 'following' ? 'Following' : 'For you';
   let navAction: 'already_there' | 'transitioned' = 'already_there';
   let tabAction: 'already_there' | 'transitioned' = 'already_there';
 
   const result = await ensurePage(primitives, {
     collector,
     t0,
-    label: `timeline/${tabName}`,
+    label: `timeline/${tab}`,
     navigate: async (p) => {
       const navResult = await ensure({ url: TWITTER_HOME });
       navAction = navResult.action;
@@ -115,10 +166,9 @@ export async function ensureTimeline(
     },
     afterNavigate: async (_p, s) => {
       const prevLength = collector.length;
-      const tabResult = await ensure({ role: 'tab', name: tabName, selected: true });
-      tabAction = tabResult.action;
+      tabAction = await ensureTab(primitives, tab);
       s.set('tabAction', tabAction);
-      s.set('tabName', tabName);
+      s.set('tab', tab);
       if (tabAction !== 'already_there') {
         const dataFromSwitch = collector.items.slice(prevLength);
         collector.clear();
@@ -128,7 +178,7 @@ export async function ensureTimeline(
       }
     },
     afterReload: async () => {
-      await ensure({ role: 'tab', name: tabName, selected: true });
+      await ensureTab(primitives, tab);
     },
   }, span);
 
