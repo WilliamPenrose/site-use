@@ -146,14 +146,13 @@ export async function ensureTimeline(
 ): Promise<EnsureTimelineResult> {
   const { tab, t0 } = opts;
   const ensure = makeEnsureState(primitives);
-  const tabName = tab === 'following' ? 'Following' : 'For you';
   let navAction: 'already_there' | 'transitioned' = 'already_there';
   let tabAction: 'already_there' | 'transitioned' = 'already_there';
 
   const result = await ensurePage(primitives, {
     collector,
     t0,
-    label: `timeline/${tabName}`,
+    label: `timeline/${tab}`,
     navigate: async (p) => {
       const navResult = await ensure({ url: TWITTER_HOME });
       navAction = navResult.action;
@@ -163,10 +162,9 @@ export async function ensureTimeline(
     },
     afterNavigate: async (_p, s) => {
       const prevLength = collector.length;
-      const tabResult = await ensure({ role: 'tab', name: tabName, selected: true });
-      tabAction = tabResult.action;
+      tabAction = await ensureTab(primitives, tab);
       s.set('tabAction', tabAction);
-      s.set('tabName', tabName);
+      s.set('tab', tab);
       if (tabAction !== 'already_there') {
         const dataFromSwitch = collector.items.slice(prevLength);
         collector.clear();
@@ -176,7 +174,7 @@ export async function ensureTimeline(
       }
     },
     afterReload: async () => {
-      await ensure({ role: 'tab', name: tabName, selected: true });
+      await ensureTab(primitives, tab);
     },
   }, span);
 
