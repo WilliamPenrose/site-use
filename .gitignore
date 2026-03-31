@@ -27,6 +27,9 @@ chrome-profile/
 # OpenSpec symlink to .dev/openspec
 openspec
 
+# Auto-generated barrel (rebuilt on every build)
+tools/diagnose/checks/_browser-barrel.ts
+
 # Temporary debug/scratch files
 tmp/
 
