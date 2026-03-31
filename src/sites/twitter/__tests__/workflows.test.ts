@@ -38,6 +38,7 @@ let ensureTimeline: typeof import('../workflows.js').ensureTimeline;
 let collectData: typeof import('../workflows.js').collectData;
 let ensureTweetDetail: typeof import('../workflows.js').ensureTweetDetail;
 let getTweetDetail: typeof import('../workflows.js').getTweetDetail;
+let ensureTab: typeof import('../workflows.js').ensureTab;
 
 beforeEach(async () => {
   const mod = await import('../workflows.js');
@@ -47,6 +48,7 @@ beforeEach(async () => {
   collectData = mod.collectData;
   ensureTweetDetail = mod.ensureTweetDetail;
   getTweetDetail = mod.getTweetDetail;
+  ensureTab = mod.ensureTab;
 });
 
 describe('checkLogin', () => {
@@ -627,6 +629,69 @@ describe('ensureTweetDetail', () => {
         t0: Date.now(),
       }),
     ).rejects.toThrow('Not logged in');
+  });
+});
+
+describe('ensureTab', () => {
+  it('returns already_there when target tab is selected', async () => {
+    const primitives = createMockPrimitives({
+      evaluate: vi.fn().mockImplementation(async (expr: string) => {
+        if (expr.includes('aria-selected')) return true;
+        return undefined;
+      }),
+    });
+
+    const result = await ensureTab(primitives, 'for_you');
+    expect(result).toBe('already_there');
+  });
+
+  it('clicks tab and returns transitioned when not selected', async () => {
+    let clickCalled = false;
+    const primitives = createMockPrimitives({
+      evaluate: vi.fn().mockImplementation(async (expr: string) => {
+        if (expr.includes('.click()')) {
+          clickCalled = true;
+          return undefined;
+        }
+        if (expr.includes('aria-selected')) {
+          return clickCalled;
+        }
+        return undefined;
+      }),
+    });
+
+    const result = await ensureTab(primitives, 'following');
+    expect(result).toBe('transitioned');
+    expect(clickCalled).toBe(true);
+  });
+
+  it('throws StateTransitionFailed when tab never becomes selected', { timeout: 10000 }, async () => {
+    const primitives = createMockPrimitives({
+      evaluate: vi.fn().mockImplementation(async (expr: string) => {
+        if (expr.includes('aria-selected')) return false;
+        return undefined;
+      }),
+    });
+
+    await expect(ensureTab(primitives, 'following')).rejects.toThrow('not confirmed');
+  });
+
+  it('uses index 0 for for_you and index 1 for following', async () => {
+    const expressions: string[] = [];
+    const primitives = createMockPrimitives({
+      evaluate: vi.fn().mockImplementation(async (expr: string) => {
+        expressions.push(expr);
+        if (expr.includes('aria-selected')) return true;
+        return undefined;
+      }),
+    });
+
+    await ensureTab(primitives, 'for_you');
+    expect(expressions.some(e => e.includes('[0]'))).toBe(true);
+
+    expressions.length = 0;
+    await ensureTab(primitives, 'following');
+    expect(expressions.some(e => e.includes('[1]'))).toBe(true);
   });
 });
 

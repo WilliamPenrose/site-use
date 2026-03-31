@@ -14,7 +14,7 @@ import {
   GRAPHQL_TWEET_DETAIL_PATTERN,
   GRAPHQL_SEARCH_PATTERN,
 } from './extractors.js';
-import { SiteUseError } from '../../errors.js';
+import { SiteUseError, StateTransitionFailed } from '../../errors.js';
 import type { RawTweetData, SearchTab } from './types.js';
 import type { FeedResult as FrameworkFeedResult } from '../../registry/types.js';
 import { tweetToFeedItem } from './feed-item.js';
@@ -66,6 +66,54 @@ async function checkLoginRedirect(
  * to collectData.
  */
 export type TimelineFeed = 'following' | 'for_you';
+
+const TAB_INDICES: Record<TimelineFeed, number> = {
+  for_you: 0,
+  following: 1,
+};
+
+const TAB_SELECTOR = '[data-testid="primaryColumn"] [role="tablist"] [role="tab"]';
+const TAB_POLL_INTERVAL_MS = 500;
+const TAB_POLL_TIMEOUT_MS = 5000;
+
+/**
+ * Ensure the given tab is selected on the Twitter home timeline.
+ * Uses CSS selector + position index (locale-agnostic) instead of ARIA name matching.
+ * index 0 = For you, index 1 = Following — consistent across all locales.
+ */
+export async function ensureTab(
+  primitives: Primitives,
+  tab: TimelineFeed,
+): Promise<'already_there' | 'transitioned'> {
+  const index = TAB_INDICES[tab];
+
+  const isSelected = await primitives.evaluate<boolean>(`(() => {
+    const tabs = document.querySelectorAll('${TAB_SELECTOR}');
+    return tabs[${index}]?.getAttribute('aria-selected') === 'true';
+  })()`);
+
+  if (isSelected) return 'already_there';
+
+  await primitives.evaluate(`(() => {
+    const tabs = document.querySelectorAll('${TAB_SELECTOR}');
+    tabs[${index}]?.click();
+  })()`);
+
+  const deadline = Date.now() + TAB_POLL_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, TAB_POLL_INTERVAL_MS));
+    const confirmed = await primitives.evaluate<boolean>(`(() => {
+      const tabs = document.querySelectorAll('${TAB_SELECTOR}');
+      return tabs[${index}]?.getAttribute('aria-selected') === 'true';
+    })()`);
+    if (confirmed) return 'transitioned';
+  }
+
+  throw new StateTransitionFailed(
+    `Tab switch to index ${index} not confirmed after ${TAB_POLL_TIMEOUT_MS}ms`,
+    { step: `ensureTab: waiting for tab ${index} to become selected` },
+  );
+}
 
 export interface GetFeedOptions {
   count?: number;
