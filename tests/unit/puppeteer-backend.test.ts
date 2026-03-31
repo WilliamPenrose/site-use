@@ -373,7 +373,7 @@ describe('PuppeteerBackend', () => {
       await expect(backend.click('1')).rejects.toThrow(/snapshot/i);
     });
 
-    it('recovers from CDP throttle via bringToFront (level 1)', async () => {
+    it('recovers from CDP throttle via focus emulation (level 1)', async () => {
       setupClickMocks();
       const page = createMockPage();
       mockNewPage.mockResolvedValue(page);
@@ -390,15 +390,28 @@ describe('PuppeteerBackend', () => {
         .mockResolvedValueOnce('throttled')
         .mockResolvedValueOnce('ok');
 
+      const cdpSession = {
+        send: vi.fn().mockImplementation((method: string) => {
+          if (method === 'Accessibility.getFullAXTree') {
+            return Promise.resolve({ nodes: [{ nodeId: 'ax-1', role: { value: 'button' }, name: { value: 'Follow' }, backendDOMNodeId: 101, ignored: false, properties: [] }] });
+          }
+          if (method === 'DOM.describeNode') return Promise.resolve({ node: { nodeId: 10 } });
+          if (method === 'DOM.getBoxModel') return Promise.resolve({ model: { content: [100, 200, 200, 200, 200, 240, 100, 240] } });
+          return Promise.resolve({});
+        }),
+        detach: vi.fn().mockResolvedValue(undefined),
+      };
+      mockCreateCDPSession.mockResolvedValue(cdpSession);
+
       const backend = new PuppeteerBackend(mockBrowser as any);
       await backend.takeSnapshot();
       await backend.click('1');
 
-      expect(page.bringToFront).toHaveBeenCalled();
+      expect(cdpSession.send).toHaveBeenCalledWith('Emulation.setFocusEmulationEnabled', { enabled: true });
       expect(clickWithTrajectory).toHaveBeenCalledTimes(2);
     });
 
-    it('recovers from CDP throttle via un-minimize (level 2)', async () => {
+    it('recovers from CDP throttle via bringToFront (level 2)', async () => {
       setupClickMocks();
       const page = createMockPage();
       mockNewPage.mockResolvedValue(page);
@@ -418,8 +431,6 @@ describe('PuppeteerBackend', () => {
 
       const cdpSession = {
         send: vi.fn().mockImplementation((method: string) => {
-          if (method === 'Browser.getWindowForTarget') return Promise.resolve({ windowId: 1 });
-          if (method === 'Browser.setWindowBounds') return Promise.resolve({});
           if (method === 'Accessibility.getFullAXTree') {
             return Promise.resolve({ nodes: [{ nodeId: 'ax-1', role: { value: 'button' }, name: { value: 'Follow' }, backendDOMNodeId: 101, ignored: false, properties: [] }] });
           }
@@ -436,11 +447,6 @@ describe('PuppeteerBackend', () => {
       await backend.click('1');
 
       expect(page.bringToFront).toHaveBeenCalled();
-      expect(cdpSession.send).toHaveBeenCalledWith('Browser.getWindowForTarget');
-      expect(cdpSession.send).toHaveBeenCalledWith('Browser.setWindowBounds', {
-        windowId: 1,
-        bounds: { windowState: 'normal' },
-      });
       expect(clickWithTrajectory).toHaveBeenCalledTimes(3);
     });
 
@@ -516,7 +522,7 @@ describe('PuppeteerBackend', () => {
       expect(humanScroll).toHaveBeenCalledWith(page, 0, 300);
     });
 
-    it('recovers from CDP throttle via bringToFront (level 1)', async () => {
+    it('recovers from CDP throttle via focus emulation (level 1)', async () => {
       const page = createMockPage();
       mockNewPage.mockResolvedValue(page);
 
@@ -525,14 +531,20 @@ describe('PuppeteerBackend', () => {
         .mockResolvedValueOnce('throttled')
         .mockResolvedValueOnce('ok');
 
+      const cdpSession = {
+        send: vi.fn().mockResolvedValue({}),
+        detach: vi.fn().mockResolvedValue(undefined),
+      };
+      mockCreateCDPSession.mockResolvedValue(cdpSession);
+
       const backend = new PuppeteerBackend(mockBrowser as any);
       await backend.scroll({ direction: 'down' });
 
-      expect(page.bringToFront).toHaveBeenCalled();
+      expect(cdpSession.send).toHaveBeenCalledWith('Emulation.setFocusEmulationEnabled', { enabled: true });
       expect(humanScroll).toHaveBeenCalledTimes(2);
     });
 
-    it('recovers from CDP throttle via un-minimize (level 2)', async () => {
+    it('recovers from CDP throttle via bringToFront (level 2)', async () => {
       const page = createMockPage();
       mockNewPage.mockResolvedValue(page);
 
@@ -543,11 +555,7 @@ describe('PuppeteerBackend', () => {
         .mockResolvedValueOnce('ok');
 
       const cdpSession = {
-        send: vi.fn().mockImplementation((method: string) => {
-          if (method === 'Browser.getWindowForTarget') return Promise.resolve({ windowId: 1 });
-          if (method === 'Browser.setWindowBounds') return Promise.resolve({});
-          return Promise.resolve({});
-        }),
+        send: vi.fn().mockResolvedValue({}),
         detach: vi.fn().mockResolvedValue(undefined),
       };
       mockCreateCDPSession.mockResolvedValue(cdpSession);
@@ -556,11 +564,6 @@ describe('PuppeteerBackend', () => {
       await backend.scroll({ direction: 'down' });
 
       expect(page.bringToFront).toHaveBeenCalled();
-      expect(cdpSession.send).toHaveBeenCalledWith('Browser.getWindowForTarget');
-      expect(cdpSession.send).toHaveBeenCalledWith('Browser.setWindowBounds', {
-        windowId: 1,
-        bounds: { windowState: 'normal' },
-      });
       expect(humanScroll).toHaveBeenCalledTimes(3);
     });
 
@@ -574,7 +577,6 @@ describe('PuppeteerBackend', () => {
       const cdpSession = {
         send: vi.fn().mockImplementation((method: string) => {
           if (method === 'Browser.getWindowForTarget') return Promise.resolve({ windowId: 1 });
-          if (method === 'Browser.setWindowBounds') return Promise.resolve({});
           return Promise.resolve({});
         }),
         detach: vi.fn().mockResolvedValue(undefined),

@@ -142,19 +142,29 @@ export class PuppeteerBackend implements Primitives {
 
   /**
    * Attempt to recover from CDP input throttling.
-   * Level 1: Activate tab within Chrome (bringToFront).
-   * Level 2: Un-minimize the OS window (Browser.setWindowBounds).
+   * Level 1: Re-apply focus emulation (fixes lost visibility override).
+   * Level 2: Activate tab within Chrome (bringToFront).
+   * Level 3: Un-minimize the OS window (Browser.setWindowBounds).
    */
-  private async recoverFromThrottle(page: Page, level: 1 | 2): Promise<void> {
+  private async recoverFromThrottle(page: Page, level: 1 | 2 | 3): Promise<void> {
     const stateBefore = await this.diagnoseBrowserState(page);
+    console.error(`[site-use] CDP input throttled — ${stateBefore}`);
     if (level === 1) {
-      console.error(`[site-use] CDP input throttled — ${stateBefore}`);
-      console.error('[site-use] recovering (level 1: bringToFront)');
-      await page.bringToFront();
+      console.error('[site-use] recovering (level 1: re-apply focus emulation)');
+      let client;
+      try {
+        client = await page.createCDPSession();
+        await client.send('Emulation.setFocusEmulationEnabled', { enabled: true });
+      } finally {
+        try { await client?.detach(); } catch {}
+      }
     }
     if (level === 2) {
-      console.error(`[site-use] CDP input still throttled — ${stateBefore}`);
-      console.error('[site-use] recovering (level 2: un-minimize)');
+      console.error('[site-use] recovering (level 2: bringToFront)');
+      await page.bringToFront();
+    }
+    if (level === 3) {
+      console.error('[site-use] recovering (level 3: un-minimize)');
       let client;
       try {
         client = await page.createCDPSession();
@@ -403,12 +413,9 @@ export class PuppeteerBackend implements Primitives {
       });
 
       let result = await doClick();
-      if (result === 'throttled') {
-        await this.recoverFromThrottle(page, 1);
-        result = await doClick();
-      }
-      if (result === 'throttled') {
-        await this.recoverFromThrottle(page, 2);
+      for (const level of [1, 2, 3] as const) {
+        if (result !== 'throttled') break;
+        await this.recoverFromThrottle(page, level);
         result = await doClick();
       }
       if (result === 'throttled') {
@@ -473,12 +480,9 @@ export class PuppeteerBackend implements Primitives {
     const doScroll = () => humanScroll(page, 0, totalDelta);
 
     let result = await doScroll();
-    if (result === 'throttled') {
-      await this.recoverFromThrottle(page, 1);
-      result = await doScroll();
-    }
-    if (result === 'throttled') {
-      await this.recoverFromThrottle(page, 2);
+    for (const level of [1, 2, 3] as const) {
+      if (result !== 'throttled') break;
+      await this.recoverFromThrottle(page, level);
       result = await doScroll();
     }
     if (result === 'throttled') {
