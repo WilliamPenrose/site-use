@@ -47,7 +47,6 @@ export class PuppeteerBackend implements Primitives {
 
   // Internal: uid -> backendDOMNodeId mapping from last takeSnapshot
   private uidToBackendNodeId: Map<string, number> = new Map();
-  private pageActivated: boolean = false;
 
   constructor(
     browserOrOptions: Browser | PuppeteerBackendOptions,
@@ -113,35 +112,6 @@ export class PuppeteerBackend implements Primitives {
   }
 
   /**
-   * Ensure the page tab is active so CDP input events are not throttled.
-   *
-   * Chromium throttles Input.dispatchMouseEvent on background/hidden tabs:
-   * - mouseWheel events never resolve (timeout after protocolTimeout)
-   * - mouseMoved events are rate-limited to 1 per 5 seconds
-   * See: https://github.com/ChromeDevTools/devtools-protocol/issues/89
-   *
-   * page.bringToFront() calls Target.activateTarget, making the tab the
-   * active foreground tab so input events dispatch immediately.
-   *
-   * Called once per connection — subsequent calls are no-ops.
-   * The flag resets on getPage() cache miss (new page / reconnect).
-   *
-   * Additionally restores minimized windows via Browser.setWindowBounds.
-   * bringToFront alone only activates the tab within Chrome; if the OS
-   * window is minimized (or hidden via Win+D), CDP input events are
-   * throttled to 1 per 5 seconds. Explicitly un-minimizing fixes this.
-   */
-  private async ensurePageActive(page: Page): Promise<void> {
-    if (this.pageActivated) return;
-    // Activate this tab within Chrome (needed for multi-tab scenarios).
-    // Focus emulation (Emulation.setFocusEmulationEnabled) is already
-    // applied by applyConnectionSetup in browser.ts on connect, so CDP
-    // input events won't be throttled even on background/minimized windows.
-    await page.bringToFront();
-    this.pageActivated = true;
-  }
-
-  /**
    * Attempt to recover from CDP input throttling.
    * Level 1: Activate tab within Chrome (bringToFront).
    * Level 2: Un-minimize the OS window (Browser.setWindowBounds).
@@ -162,26 +132,6 @@ export class PuppeteerBackend implements Primitives {
       } finally {
         try { await client?.detach(); } catch {}
       }
-    }
-  }
-
-  /**
-   * Click a DOM element via JavaScript, bypassing CDP Input.dispatch* entirely.
-   * Used as fallback when Chromium throttles input events on background windows.
-   */
-  private async jsClick(page: Page, backendNodeId: number): Promise<void> {
-    let client;
-    try {
-      client = await page.createCDPSession();
-      const { object } = await client.send('DOM.resolveNode', { backendNodeId });
-      if (object.objectId) {
-        await client.send('Runtime.callFunctionOn', {
-          objectId: object.objectId,
-          functionDeclaration: 'function() { this.click(); }',
-        });
-      }
-    } finally {
-      try { await client?.detach(); } catch {}
     }
   }
 
@@ -208,7 +158,6 @@ export class PuppeteerBackend implements Primitives {
     }
 
     // 2. Scan existing browser tabs for domain match
-    this.pageActivated = false; // new page — needs re-activation
     const domains = this.siteDomains[key];
     if (domains && this.browser) {
       try {
@@ -389,7 +338,6 @@ export class PuppeteerBackend implements Primitives {
   async click(uid: string): Promise<void> {
     this.checkRateLimit('click');
     const { page, backendNodeId } = await this.resolveUid(uid, 'click');
-    await this.ensurePageActive(page);
     const config = getClickEnhancementConfig();
 
     // Step 1: Wait for element position to stabilize (CSS animations)
@@ -444,7 +392,6 @@ export class PuppeteerBackend implements Primitives {
   async type(uid: string, text: string, options?: { delay?: number }): Promise<void> {
     this.checkRateLimit('type');
     const { page, backendNodeId } = await this.resolveUid(uid, 'type');
-    await this.ensurePageActive(page);
 
     // Focus the element via CDP
     const client = await page.createCDPSession();
@@ -469,8 +416,8 @@ export class PuppeteerBackend implements Primitives {
   async pressKey(key: string): Promise<void> {
     this.checkRateLimit('pressKey');
     const page = await this.getPage();
-    // No ensurePageActive() here — keyboard events (Input.dispatchKeyEvent) are
-    // not subject to Chromium's background tab throttling, unlike mouse events.
+    // Keyboard events (Input.dispatchKeyEvent) are not subject to Chromium's
+    // background tab throttling — no throttle recovery needed here.
 
     if (KNOWN_KEYS.has(key)) {
       await page.keyboard.press(key as KeyInput);
@@ -483,7 +430,6 @@ export class PuppeteerBackend implements Primitives {
   async scroll(options: ScrollOptions): Promise<void> {
     this.checkRateLimit('scroll');
     const page = await this.getPage();
-    await this.ensurePageActive(page);
     const amount = options.amount ?? 600;
     const direction = options.direction === 'up' ? -1 : 1;
     const totalDelta = amount * direction;
@@ -510,7 +456,6 @@ export class PuppeteerBackend implements Primitives {
   async scrollIntoView(uid: string): Promise<void> {
     this.checkRateLimit('scrollIntoView');
     const { page, backendNodeId } = await this.resolveUid(uid, 'scrollIntoView');
-    await this.ensurePageActive(page);
     await scrollElementIntoView(page, backendNodeId);
   }
 
