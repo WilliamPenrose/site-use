@@ -35,7 +35,7 @@ async function checkBrowserHealth(browser: Browser): Promise<void> {
     browser.disconnect();
     browserInstance = null;
     throw new BrowserDisconnected(
-      'Chrome is unresponsive (health check timed out). Restart it with: npx site-use browser close && npx site-use browser launch',
+      'Chrome is unresponsive (health check timed out). Restart it with: site-use browser close && site-use browser launch',
       { step: 'healthCheck' },
     );
   }
@@ -350,6 +350,14 @@ async function applyProxyAuth(browser: Browser): Promise<void> {
 // ---------------------------------------------------------------------------
 
 function findChromeExecutable(): string {
+  const customPath = process.env.CHROME_EXECUTABLE_PATH;
+  if (customPath) {
+    if (existsSync(customPath)) return customPath;
+    throw new BrowserNotRunning(
+      `CHROME_EXECUTABLE_PATH is set to "${customPath}" but the file does not exist.`,
+    );
+  }
+
   if (process.platform === 'win32') {
     const envVars = ['PROGRAMFILES', 'PROGRAMFILES(X86)', 'LOCALAPPDATA'] as const;
     for (const envVar of envVars) {
@@ -368,8 +376,8 @@ function findChromeExecutable(): string {
       if (existsSync(p)) return p;
     }
   }
-  throw new BrowserDisconnected(
-    'Chrome executable not found. Install Google Chrome or set a custom path.',
+  throw new BrowserNotRunning(
+    'Chrome executable not found. Install Google Chrome, or set CHROME_EXECUTABLE_PATH to your Chrome binary path.',
   );
 }
 
@@ -495,7 +503,7 @@ export async function ensureBrowser(opts?: { autoLaunch?: boolean; extraArgs?: s
   // No chrome.json — either launch or throw
   if (!info) {
     if (!autoLaunch) {
-      throw new BrowserNotRunning('Chrome is not running. Launch it first with: npx site-use browser launch');
+      throw new BrowserNotRunning('Chrome is not running. Launch it first with: site-use browser launch');
     }
     info = await launchAndDetach(opts?.extraArgs);
   }
@@ -508,7 +516,7 @@ export async function ensureBrowser(opts?: { autoLaunch?: boolean; extraArgs?: s
     try { unlinkSync(config.chromeJsonPath); } catch {}
 
     if (!autoLaunch) {
-      throw new BrowserNotRunning('Chrome is not running (connection failed). Launch it first with: npx site-use browser launch');
+      throw new BrowserNotRunning('Chrome is not running (connection failed). Launch it first with: site-use browser launch');
     }
 
     // Relaunch and connect

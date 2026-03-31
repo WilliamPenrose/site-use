@@ -150,7 +150,7 @@ export async function runKnowledgeCli(command: string, args: string[]): Promise<
       writeError(
         'DatabaseNotFound',
         `Knowledge database not found at ${dbPath}`,
-        "Run 'npx site-use twitter feed' to collect some tweets first.",
+        "Run 'site-use twitter feed' to collect some tweets first.",
       );
       return;
     }

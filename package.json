@@ -4,7 +4,7 @@
   "description": "Site-level browser automation — deterministic CLI workflows for Chrome, optimized for LLM agent consumption.",
   "type": "module",
   "bin": {
-    "site-use": "dist/index.js"
+    "site-use": "dist/cli.js"
   },
   "files": [
     "dist"

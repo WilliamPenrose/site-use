@@ -395,15 +395,15 @@ describe('browser', () => {
       await expect(ensureBrowser({ autoLaunch: true })).rejects.toThrow('Chrome executable not found');
     });
 
-    it('thrown error is instance of BrowserDisconnected', async () => {
+    it('thrown error is instance of BrowserNotRunning', async () => {
       const { existsSync } = await import('node:fs');
       vi.mocked(existsSync).mockReturnValue(false);
       try {
         await ensureBrowser({ autoLaunch: true });
         expect.unreachable('should have thrown');
       } catch (err) {
-        const { BrowserDisconnected } = await import('../../src/errors.js');
-        expect(err).toBeInstanceOf(BrowserDisconnected);
+        const { BrowserNotRunning } = await import('../../src/errors.js');
+        expect(err).toBeInstanceOf(BrowserNotRunning);
       }
     });
 

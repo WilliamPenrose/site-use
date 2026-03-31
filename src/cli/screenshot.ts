@@ -23,7 +23,7 @@ Options:
     process.stderr.write(JSON.stringify({
       error: 'MissingParameter',
       message: '--site is required',
-      hint: 'Usage: npx site-use screenshot --site twitter',
+      hint: 'Usage: site-use screenshot --site twitter',
     }) + '\n');
     process.exitCode = 1;
     return;
