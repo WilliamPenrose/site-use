@@ -118,9 +118,11 @@ export class PuppeteerBackend implements Primitives {
    */
   private async recoverFromThrottle(page: Page, level: 1 | 2): Promise<void> {
     if (level >= 1) {
+      console.error('[site-use] CDP input throttled, recovering (level 1: bringToFront)');
       await page.bringToFront();
     }
     if (level >= 2) {
+      console.error('[site-use] CDP input throttled, recovering (level 2: un-minimize)');
       let client;
       try {
         client = await page.createCDPSession();
