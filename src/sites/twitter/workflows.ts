@@ -73,46 +73,50 @@ const TAB_INDICES: Record<TimelineFeed, number> = {
 };
 
 const TAB_SELECTOR = '[data-testid="primaryColumn"] [role="tablist"] [role="tab"]';
-const TAB_POLL_INTERVAL_MS = 500;
-const TAB_POLL_TIMEOUT_MS = 5000;
+
+const TAB_DISCOVERY_POLL_MS = 500;
+const TAB_DISCOVERY_TIMEOUT_MS = 10_000;
 
 /**
  * Ensure the given tab is selected on the Twitter home timeline.
- * Uses CSS selector + position index (locale-agnostic) instead of ARIA name matching.
- * index 0 = For you, index 1 = Following — consistent across all locales.
+ *
+ * Two-phase approach (JS discovery + ensure interaction):
+ * 1. evaluate() reads the tab's textContent by position index (locale-agnostic),
+ *    polling until the tab element appears in the DOM (SPA may still be rendering)
+ * 2. ensure() uses that text as ARIA name to click via CDP Input (human-like)
+ *
+ * This preserves the full anti-detection path (Bezier mouse trajectory,
+ * coordinate jitter, throttle) while being language-independent.
  */
 export async function ensureTab(
   primitives: Primitives,
   tab: TimelineFeed,
 ): Promise<'already_there' | 'transitioned'> {
   const index = TAB_INDICES[tab];
+  const ensure = makeEnsureState(primitives);
 
-  const isSelected = await primitives.evaluate<boolean>(`(() => {
-    const tabs = document.querySelectorAll('${TAB_SELECTOR}');
-    return tabs[${index}]?.getAttribute('aria-selected') === 'true';
-  })()`);
-
-  if (isSelected) return 'already_there';
-
-  await primitives.evaluate(`(() => {
-    const tabs = document.querySelectorAll('${TAB_SELECTOR}');
-    tabs[${index}]?.click();
-  })()`);
-
-  const deadline = Date.now() + TAB_POLL_TIMEOUT_MS;
+  // Phase 1: JS discovery — poll for the tab's locale-specific text by position
+  const deadline = Date.now() + TAB_DISCOVERY_TIMEOUT_MS;
+  let tabText: string | null = null;
   while (Date.now() < deadline) {
-    await new Promise(r => setTimeout(r, TAB_POLL_INTERVAL_MS));
-    const confirmed = await primitives.evaluate<boolean>(`(() => {
+    tabText = await primitives.evaluate<string | null>(`(() => {
       const tabs = document.querySelectorAll('${TAB_SELECTOR}');
-      return tabs[${index}]?.getAttribute('aria-selected') === 'true';
+      return tabs[${index}]?.textContent?.trim() ?? null;
     })()`);
-    if (confirmed) return 'transitioned';
+    if (tabText) break;
+    await new Promise(r => setTimeout(r, TAB_DISCOVERY_POLL_MS));
   }
 
-  throw new StateTransitionFailed(
-    `Tab switch to index ${index} not confirmed after ${TAB_POLL_TIMEOUT_MS}ms`,
-    { step: `ensureTab: waiting for tab ${index} to become selected` },
-  );
+  if (!tabText) {
+    throw new StateTransitionFailed(
+      `Tab at index ${index} not found in DOM after ${TAB_DISCOVERY_TIMEOUT_MS}ms`,
+      { step: `ensureTab: reading tab text at index ${index}` },
+    );
+  }
+
+  // Phase 2: ensure interaction — click via CDP with human-like behavior
+  const result = await ensure({ role: 'tab', name: tabText, selected: true });
+  return result.action;
 }
 
 export interface GetFeedOptions {
