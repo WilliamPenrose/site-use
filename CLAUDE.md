@@ -29,13 +29,18 @@ CLI (index.ts)
 
 ## Design Documents
 
-- `docs/site-use-design.md` — Overall design
-- `docs/milestones/overview.md` — Milestone breakdown
+- `.dev/docs/site-use-design.md` — Overall design
+- `.dev/docs/milestones/overview.md` — Milestone breakdown
+
+## Superpowers Output
+
+Save plans to: `.dev/docs/superpowers/plans/YYYY-MM-DD-<feature-name>.md`
+Save specs to: `.dev/docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`
 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **site-use** (943 symbols, 2114 relationships, 63 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **site-use** (958 symbols, 2166 relationships, 63 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 

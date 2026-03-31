@@ -24,8 +24,8 @@ chrome-profile/
 .claude/skills/site-use/evals/
 .claude.local.md
 
-# Superpowers intermediate process docs
-docs/superpowers/
+# OpenSpec symlink to .dev/openspec
+openspec
 
 # Temporary debug/scratch files
 tmp/
