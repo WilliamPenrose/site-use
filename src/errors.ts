@@ -91,7 +91,7 @@ export class BrowserNotRunning extends SiteUseError {
   constructor(message: string, context: ErrorContext = {}) {
     super('BrowserNotRunning', message, {
       retryable: false,
-      hint: "Run 'npx site-use browser launch' to start Chrome first.",
+      hint: "Run 'site-use browser launch' to start Chrome first.",
       ...context,
     });
     this.name = 'BrowserNotRunning';

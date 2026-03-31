@@ -8,7 +8,10 @@ export const DEFAULT_TOOL_DESCRIPTIONS: Record<string, (site: string) => string>
 /** Default error hints, with {site} placeholder. */
 export const DEFAULT_HINTS: Record<string, string> = {
   sessionExpired:
-    'User is not logged in to {site}. Ask the user to log in manually in the browser, then retry.',
+    "Login required. Steps: 1) Run 'site-use browser launch' to open Chrome (if not already running). " +
+    '2) Find the Chrome window (it may be behind other windows). ' +
+    '3) Log in to your {site} account in that Chrome window. ' +
+    '4) Re-run your command — login will be detected automatically.',
   rateLimited:
     'Rate limited by {site}. Do not retry immediately. Wait or switch to a different task, then retry later.',
   elementNotFound:

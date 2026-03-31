@@ -152,8 +152,8 @@ Errors are JSON with a type, message, hint, and execution trace (even without `-
 |------------|------------|
 | **SessionExpired** | Ask the user to log in manually in the Chrome window, then retry |
 | **RateLimited** | Stop all Twitter operations. Wait at least 15 minutes. Use `search` for cached data meanwhile |
-| **BrowserDisconnected** | Run `npx site-use browser launch`, then retry |
-| **BrowserNotRunning** | Run `npx site-use browser launch` first |
+| **BrowserDisconnected** | Run `site-use browser launch`, then retry |
+| **BrowserNotRunning** | Run `site-use browser launch` first |
 | **ElementNotFound** | Page may still be loading. Wait a few seconds, retry |
 
 ### Rate limiting deserves extra care

@@ -1,7 +1,10 @@
 // src/storage/schema.ts
+import fs from 'node:fs';
+import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
 export function initializeDatabase(dbPath: string): DatabaseSync {
+  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   const db = new DatabaseSync(dbPath);
 
   db.exec('PRAGMA journal_mode = WAL');

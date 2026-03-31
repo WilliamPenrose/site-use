@@ -86,7 +86,7 @@ describe('existing errors get retryable and hint defaults', () => {
   it('SessionExpired defaults to retryable: false with hint', () => {
     const err = new SessionExpired('Login required');
     expect(err.context.retryable).toBe(false);
-    expect(err.context.hint).toContain('log in');
+    expect(err.context.hint).toContain('Log in');
   });
 
   it('ElementNotFound defaults to retryable: true with hint', () => {

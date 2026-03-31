@@ -81,9 +81,6 @@ export const plugin: SitePlugin = {
   displaySchema: twitterDisplaySchema,
 
   hints: {
-    sessionExpired:
-      'User is not logged in to Twitter/X. Ask the user to open the browser, ' +
-      'navigate to x.com, and log in manually. Then retry.',
     rateLimited:
       'Rate limited by Twitter/X. Wait at least 15 minutes before retrying. ' +
       'Do not attempt to scroll or navigate on Twitter during this time.',
