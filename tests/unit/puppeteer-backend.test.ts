@@ -515,6 +515,77 @@ describe('PuppeteerBackend', () => {
       const { humanScroll } = await import('../../src/primitives/scroll-enhanced.js');
       expect(humanScroll).toHaveBeenCalledWith(page, 0, 300);
     });
+
+    it('recovers from CDP throttle via bringToFront (level 1)', async () => {
+      const page = createMockPage();
+      mockNewPage.mockResolvedValue(page);
+
+      const { humanScroll } = await import('../../src/primitives/scroll-enhanced.js');
+      vi.mocked(humanScroll)
+        .mockResolvedValueOnce('throttled')
+        .mockResolvedValueOnce('ok');
+
+      const backend = new PuppeteerBackend(mockBrowser as any);
+      await backend.scroll({ direction: 'down' });
+
+      expect(page.bringToFront).toHaveBeenCalled();
+      expect(humanScroll).toHaveBeenCalledTimes(2);
+    });
+
+    it('recovers from CDP throttle via un-minimize (level 2)', async () => {
+      const page = createMockPage();
+      mockNewPage.mockResolvedValue(page);
+
+      const { humanScroll } = await import('../../src/primitives/scroll-enhanced.js');
+      vi.mocked(humanScroll)
+        .mockResolvedValueOnce('throttled')
+        .mockResolvedValueOnce('throttled')
+        .mockResolvedValueOnce('ok');
+
+      const cdpSession = {
+        send: vi.fn().mockImplementation((method: string) => {
+          if (method === 'Browser.getWindowForTarget') return Promise.resolve({ windowId: 1 });
+          if (method === 'Browser.setWindowBounds') return Promise.resolve({});
+          return Promise.resolve({});
+        }),
+        detach: vi.fn().mockResolvedValue(undefined),
+      };
+      mockCreateCDPSession.mockResolvedValue(cdpSession);
+
+      const backend = new PuppeteerBackend(mockBrowser as any);
+      await backend.scroll({ direction: 'down' });
+
+      expect(page.bringToFront).toHaveBeenCalled();
+      expect(cdpSession.send).toHaveBeenCalledWith('Browser.getWindowForTarget');
+      expect(cdpSession.send).toHaveBeenCalledWith('Browser.setWindowBounds', {
+        windowId: 1,
+        bounds: { windowState: 'normal' },
+      });
+      expect(humanScroll).toHaveBeenCalledTimes(3);
+    });
+
+    it('throws CdpThrottled when all recovery levels fail', async () => {
+      const page = createMockPage();
+      mockNewPage.mockResolvedValue(page);
+
+      const { humanScroll } = await import('../../src/primitives/scroll-enhanced.js');
+      vi.mocked(humanScroll).mockResolvedValue('throttled');
+
+      const cdpSession = {
+        send: vi.fn().mockImplementation((method: string) => {
+          if (method === 'Browser.getWindowForTarget') return Promise.resolve({ windowId: 1 });
+          if (method === 'Browser.setWindowBounds') return Promise.resolve({});
+          return Promise.resolve({});
+        }),
+        detach: vi.fn().mockResolvedValue(undefined),
+      };
+      mockCreateCDPSession.mockResolvedValue(cdpSession);
+
+      const { CdpThrottled } = await import('../../src/errors.js');
+      const backend = new PuppeteerBackend(mockBrowser as any);
+
+      await expect(backend.scroll({ direction: 'down' })).rejects.toThrow(CdpThrottled);
+    });
   });
 
   describe('interceptRequest', () => {

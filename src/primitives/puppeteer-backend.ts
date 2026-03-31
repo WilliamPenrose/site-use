@@ -488,10 +488,22 @@ export class PuppeteerBackend implements Primitives {
     const direction = options.direction === 'up' ? -1 : 1;
     const totalDelta = amount * direction;
 
-    const result = await humanScroll(page, 0, totalDelta);
+    const doScroll = () => humanScroll(page, 0, totalDelta);
+
+    let result = await doScroll();
     if (result === 'throttled') {
-      console.error('[site-use] scroll: CDP input throttled, falling back to JS scrollBy');
-      await page.evaluate((dy: number) => window.scrollBy(0, dy), totalDelta);
+      await this.recoverFromThrottle(page, 1);
+      result = await doScroll();
+    }
+    if (result === 'throttled') {
+      await this.recoverFromThrottle(page, 2);
+      result = await doScroll();
+    }
+    if (result === 'throttled') {
+      throw new CdpThrottled(
+        'CDP input events are throttled — scroll failed after recovery attempts',
+        { step: 'scroll' },
+      );
     }
   }
 
