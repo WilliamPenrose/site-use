@@ -117,11 +117,11 @@ export class PuppeteerBackend implements Primitives {
    * Level 2: Un-minimize the OS window (Browser.setWindowBounds).
    */
   private async recoverFromThrottle(page: Page, level: 1 | 2): Promise<void> {
-    if (level >= 1) {
+    if (level === 1) {
       console.error('[site-use] CDP input throttled, recovering (level 1: bringToFront)');
       await page.bringToFront();
     }
-    if (level >= 2) {
+    if (level === 2) {
       console.error('[site-use] CDP input throttled, recovering (level 2: un-minimize)');
       let client;
       try {
