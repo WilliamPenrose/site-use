@@ -1,5 +1,7 @@
 # site-use
 
+@.claude.local.md
+
 Site-level browser automation — deterministic CLI workflows for Chrome, optimized for LLM agent consumption.
 
 ## Quick Start
