@@ -77,32 +77,26 @@ beforeEach(async () => {
 describe('checkLogin', () => {
   it('returns loggedIn: false when URL redirects to login', async () => {
     const primitives = createMockPrimitives({
-      evaluate: vi.fn().mockResolvedValue('https://x.com/i/flow/login'),
+      evaluate: mockEvaluate({
+        'location.href': 'https://x.com/i/flow/login',
+        'AppTabBar_Home_Link': false,
+      }),
     });
     const result = await checkLogin(primitives);
     expect(result.loggedIn).toBe(false);
   });
 
-  it('returns loggedIn: true when Home link found in snapshot', async () => {
+  it('returns loggedIn: true when Home link found via data-testid', async () => {
     const primitives = createMockPrimitives({
-      evaluate: vi.fn().mockResolvedValue('https://x.com/home'),
-      takeSnapshot: vi.fn().mockResolvedValue(
-        buildSnapshot([
-          { uid: '1', role: 'link', name: 'Home' },
-          { uid: '10', role: 'tab', name: 'Following', selected: true },
-        ]),
-      ),
+      evaluate: mockEvaluate({ 'AppTabBar_Home_Link': true }),
     });
     const result = await checkLogin(primitives);
     expect(result.loggedIn).toBe(true);
   });
 
-  it('returns loggedIn: false when no Home link in snapshot', { timeout: 15000 }, async () => {
+  it('returns loggedIn: false when no Home link found', { timeout: 15000 }, async () => {
     const primitives = createMockPrimitives({
-      evaluate: vi.fn().mockResolvedValue('https://x.com/home'),
-      takeSnapshot: vi.fn().mockResolvedValue(
-        buildSnapshot([{ uid: '1', role: 'button', name: 'Settings' }]),
-      ),
+      evaluate: mockEvaluate({ 'AppTabBar_Home_Link': false }),
     });
     const result = await checkLogin(primitives);
     expect(result.loggedIn).toBe(false);
@@ -110,13 +104,7 @@ describe('checkLogin', () => {
 
   it('navigates to x.com/home', async () => {
     const primitives = createMockPrimitives({
-      evaluate: vi.fn().mockResolvedValue('https://x.com/home'),
-      takeSnapshot: vi.fn().mockResolvedValue(
-        buildSnapshot([
-          { uid: '1', role: 'link', name: 'Home' },
-          { uid: '10', role: 'tab', name: 'Following', selected: true },
-        ]),
-      ),
+      evaluate: mockEvaluate({ 'AppTabBar_Home_Link': true }),
     });
     await checkLogin(primitives);
     expect(primitives.navigate).toHaveBeenCalledWith('https://x.com/home');
