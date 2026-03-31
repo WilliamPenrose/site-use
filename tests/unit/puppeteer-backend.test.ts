@@ -407,7 +407,7 @@ describe('PuppeteerBackend', () => {
       await backend.takeSnapshot();
       await backend.click('1');
 
-      expect(cdpSession.send).toHaveBeenCalledWith('Emulation.setFocusEmulationEnabled', { enabled: true });
+      expect(cdpSession.send).toHaveBeenCalledWith('DOM.enable');
       expect(clickWithTrajectory).toHaveBeenCalledTimes(2);
     });
 
@@ -540,7 +540,7 @@ describe('PuppeteerBackend', () => {
       const backend = new PuppeteerBackend(mockBrowser as any);
       await backend.scroll({ direction: 'down' });
 
-      expect(cdpSession.send).toHaveBeenCalledWith('Emulation.setFocusEmulationEnabled', { enabled: true });
+      expect(cdpSession.send).toHaveBeenCalledWith('DOM.enable');
       expect(humanScroll).toHaveBeenCalledTimes(2);
     });
 
