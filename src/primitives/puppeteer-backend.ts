@@ -112,17 +112,49 @@ export class PuppeteerBackend implements Primitives {
   }
 
   /**
+   * Collect browser state for throttle diagnostics.
+   */
+  private async diagnoseBrowserState(page: Page): Promise<string> {
+    let client;
+    try {
+      client = await page.createCDPSession();
+      const [visibility, hasFocus, windowInfo] = await Promise.all([
+        client.send('Runtime.evaluate', { expression: 'document.visibilityState' })
+          .then((r: any) => r.result?.value ?? 'unknown')
+          .catch(() => 'unknown'),
+        client.send('Runtime.evaluate', { expression: 'document.hasFocus()' })
+          .then((r: any) => r.result?.value ?? 'unknown')
+          .catch(() => 'unknown'),
+        client.send('Browser.getWindowForTarget')
+          .then(async (r: any) => {
+            const bounds = await client!.send('Browser.getWindowBounds', { windowId: r.windowId });
+            return (bounds as any).bounds?.windowState ?? 'unknown';
+          })
+          .catch(() => 'unknown'),
+      ]);
+      return `visibility=${visibility}, hasFocus=${hasFocus}, window=${windowInfo}`;
+    } catch {
+      return 'diagnostics unavailable';
+    } finally {
+      try { await client?.detach(); } catch {}
+    }
+  }
+
+  /**
    * Attempt to recover from CDP input throttling.
    * Level 1: Activate tab within Chrome (bringToFront).
    * Level 2: Un-minimize the OS window (Browser.setWindowBounds).
    */
   private async recoverFromThrottle(page: Page, level: 1 | 2): Promise<void> {
+    const stateBefore = await this.diagnoseBrowserState(page);
     if (level === 1) {
-      console.error('[site-use] CDP input throttled, recovering (level 1: bringToFront)');
+      console.error(`[site-use] CDP input throttled — ${stateBefore}`);
+      console.error('[site-use] recovering (level 1: bringToFront)');
       await page.bringToFront();
     }
     if (level === 2) {
-      console.error('[site-use] CDP input throttled, recovering (level 2: un-minimize)');
+      console.error(`[site-use] CDP input still throttled — ${stateBefore}`);
+      console.error('[site-use] recovering (level 2: un-minimize)');
       let client;
       try {
         client = await page.createCDPSession();
@@ -135,6 +167,8 @@ export class PuppeteerBackend implements Primitives {
         try { await client?.detach(); } catch {}
       }
     }
+    const stateAfter = await this.diagnoseBrowserState(page);
+    console.error(`[site-use] after recovery — ${stateAfter}`);
   }
 
   private async getPage(): Promise<Page> {
