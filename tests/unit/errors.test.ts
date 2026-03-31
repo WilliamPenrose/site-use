@@ -7,6 +7,7 @@ import {
   ElementNotFound,
   RateLimited,
   NavigationFailed,
+  CdpThrottled,
 } from '../../src/errors.js';
 
 describe('SiteUseError', () => {
@@ -117,5 +118,29 @@ describe('BrowserNotRunning', () => {
     expect(err.type).toBe('BrowserNotRunning');
     expect(err.context.retryable).toBe(false);
     expect(err).toBeInstanceOf(SiteUseError);
+  });
+});
+
+describe('CdpThrottled', () => {
+  it('has correct type and defaults to retryable: true', () => {
+    const err = new CdpThrottled('CDP input throttled during click', {
+      step: 'click',
+    });
+    expect(err.type).toBe('CdpThrottled');
+    expect(err.name).toBe('CdpThrottled');
+    expect(err.context.retryable).toBe(true);
+    expect(err.context.step).toBe('click');
+    expect(err.context.hint).toBeDefined();
+    expect(err.context.hint!.length).toBeGreaterThan(0);
+    expect(err).toBeInstanceOf(SiteUseError);
+    expect(err).toBeInstanceOf(CdpThrottled);
+  });
+
+  it('works for scroll step', () => {
+    const err = new CdpThrottled('CDP input throttled during scroll', {
+      step: 'scroll',
+    });
+    expect(err.context.step).toBe('scroll');
+    expect(err.context.retryable).toBe(true);
   });
 });
