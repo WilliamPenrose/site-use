@@ -389,7 +389,7 @@ describe('browser', () => {
   });
 
   describe('error handling', () => {
-    it('throws BrowserDisconnected when Chrome executable not found', async () => {
+    it('throws BrowserNotRunning when Chrome executable not found', async () => {
       const { existsSync } = await import('node:fs');
       vi.mocked(existsSync).mockReturnValue(false);
       await expect(ensureBrowser({ autoLaunch: true })).rejects.toThrow('Chrome executable not found');

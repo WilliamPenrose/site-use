@@ -17,4 +17,7 @@ if (major < MIN_MAJOR || (major === MIN_MAJOR && minor < MIN_MINOR)) {
 }
 
 // Version OK — dynamically import the real entry point
-import('./index.js');
+import('./index.js').catch((err) => {
+  console.error('site-use failed:', err);
+  process.exit(1);
+});
