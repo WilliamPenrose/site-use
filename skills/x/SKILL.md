@@ -1,6 +1,7 @@
 ---
 name: x
 description: "Use when the user wants to collect tweets, search Twitter/X, get tweet details, or browse cached posts. Examples: 'grab latest tweets', 'search Twitter for AI news', 'get replies to this tweet'"
+metadata: { "openclaw": { "emoji": "🌐", "requires": { "bins": ["site-use"] }, "install": [{ "kind": "node", "package": "site-use", "bins": ["site-use"] }] } }
 ---
 
 # Twitter/X — site-use skill
