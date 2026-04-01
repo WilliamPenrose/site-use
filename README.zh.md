@@ -46,55 +46,42 @@ site-use 把这些浏览动作预先封装好，执行时零 token 消耗。agen
 
 ## 快速上手
 
-### 1. 安装
+你需要 [Node.js 22.14+](https://nodejs.org/) 和 [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview)。
+
+### 1. 安装 site-use
 
 ```bash
-git clone https://github.com/WilliamPenrose/site-use.git
-cd site-use
-pnpm install
-pnpm run build
-npm link
+npm install -g site-use
 ```
 
-之后在任意目录都可以运行 `site-use --help`。
+### 2. 在 Claude Code 中添加插件
 
-### 2. 配置 MCP 客户端
+在 Claude Code 中输入：
 
-以 Claude Desktop 为例，找到配置文件 `claude_desktop_config.json`（Settings → Developer → Edit Config），添加：
-
-```json
-{
-  "mcpServers": {
-    "site-use": {
-      "command": "site-use",
-      "args": ["mcp"]
-    }
-  }
-}
+```
+/plugin marketplace add WilliamPenrose/site-use
+/plugin install site-use@site-use
 ```
 
-### 3. 登录 Twitter
+### 3. 开始
 
-首次使用时，site-use 会启动一个专属的 Chrome 浏览器，拥有独立的配置文件——你日常浏览器里的 cookie、密码、浏览记录，agent 一概看不到。在这个浏览器中登录你的 Twitter 账号，只需一次。Chrome 的安全机制天然保护了你的账号密码，agent 无法获取。
+对 agent 说"帮我设置 site-use"，它会启动 Chrome、引导你登录 Twitter、完成第一次推文抓取。
 
-### 4. 开始使用
+## 命令行
 
-对你的 agent 说："帮我看一下 Twitter timeline"，agent 会通过 MCP 调用 site-use 自动完成抓取。
-
-你也可以直接用命令行：
+不用 AI agent 也可以独立使用：
 
 ```bash
-site-use twitter feed             # 抓取 timeline，有缓存时自动使用缓存
-site-use search "关键词"          # 全文搜索
-site-use stats                   # 查看数据库统计
+site-use twitter feed             # 抓取 timeline
+site-use twitter search --query "AI agents"  # 搜索 Twitter
+site-use search "关键词"          # 搜索缓存数据
 ```
 
-命令行操作绝对零 token 消耗。
 
 ## 架构
 
 ```
-Browser 层 → Sites 层 → MCP Server + CLI
+Browser 层 → Sites 层 → CLI
 ```
 
 **Browser 层（安全基座）**
@@ -105,9 +92,9 @@ Browser 层 → Sites 层 → MCP Server + CLI
 
 Twitter 专属工作流，直接提取 Twitter 内部的完整数据，不丢失任何信息。抓取内容自动进入本地数据库，你的 Twitter 数据终身归你所有，不经过任何第三方。
 
-**MCP Server + CLI（两种使用方式）**
+**CLI（确定性自动化）**
 
-想方便就让 agent 通过 MCP 操作，花一点 token 换省心；常规操作不想烧 token 就自己用命令行，同一套数据，丰俭由人。
+所有浏览动作预先封装为确定性代码——执行时零 token 消耗。agent 只处理最终的结构化内容。内置 Claude Code 插件，无缝集成 agent 工作流。
 
 ## 路线图
 

@@ -46,55 +46,41 @@ Dumping raw HTML into a language model fills its context with low-value tags —
 
 ## Quick start
 
-### 1. Install
+You'll need [Node.js 22.14+](https://nodejs.org/) and [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview).
+
+### 1. Install site-use
 
 ```bash
-git clone https://github.com/WilliamPenrose/site-use.git
-cd site-use
-pnpm install
-pnpm run build
-npm link
+npm install -g site-use
 ```
 
-After this, you can run `site-use --help` from any directory.
+### 2. Add the plugin to Claude Code
 
-### 2. Configure your MCP client
+In Claude Code, type:
 
-For Claude Desktop, open `claude_desktop_config.json` (Settings → Developer → Edit Config) and add:
-
-```json
-{
-  "mcpServers": {
-    "site-use": {
-      "command": "site-use",
-      "args": ["mcp"]
-    }
-  }
-}
+```
+/plugin marketplace add WilliamPenrose/site-use
+/plugin install site-use@site-use
 ```
 
-### 3. Log in to Twitter
+### 3. Go
 
-On first launch, site-use starts a dedicated Chrome browser with its own profile — your regular browser's cookies, passwords, and history are completely invisible to the agent. Log in to your Twitter account in this browser, just once. Chrome's security model naturally protects your credentials from agent access.
+Ask your agent "help me set up site-use" — it will launch Chrome, walk you through logging in to Twitter, and collect your first tweets.
 
-### 4. Start using
+## CLI
 
-Tell your agent: "Check my Twitter timeline" — it will call site-use via MCP to collect tweets automatically.
-
-You can also use the CLI directly:
+site-use also works standalone without an AI agent:
 
 ```bash
-site-use twitter feed             # Fetch timeline, uses cache when available
-site-use search "keyword"         # Full-text search
-site-use stats                    # Database statistics
+site-use twitter feed             # Fetch timeline
+site-use twitter search --query "AI agents"  # Search Twitter
+site-use search "keyword"         # Search cached data
 ```
-
-CLI operations cost zero tokens.
 
 ## Architecture
 
 ```
-Browser layer → Sites layer → MCP Server + CLI
+Browser layer → Sites layer → CLI
 ```
 
 **Browser layer (security foundation)**
@@ -105,9 +91,9 @@ Isolated Chrome profile protects user privacy. Anti-fingerprinting at the launch
 
 Twitter-specific workflows that extract full structured data directly from Twitter. All content flows into a local database — your Twitter data belongs to you permanently, never passing through any third party.
 
-**MCP Server + CLI (two ways to use)**
+**CLI (deterministic automation)**
 
-Want convenience? Let your agent operate via MCP, spending a few tokens for hands-free automation. Want zero cost? Use the CLI yourself. Same data, your choice.
+All browsing actions are baked into deterministic code — zero token cost at execution time. Your agent only processes the final structured content. A Claude Code plugin is included for seamless agent integration.
 
 ## Roadmap
 

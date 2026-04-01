@@ -1,6 +1,6 @@
 ---
 name: x
-description: "Use when the user wants to collect tweets, search Twitter/X, get tweet details, or browse cached posts. Examples: 'grab latest tweets', 'search Twitter for AI news', 'get replies to this tweet'"
+description: "Use when the user wants to collect tweets, search Twitter/X, get tweet details, set up site-use, or browse cached posts. Examples: 'set up site-use', 'grab latest tweets', 'search Twitter for AI news', 'get replies to this tweet'"
 metadata: { "openclaw": { "emoji": "🌐", "requires": { "bins": ["site-use"] }, "install": [{ "kind": "node", "package": "site-use", "bins": ["site-use"] }] } }
 ---
 
@@ -10,6 +10,18 @@ metadata: { "openclaw": { "emoji": "🌐", "requires": { "bins": ["site-use"] },
 
 Only use `site-use` commands listed below.
 Do not use puppeteer, chrome-devtools-mcp, or any other browser automation tool directly.
+
+## First-time setup
+
+When the user asks to set up site-use or you get a `BrowserNotRunning` error on first use:
+
+1. Run `site-use browser launch` to start Chrome
+2. Tell the user to log in to Twitter in the Chrome window that opened
+3. Wait for the user to confirm they've logged in
+4. Run `site-use twitter check-login` to verify
+5. If logged in, run `site-use twitter feed --count 10 --fields author,text,url` to collect the first batch
+
+The launched Chrome uses an isolated profile — the user's regular browser data is never exposed.
 
 ## When to use which command
 
