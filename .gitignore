@@ -1,0 +1,40 @@
+node_modules/
+dist/
+
+# Private environment variables
+.env
+.npmrc
+
+# Chrome user data (contains cookies, login state)
+chrome-profile/
+
+# SQLite fingerprint databases (M4)
+*.db
+
+# Local site-use data directory
+.site-use/
+
+# Claude Code local settings (contains machine-specific paths)
+# Ignore everything in .claude/ except project-level settings.json and skills
+.claude/*
+!.claude/settings.json
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/site-use/
+.claude/skills/site-use/evals/
+.claude.local.md
+
+# OpenSpec symlink to .dev/openspec
+openspec
+
+# Auto-generated barrel (rebuilt on every build)
+tools/diagnose/checks/_browser-barrel.ts
+
+# Temporary debug/scratch files
+tmp/
+
+# Git worktrees
+.worktrees/
+.gitnexus
+.mcp.json
+AGENTS.md

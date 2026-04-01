@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Mouse Event Probe</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: monospace; background: #1a1a2e; color: #e0e0e0; }
+    #header { padding: 12px 20px; background: #16213e; display: flex; justify-content: space-between; align-items: center; }
+    #header h1 { font-size: 16px; }
+    #header button { padding: 4px 12px; cursor: pointer; }
+    #arena { position: relative; width: 100%; height: 300px; background: #0f3460; }
+    canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+    #target-btn {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: 200px; height: 80px; font-size: 18px; font-family: monospace;
+      background: #e94560; color: white; border: none; border-radius: 8px; cursor: pointer;
+      z-index: 1;
+    }
+    #target-btn:hover { background: #c81e45; }
+    #occluder {
+      display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: 220px; height: 100px; background: rgba(0,0,0,0.7); z-index: 2;
+      color: #e94560; font-size: 14px; line-height: 100px; text-align: center;
+    }
+    #occluder.active { display: block; }
+    #animated-btn {
+      position: absolute; top: 50%; right: -220px;
+      width: 180px; height: 60px; font-size: 16px; font-family: monospace;
+      background: #4fc3f7; color: #1a1a2e; border: none; border-radius: 8px; cursor: pointer;
+      z-index: 1; transition: none;
+    }
+    #animated-btn.sliding {
+      animation: slideIn 2s ease-out forwards;
+    }
+    @keyframes slideIn {
+      from { right: -220px; }
+      to { right: 40px; }
+    }
+    #stats { padding: 12px 20px; background: #16213e; display: flex; gap: 24px; font-size: 14px; }
+    #stats .stat { }
+    #stats .label { color: #888; }
+    #stats .value { color: #4fc3f7; font-weight: bold; }
+    #log-container { padding: 0 20px 20px; max-height: 400px; overflow-y: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
+    th { background: #16213e; padding: 4px 8px; text-align: left; position: sticky; top: 0; }
+    td { padding: 3px 8px; border-bottom: 1px solid #222; }
+    td.fail { color: #e94560; font-weight: bold; }
+    td.pass { color: #4caf50; }
+    tr.click-row { background: #1a3a1a; }
+    tr.move-row { }
+  </style>
+</head>
+<body>
+  <div id="header">
+    <h1>Mouse Event Probe</h1>
+    <button onclick="resetProbe()">Reset</button>
+  </div>
+  <div id="arena">
+    <canvas id="canvas"></canvas>
+    <button id="target-btn">CLICK ME</button>
+    <div id="occluder">OCCLUDER</div>
+    <button id="animated-btn">ANIMATED</button>
+  </div>
+  <div id="stats">
+    <div class="stat"><span class="label">mousemove: </span><span class="value" id="move-count">0</span></div>
+    <div class="stat"><span class="label">clicks: </span><span class="value" id="click-count">0</span></div>
+    <div class="stat"><span class="label">coord match: </span><span class="value" id="coord-match">-</span></div>
+  </div>
+  <div id="log-container">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th><th>type</th><th>clientX</th><th>clientY</th>
+          <th>screenX</th><th>screenY</th><th>coord ok?</th>
+          <th>movementX</th><th>movementY</th><th>isTrusted</th>
+        </tr>
+      </thead>
+      <tbody id="log-body"></tbody>
+    </table>
+  </div>
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const logBody = document.getElementById('log-body');
+    let eventIndex = 0;
+
+    // Results object readable by page.evaluate()
+    window.__probeResults = { events: [], moveCount: 0, clickCount: 0, coordMismatches: 0 };
+
+    function resizeCanvas() {
+      const arena = document.getElementById('arena');
+      canvas.width = arena.offsetWidth;
+      canvas.height = arena.offsetHeight;
+    }
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    function resetProbe() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      logBody.innerHTML = '';
+      eventIndex = 0;
+      window.__probeResults = { events: [], moveCount: 0, clickCount: 0, coordMismatches: 0 };
+      document.getElementById('move-count').textContent = '0';
+      document.getElementById('click-count').textContent = '0';
+      document.getElementById('coord-match').textContent = '-';
+    }
+
+    function checkCoord(e) {
+      const expectedSX = e.clientX + window.screenX;
+      const expectedSY = e.clientY + window.screenY;
+      return e.screenX === expectedSX && e.screenY === expectedSY;
+    }
+
+    function logEvent(e) {
+      const coordOk = checkCoord(e);
+      const entry = {
+        index: eventIndex++,
+        type: e.type,
+        timestamp: performance.now(),
+        clientX: e.clientX,
+        clientY: e.clientY,
+        screenX: e.screenX,
+        screenY: e.screenY,
+        coordOk,
+        movementX: e.movementX,
+        movementY: e.movementY,
+        isTrusted: e.isTrusted,
+      };
+
+      window.__probeResults.events.push(entry);
+      if (e.type === 'mousemove') {
+        window.__probeResults.moveCount++;
+        document.getElementById('move-count').textContent = window.__probeResults.moveCount;
+      }
+      if (e.type === 'click') {
+        window.__probeResults.clickCount++;
+        document.getElementById('click-count').textContent = window.__probeResults.clickCount;
+      }
+      if (!coordOk) {
+        window.__probeResults.coordMismatches++;
+      }
+      const total = window.__probeResults.events.length;
+      const mismatches = window.__probeResults.coordMismatches;
+      document.getElementById('coord-match').textContent =
+        mismatches === 0 ? 'ALL OK' : `${mismatches}/${total} FAIL`;
+
+      // Draw on canvas
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      if (e.type === 'mousemove') {
+        ctx.fillStyle = 'rgba(255, 100, 100, 0.6)';
+        ctx.beginPath();
+        ctx.arc(x, y, 2, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (e.type === 'click') {
+        ctx.strokeStyle = '#4caf50';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(x, y, 10, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = '#4caf50';
+        ctx.beginPath();
+        ctx.arc(x, y, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Add table row (keep last 50)
+      const tr = document.createElement('tr');
+      tr.className = e.type === 'click' ? 'click-row' : 'move-row';
+      tr.innerHTML = `
+        <td>${entry.index}</td>
+        <td>${entry.type}</td>
+        <td>${entry.clientX}</td><td>${entry.clientY}</td>
+        <td>${entry.screenX}</td><td>${entry.screenY}</td>
+        <td class="${coordOk ? 'pass' : 'fail'}">${coordOk ? 'YES' : 'NO'}</td>
+        <td>${entry.movementX}</td><td>${entry.movementY}</td>
+        <td>${entry.isTrusted}</td>
+      `;
+      logBody.appendChild(tr);
+      if (logBody.children.length > 50) logBody.removeChild(logBody.firstChild);
+    }
+
+    // Occluder toggle (callable from page.evaluate)
+    window.setOccluder = (active) => {
+      document.getElementById('occluder').classList.toggle('active', active);
+    };
+
+    // Trigger animated button slide-in (callable from page.evaluate)
+    window.triggerAnimation = () => {
+      const btn = document.getElementById('animated-btn');
+      btn.classList.remove('sliding');
+      // Force reflow to restart animation
+      void btn.offsetWidth;
+      btn.classList.add('sliding');
+    };
+
+    // Capture events on the entire arena
+    const arena = document.getElementById('arena');
+    arena.addEventListener('mousemove', logEvent);
+    arena.addEventListener('mousedown', logEvent);
+    arena.addEventListener('mouseup', logEvent);
+    arena.addEventListener('click', logEvent);
+  </script>
+</body>
+</html>

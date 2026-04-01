@@ -1,0 +1,10 @@
+{
+  "name": "site-use",
+  "description": "Site-level browser automation skills — deterministic CLI workflows for collecting and searching social media content",
+  "version": "1.0.0",
+  "author": {
+    "name": "WilliamPenrose"
+  },
+  "repository": "https://github.com/WilliamPenrose/site-use",
+  "license": "MIT"
+}
