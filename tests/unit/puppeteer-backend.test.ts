@@ -100,6 +100,147 @@ describe('PuppeteerBackend', () => {
     });
   });
 
+  describe('ensureWindowVisible', () => {
+    // Helper: create CDP session mock with configurable window state
+    function createWindowStateMock(windowState: string) {
+      return {
+        send: vi.fn().mockImplementation((method: string) => {
+          if (method === 'Browser.getWindowForTarget') return Promise.resolve({ windowId: 1 });
+          if (method === 'Browser.getWindowBounds') return Promise.resolve({ bounds: { windowState } });
+          if (method === 'Accessibility.getFullAXTree') {
+            return Promise.resolve({ nodes: [{ nodeId: 'ax-1', role: { value: 'button' }, name: { value: 'OK' }, backendDOMNodeId: 101, ignored: false, properties: [] }] });
+          }
+          if (method === 'DOM.describeNode') return Promise.resolve({ node: { nodeId: 10 } });
+          if (method === 'DOM.getBoxModel') return Promise.resolve({ model: { content: [100, 200, 200, 200, 200, 240, 100, 240] } });
+          return Promise.resolve({});
+        }),
+        detach: vi.fn().mockResolvedValue(undefined),
+      };
+    }
+
+    it('does NOT call bringToFront in getRawPage (layout-independent)', async () => {
+      const page = createMockPage();
+      mockNewPage.mockResolvedValue(page);
+      mockCreateCDPSession.mockResolvedValue(createWindowStateMock('minimized'));
+
+      const backend = new PuppeteerBackend(mockBrowser as any);
+      await backend.getRawPage();
+
+      expect(page.bringToFront).not.toHaveBeenCalled();
+    });
+
+    it('does NOT call bringToFront in navigate (layout-independent)', async () => {
+      const page = createMockPage();
+      mockNewPage.mockResolvedValue(page);
+      mockCreateCDPSession.mockResolvedValue(createWindowStateMock('minimized'));
+
+      const backend = new PuppeteerBackend(mockBrowser as any);
+      await backend.navigate('https://x.com/home');
+
+      expect(page.bringToFront).not.toHaveBeenCalled();
+    });
+
+    it('does NOT call bringToFront in evaluate (layout-independent)', async () => {
+      const page = createMockPage();
+      mockNewPage.mockResolvedValue(page);
+      mockCreateCDPSession.mockResolvedValue(createWindowStateMock('minimized'));
+
+      const backend = new PuppeteerBackend(mockBrowser as any);
+      await backend.evaluate('1+1');
+
+      expect(page.bringToFront).not.toHaveBeenCalled();
+    });
+
+    it('does NOT call bringToFront in pressKey (layout-independent)', async () => {
+      const page = createMockPage();
+      mockNewPage.mockResolvedValue(page);
+      mockCreateCDPSession.mockResolvedValue(createWindowStateMock('minimized'));
+
+      const backend = new PuppeteerBackend(mockBrowser as any);
+      await backend.pressKey('Enter');
+
+      expect(page.bringToFront).not.toHaveBeenCalled();
+    });
+
+    it('calls bringToFront in takeSnapshot when minimized', async () => {
+      const page = createMockPage();
+      mockNewPage.mockResolvedValue(page);
+      mockCreateCDPSession.mockResolvedValue(createWindowStateMock('minimized'));
+
+      const backend = new PuppeteerBackend(mockBrowser as any);
+      await backend.takeSnapshot();
+
+      expect(page.bringToFront).toHaveBeenCalled();
+    });
+
+    it('calls bringToFront in scroll when minimized', async () => {
+      const page = createMockPage();
+      mockNewPage.mockResolvedValue(page);
+      mockCreateCDPSession.mockResolvedValue(createWindowStateMock('minimized'));
+
+      const backend = new PuppeteerBackend(mockBrowser as any);
+      await backend.scroll({ direction: 'down' });
+
+      expect(page.bringToFront).toHaveBeenCalled();
+    });
+
+    it('calls bringToFront in screenshot when minimized', async () => {
+      const page = createMockPage();
+      mockNewPage.mockResolvedValue(page);
+      mockCreateCDPSession.mockResolvedValue(createWindowStateMock('minimized'));
+
+      const backend = new PuppeteerBackend(mockBrowser as any);
+      await backend.screenshot();
+
+      expect(page.bringToFront).toHaveBeenCalled();
+    });
+
+    it('does not call bringToFront in takeSnapshot when window is normal', async () => {
+      const page = createMockPage();
+      mockNewPage.mockResolvedValue(page);
+      mockCreateCDPSession.mockResolvedValue(createWindowStateMock('normal'));
+
+      const backend = new PuppeteerBackend(mockBrowser as any);
+      await backend.takeSnapshot();
+
+      expect(page.bringToFront).not.toHaveBeenCalled();
+    });
+
+    it('calls bringToFront in click when minimized', async () => {
+      const page = createMockPage();
+      mockNewPage.mockResolvedValue(page);
+
+      // Phase 1: takeSnapshot with normal window (populates uid map)
+      mockCreateCDPSession.mockResolvedValue(createWindowStateMock('normal'));
+      const backend = new PuppeteerBackend(mockBrowser as any);
+      await backend.takeSnapshot();
+
+      // Phase 2: click with minimized window
+      mockCreateCDPSession.mockResolvedValue(createWindowStateMock('minimized'));
+      page.bringToFront.mockClear();
+      await backend.click('1');
+
+      expect(page.bringToFront).toHaveBeenCalled();
+    });
+
+    it('calls bringToFront in scrollIntoView when minimized', async () => {
+      const page = createMockPage();
+      mockNewPage.mockResolvedValue(page);
+
+      // Phase 1: takeSnapshot with normal window (populates uid map)
+      mockCreateCDPSession.mockResolvedValue(createWindowStateMock('normal'));
+      const backend = new PuppeteerBackend(mockBrowser as any);
+      await backend.takeSnapshot();
+
+      // Phase 2: scrollIntoView with minimized window
+      mockCreateCDPSession.mockResolvedValue(createWindowStateMock('minimized'));
+      page.bringToFront.mockClear();
+      await backend.scrollIntoView('1');
+
+      expect(page.bringToFront).toHaveBeenCalled();
+    });
+  });
+
   describe('navigate', () => {
     it('calls page.goto with load waitUntil', async () => {
       const backend = new PuppeteerBackend(mockBrowser as any);
@@ -397,6 +538,7 @@ describe('PuppeteerBackend', () => {
           }
           if (method === 'DOM.describeNode') return Promise.resolve({ node: { nodeId: 10 } });
           if (method === 'DOM.getBoxModel') return Promise.resolve({ model: { content: [100, 200, 200, 200, 200, 240, 100, 240] } });
+          if (method === 'Runtime.evaluate') return Promise.resolve({ result: { value: 'visible' } });
           return Promise.resolve({});
         }),
         detach: vi.fn().mockResolvedValue(undefined),
@@ -436,6 +578,7 @@ describe('PuppeteerBackend', () => {
           }
           if (method === 'DOM.describeNode') return Promise.resolve({ node: { nodeId: 10 } });
           if (method === 'DOM.getBoxModel') return Promise.resolve({ model: { content: [100, 200, 200, 200, 200, 240, 100, 240] } });
+          if (method === 'Runtime.evaluate') return Promise.resolve({ result: { value: 'visible' } });
           return Promise.resolve({});
         }),
         detach: vi.fn().mockResolvedValue(undefined),
@@ -474,6 +617,7 @@ describe('PuppeteerBackend', () => {
           }
           if (method === 'DOM.describeNode') return Promise.resolve({ node: { nodeId: 10 } });
           if (method === 'DOM.getBoxModel') return Promise.resolve({ model: { content: [100, 200, 200, 200, 200, 240, 100, 240] } });
+          if (method === 'Runtime.evaluate') return Promise.resolve({ result: { value: 'hidden' } });
           return Promise.resolve({});
         }),
         detach: vi.fn().mockResolvedValue(undefined),
@@ -485,6 +629,58 @@ describe('PuppeteerBackend', () => {
       await backend.takeSnapshot();
 
       await expect(backend.click('1')).rejects.toThrow(CdpThrottled);
+    });
+
+    it('skips retry and escalates when page stays hidden after recovery (click)', async () => {
+      setupClickMocks();
+      const page = createMockPage();
+      mockNewPage.mockResolvedValue(page);
+
+      const { getClickEnhancementConfig } = await import('../../src/config.js');
+      vi.mocked(getClickEnhancementConfig).mockReturnValue({
+        trajectory: true,
+        jitter: false,
+        occlusionCheck: false,
+      });
+
+      const { clickWithTrajectory } = await import('../../src/primitives/click-enhanced.js');
+      vi.mocked(clickWithTrajectory)
+        .mockResolvedValueOnce('throttled')
+        .mockResolvedValueOnce('ok');
+
+      let pageVisible = false;
+      const cdpSession = {
+        send: vi.fn().mockImplementation((method: string, params?: any) => {
+          if (method === 'Accessibility.getFullAXTree') {
+            return Promise.resolve({ nodes: [{ nodeId: 'ax-1', role: { value: 'button' }, name: { value: 'Follow' }, backendDOMNodeId: 101, ignored: false, properties: [] }] });
+          }
+          if (method === 'DOM.describeNode') return Promise.resolve({ node: { nodeId: 10 } });
+          if (method === 'DOM.getBoxModel') return Promise.resolve({ model: { content: [100, 200, 200, 200, 200, 240, 100, 240] } });
+          if (method === 'Browser.getWindowForTarget') return Promise.resolve({ windowId: 1 });
+          if (method === 'Browser.getWindowBounds') return Promise.resolve({ bounds: { windowState: pageVisible ? 'normal' : 'minimized' } });
+          if (method === 'Browser.setWindowBounds') { pageVisible = true; return Promise.resolve({}); }
+          if (method === 'Runtime.evaluate') {
+            if (params?.expression === 'document.visibilityState') {
+              return Promise.resolve({ result: { value: pageVisible ? 'visible' : 'hidden' } });
+            }
+            return Promise.resolve({ result: { value: false } });
+          }
+          return Promise.resolve({});
+        }),
+        detach: vi.fn().mockResolvedValue(undefined),
+      };
+      mockCreateCDPSession.mockResolvedValue(cdpSession);
+
+      const backend = new PuppeteerBackend(mockBrowser as any);
+      await backend.takeSnapshot();
+      await backend.click('1');
+
+      // Level 3 was reached (setWindowBounds), levels 1 & 2 skipped retry
+      expect(cdpSession.send).toHaveBeenCalledWith('Browser.setWindowBounds', {
+        windowId: 1,
+        bounds: { windowState: 'normal' },
+      });
+      expect(clickWithTrajectory).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -532,7 +728,10 @@ describe('PuppeteerBackend', () => {
         .mockResolvedValueOnce('ok');
 
       const cdpSession = {
-        send: vi.fn().mockResolvedValue({}),
+        send: vi.fn().mockImplementation((method: string) => {
+          if (method === 'Runtime.evaluate') return Promise.resolve({ result: { value: 'visible' } });
+          return Promise.resolve({});
+        }),
         detach: vi.fn().mockResolvedValue(undefined),
       };
       mockCreateCDPSession.mockResolvedValue(cdpSession);
@@ -555,7 +754,10 @@ describe('PuppeteerBackend', () => {
         .mockResolvedValueOnce('ok');
 
       const cdpSession = {
-        send: vi.fn().mockResolvedValue({}),
+        send: vi.fn().mockImplementation((method: string) => {
+          if (method === 'Runtime.evaluate') return Promise.resolve({ result: { value: 'visible' } });
+          return Promise.resolve({});
+        }),
         detach: vi.fn().mockResolvedValue(undefined),
       };
       mockCreateCDPSession.mockResolvedValue(cdpSession);
@@ -577,6 +779,7 @@ describe('PuppeteerBackend', () => {
       const cdpSession = {
         send: vi.fn().mockImplementation((method: string) => {
           if (method === 'Browser.getWindowForTarget') return Promise.resolve({ windowId: 1 });
+          if (method === 'Runtime.evaluate') return Promise.resolve({ result: { value: 'hidden' } });
           return Promise.resolve({});
         }),
         detach: vi.fn().mockResolvedValue(undefined),
@@ -587,6 +790,43 @@ describe('PuppeteerBackend', () => {
       const backend = new PuppeteerBackend(mockBrowser as any);
 
       await expect(backend.scroll({ direction: 'down' })).rejects.toThrow(CdpThrottled);
+    });
+
+    it('skips retry and escalates when page stays hidden after recovery (scroll)', async () => {
+      const page = createMockPage();
+      mockNewPage.mockResolvedValue(page);
+
+      const { humanScroll } = await import('../../src/primitives/scroll-enhanced.js');
+      vi.mocked(humanScroll)
+        .mockResolvedValueOnce('throttled')
+        .mockResolvedValueOnce('ok');
+
+      let pageVisible = false;
+      const cdpSession = {
+        send: vi.fn().mockImplementation((method: string, params?: any) => {
+          if (method === 'Browser.getWindowForTarget') return Promise.resolve({ windowId: 1 });
+          if (method === 'Browser.getWindowBounds') return Promise.resolve({ bounds: { windowState: pageVisible ? 'normal' : 'minimized' } });
+          if (method === 'Browser.setWindowBounds') { pageVisible = true; return Promise.resolve({}); }
+          if (method === 'Runtime.evaluate') {
+            if (params?.expression === 'document.visibilityState') {
+              return Promise.resolve({ result: { value: pageVisible ? 'visible' : 'hidden' } });
+            }
+            return Promise.resolve({ result: { value: false } });
+          }
+          return Promise.resolve({});
+        }),
+        detach: vi.fn().mockResolvedValue(undefined),
+      };
+      mockCreateCDPSession.mockResolvedValue(cdpSession);
+
+      const backend = new PuppeteerBackend(mockBrowser as any);
+      await backend.scroll({ direction: 'down' });
+
+      expect(cdpSession.send).toHaveBeenCalledWith('Browser.setWindowBounds', {
+        windowId: 1,
+        bounds: { windowState: 'normal' },
+      });
+      expect(humanScroll).toHaveBeenCalledTimes(2);
     });
   });
 

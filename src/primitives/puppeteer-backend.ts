@@ -20,6 +20,9 @@ import { RateLimitDetector } from './rate-limit-detect.js';
 
 const DEFAULT_SITE = '_default';
 
+/** Delay (ms) after recovery for the compositor to start processing input events. */
+const COMPOSITOR_SETTLE_MS = 500;
+
 /** Named keys that keyboard.press() understands (generates keydown/keypress/keyup sequence). */
 const KNOWN_KEYS = new Set([
   'Enter', 'Tab', 'Escape', 'Backspace', 'Delete', 'Space',
@@ -109,6 +112,95 @@ export class PuppeteerBackend implements Primitives {
 
   private checkRateLimit(step: string): void {
     this.rateLimitDetector?.checkAndThrow(step, this.currentSite);
+  }
+
+  /**
+   * Execute an action with throttle recovery.
+   * If the action returns 'throttled', escalate through recovery levels (1→2→3),
+   * checking visibility before each retry to avoid false negatives.
+   */
+  private async withThrottleRecovery(
+    page: Page,
+    action: () => Promise<'ok' | 'throttled'>,
+    step: string,
+  ): Promise<void> {
+    let result = await action();
+    for (const level of [1, 2, 3] as const) {
+      if (result !== 'throttled') break;
+      await this.recoverFromThrottle(page, level);
+
+      // Check both signals: windowState (OS-level) and visibilityState (compositor-level).
+      // Either one reporting "not ready" is enough to skip retry and escalate.
+      const windowState = await this.getWindowState(page);
+      const visible = await this.isPageVisible(page);
+      if (windowState === 'minimized' || !visible) {
+        console.error(`[site-use] page not ready after level ${level} (window=${windowState}, visible=${visible}) — escalating`);
+        continue;
+      }
+
+      console.error(`[site-use] page visible — waiting ${COMPOSITOR_SETTLE_MS}ms for compositor`);
+      await new Promise((r) => setTimeout(r, COMPOSITOR_SETTLE_MS));
+      result = await action();
+    }
+    if (result === 'throttled') {
+      throw new CdpThrottled(
+        `CDP input events are throttled — ${step} failed after recovery attempts`,
+        { step },
+      );
+    }
+  }
+
+  /**
+   * Check if the page is actually visible to the compositor.
+   * Uses Runtime.evaluate (not Input domain) so it works even when input is throttled.
+   */
+  private async isPageVisible(page: Page): Promise<boolean> {
+    let client;
+    try {
+      client = await page.createCDPSession();
+      const result = await client.send('Runtime.evaluate', {
+        expression: 'document.visibilityState',
+      });
+      return (result as any).result?.value === 'visible';
+    } catch {
+      return false;
+    } finally {
+      try { await client?.detach(); } catch {}
+    }
+  }
+
+  /**
+   * Get the OS window state (normal, minimized, maximized, fullscreen).
+   */
+  private async getWindowState(page: Page): Promise<string> {
+    let client;
+    try {
+      client = await page.createCDPSession();
+      const { windowId } = await client.send('Browser.getWindowForTarget') as { windowId: number };
+      const { bounds } = await client.send('Browser.getWindowBounds', { windowId }) as any;
+      return bounds?.windowState ?? 'unknown';
+    } catch {
+      return 'unknown';
+    } finally {
+      try { await client?.detach(); } catch {}
+    }
+  }
+
+  /**
+   * Ensure Chrome window is not minimized before any CDP operation.
+   * macOS minimization suspends the renderer — AX tree, Input events,
+   * and compositor all stop working. bringToFront is the only way to
+   * un-minimize on macOS.
+   */
+  private async ensureWindowVisible(page: Page): Promise<void> {
+    const windowState = await this.getWindowState(page);
+    console.error(`[site-use] ensureWindowVisible: windowState=${windowState}`);
+    if (windowState === 'minimized') {
+      console.error('[site-use] window is minimized — restoring with bringToFront');
+      await page.bringToFront();
+      // Wait for compositor to become ready after un-minimize
+      await new Promise((r) => setTimeout(r, COMPOSITOR_SETTLE_MS));
+    }
   }
 
   /**
@@ -245,6 +337,21 @@ export class PuppeteerBackend implements Primitives {
     return page;
   }
 
+  /**
+   * Get page for operations that depend on layout/rendering.
+   * Ensures window is not minimized — macOS minimization suspends the renderer,
+   * breaking Accessibility, Input, and screenshot operations.
+   *
+   * Use for: takeSnapshot, click, scroll, scrollIntoView, screenshot.
+   * For layout-independent operations (evaluate, navigate, pressKey, type,
+   * interceptRequest), use getPage() instead.
+   */
+  private async getVisiblePage(): Promise<Page> {
+    const page = await this.getPage();
+    await this.ensureWindowVisible(page);
+    return page;
+  }
+
   async navigate(url: string): Promise<void> {
     this.checkRateLimit('navigate');
     const page = await this.getPage();
@@ -260,7 +367,8 @@ export class PuppeteerBackend implements Primitives {
 
   async takeSnapshot(): Promise<Snapshot> {
     this.checkRateLimit('takeSnapshot');
-    const page = await this.getPage();
+    console.error('[site-use] takeSnapshot() called');
+    const page = await this.getVisiblePage();
     const client = await page.createCDPSession();
 
     try {
@@ -387,6 +495,7 @@ export class PuppeteerBackend implements Primitives {
   async click(uid: string): Promise<void> {
     this.checkRateLimit('click');
     const { page, backendNodeId } = await this.resolveUid(uid, 'click');
+    await this.ensureWindowVisible(page);
     const config = getClickEnhancementConfig();
 
     // Step 1: Wait for element position to stabilize (CSS animations)
@@ -411,22 +520,11 @@ export class PuppeteerBackend implements Primitives {
       : { x: centerX, y: centerY };
 
     if (config.trajectory) {
-      const doClick = () => clickWithTrajectory(page, clickTarget.x, clickTarget.y, {
-        box: elementBox,
-      });
-
-      let result = await doClick();
-      for (const level of [1, 2, 3] as const) {
-        if (result !== 'throttled') break;
-        await this.recoverFromThrottle(page, level);
-        result = await doClick();
-      }
-      if (result === 'throttled') {
-        throw new CdpThrottled(
-          'CDP input events are throttled — click failed after recovery attempts',
-          { step: 'click' },
-        );
-      }
+      await this.withThrottleRecovery(
+        page,
+        () => clickWithTrajectory(page, clickTarget.x, clickTarget.y, { box: elementBox }),
+        'click',
+      );
     } else {
       await page.mouse.click(clickTarget.x, clickTarget.y);
     }
@@ -475,30 +573,22 @@ export class PuppeteerBackend implements Primitives {
 
   async scroll(options: ScrollOptions): Promise<void> {
     this.checkRateLimit('scroll');
-    const page = await this.getPage();
+    const page = await this.getVisiblePage();
     const amount = options.amount ?? 600;
     const direction = options.direction === 'up' ? -1 : 1;
     const totalDelta = amount * direction;
 
-    const doScroll = () => humanScroll(page, 0, totalDelta);
-
-    let result = await doScroll();
-    for (const level of [1, 2, 3] as const) {
-      if (result !== 'throttled') break;
-      await this.recoverFromThrottle(page, level);
-      result = await doScroll();
-    }
-    if (result === 'throttled') {
-      throw new CdpThrottled(
-        'CDP input events are throttled — scroll failed after recovery attempts',
-        { step: 'scroll' },
-      );
-    }
+    await this.withThrottleRecovery(
+      page,
+      () => humanScroll(page, 0, totalDelta),
+      'scroll',
+    );
   }
 
   async scrollIntoView(uid: string): Promise<void> {
     this.checkRateLimit('scrollIntoView');
     const { page, backendNodeId } = await this.resolveUid(uid, 'scrollIntoView');
+    await this.ensureWindowVisible(page);
     await scrollElementIntoView(page, backendNodeId);
   }
 
@@ -509,7 +599,7 @@ export class PuppeteerBackend implements Primitives {
   }
 
   async screenshot(): Promise<string> {
-    const page = await this.getPage();
+    const page = await this.getVisiblePage();
     const result = await page.screenshot({ encoding: 'base64', type: 'png' });
     // Puppeteer may return Buffer or string depending on version
     if (typeof result === 'string') return result;
