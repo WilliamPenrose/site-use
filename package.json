@@ -1,6 +1,6 @@
 {
   "name": "site-use",
-  "version": "2026.3.31",
+  "version": "2026.4.1",
   "description": "Site-level browser automation — deterministic CLI workflows for Chrome, optimized for LLM agent consumption.",
   "type": "module",
   "bin": {
