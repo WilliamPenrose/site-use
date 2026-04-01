@@ -2,6 +2,10 @@
   "name": "site-use",
   "version": "2026.4.1",
   "description": "Site-level browser automation — deterministic CLI workflows for Chrome, optimized for LLM agent consumption.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/WilliamPenrose/site-use.git"
+  },
   "type": "module",
   "bin": {
     "site-use": "dist/cli.js"
