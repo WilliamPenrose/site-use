@@ -1,0 +1,12 @@
+{
+  "name": "site-use",
+  "description": "Skills for site-use browser automation CLI",
+  "plugins": [
+    {
+      "name": "site-use",
+      "description": "Site-level browser automation skills",
+      "source": "./",
+      "version": "1.0.0"
+    }
+  ]
+}
