@@ -211,3 +211,27 @@ export interface TweetDetailParsed {
   replies: RawTweetData[];
   hasCursor: boolean;
 }
+
+// --- Follow/Unfollow ---
+
+export type FollowState = 'following' | 'not_following' | 'pending';
+
+export interface FollowResult {
+  action: 'follow' | 'unfollow';
+  handle: string;
+  success: boolean;
+  previousState: FollowState;
+  resultState: FollowState;
+}
+
+export const TwitterFollowActionParamsSchema = z.object({
+  handle: z.string().min(1).optional()
+    .describe('Twitter handle (with or without @)'),
+  url: z.string().optional()
+    .describe('Profile URL as alternative to handle (e.g. https://x.com/elonmusk)'),
+  debug: z.boolean().default(false)
+    .describe('Include diagnostic info'),
+}).refine(
+  d => d.handle || d.url,
+  { message: 'Either --handle or --url is required' },
+);
