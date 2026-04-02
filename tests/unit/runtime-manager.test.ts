@@ -25,13 +25,29 @@ vi.mock('../../src/primitives/click-enhanced.js', () => ({
   injectCoordFix: vi.fn(async () => {}),
 }));
 
+function fakeTarget(page: ReturnType<typeof fakePage>) {
+  return { type: () => 'page', url: () => page.url(), page: vi.fn(async () => page) };
+}
+
 vi.mock('../../src/browser/browser.js', () => ({
   ensureBrowser: vi.fn(async () => ({
     connected: true,
     newPage: mockNewPage,
-    pages: vi.fn(async () => mockPages),
+    targets: vi.fn(() => mockPages.map(p => fakeTarget(p))),
     disconnect: vi.fn(),
   })),
+  safePages: vi.fn(async (browser: { targets: () => Array<{ type: () => string; url: () => string; page: () => Promise<unknown> }> }) => {
+    const pages = [];
+    for (const t of browser.targets()) {
+      if (t.type() !== 'page') continue;
+      if (t.url().startsWith('chrome://')) continue;
+      try {
+        const p = await t.page();
+        if (p) pages.push(p);
+      } catch {}
+    }
+    return pages;
+  }),
 }));
 
 describe('SiteRuntimeManager', () => {

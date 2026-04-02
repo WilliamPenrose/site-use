@@ -217,6 +217,10 @@ All timestamps are **local timezone ISO 8601** (e.g. `2026-03-29T10:03:00+08:00`
 
 When the user doesn't specify a time range, default to the last 24 hours.
 
+## Constraints
+
+- **Sequential only.** Never run multiple `site-use` commands in parallel — they share a single browser tab. Run them one at a time.
+
 ## Tips
 
 - **Always use `--fields` to control output size.** Output exceeding ~30KB gets truncated to a temp file. Always pass `--fields author,text,url` (or whichever fields needed) to keep output compact.

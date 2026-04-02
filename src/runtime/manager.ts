@@ -4,7 +4,7 @@ import type { SiteRuntime } from './types.js';
 import { CircuitBreaker } from './circuit-breaker.js';
 import { Mutex } from '../mutex.js';
 import { buildSiteStack } from './build-site-stack.js';
-import { ensureBrowser } from '../browser/browser.js';
+import { ensureBrowser, safePages } from '../browser/browser.js';
 import { injectCoordFix } from '../primitives/click-enhanced.js';
 
 export class SiteRuntimeManager {
@@ -89,7 +89,7 @@ export class SiteRuntimeManager {
     );
 
     try {
-      const pages = await this.browser.pages();
+      const pages = await safePages(this.browser);
       for (const p of pages) {
         if (claimedPages.has(p)) continue;
         try {
@@ -105,7 +105,7 @@ export class SiteRuntimeManager {
         }
       }
     } catch {
-      // browser.pages() failed
+      // safePages() failed
     }
     return null;
   }

@@ -1,4 +1,5 @@
 import type { Browser, Page, KeyInput } from 'puppeteer-core';
+import { safePages } from '../browser/browser.js';
 import { ElementNotFound, NavigationFailed, CdpThrottled } from '../errors.js';
 import { getClickEnhancementConfig } from '../config.js';
 import { humanScroll, scrollElementIntoView } from './scroll-enhanced.js';
@@ -302,7 +303,7 @@ export class PuppeteerBackend implements Primitives {
     const domains = this.siteDomains[key];
     if (domains && this.browser) {
       try {
-        const existingPages = await this.browser.pages();
+        const existingPages = await safePages(this.browser);
         for (const p of existingPages) {
           try {
             const pageUrl = p.url();
@@ -321,7 +322,7 @@ export class PuppeteerBackend implements Primitives {
           }
         }
       } catch {
-        // browser.pages() failed — fall through to newPage
+        // safePages() failed — fall through to newPage
       }
     }
 

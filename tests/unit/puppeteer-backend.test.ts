@@ -55,9 +55,15 @@ function createMockPage() {
 
 const mockNewPage = vi.fn().mockResolvedValue(createMockPage());
 
+/** Create a mock Puppeteer Target wrapping a mock page. */
+function createMockTarget(page: ReturnType<typeof createMockPage>) {
+  return { type: () => 'page', url: () => page.url(), page: vi.fn().mockResolvedValue(page) };
+}
+
 const mockBrowser = {
   connected: true,
   newPage: mockNewPage,
+  targets: vi.fn().mockReturnValue([]),
 };
 
 // Import after mock setup
@@ -1074,27 +1080,27 @@ describe('PuppeteerBackend', () => {
     it('reuses existing browser tab matching site domain instead of creating new', async () => {
       const existingPage = createMockPage();
       existingPage.url = vi.fn().mockReturnValue('https://x.com/home');
-      const mockBrowserWithPages = {
+      const mockBrowserWithTargets = {
         ...mockBrowser,
-        pages: vi.fn().mockResolvedValue([existingPage]),
+        targets: vi.fn().mockReturnValue([createMockTarget(existingPage)]),
       };
 
-      const backend = new PuppeteerBackend(mockBrowserWithPages as any, testDomains);
+      const backend = new PuppeteerBackend(mockBrowserWithTargets as any, testDomains);
       const page = await backend.getRawPage();
 
-      expect(mockBrowserWithPages.pages).toHaveBeenCalled();
+      expect(mockBrowserWithTargets.targets).toHaveBeenCalled();
       expect(mockNewPage).not.toHaveBeenCalled();
     });
 
     it('creates new page when no existing tab matches domain', async () => {
       const existingPage = createMockPage();
       existingPage.url = vi.fn().mockReturnValue('https://google.com');
-      const mockBrowserWithPages = {
+      const mockBrowserWithTargets = {
         ...mockBrowser,
-        pages: vi.fn().mockResolvedValue([existingPage]),
+        targets: vi.fn().mockReturnValue([createMockTarget(existingPage)]),
       };
 
-      const backend = new PuppeteerBackend(mockBrowserWithPages as any, testDomains);
+      const backend = new PuppeteerBackend(mockBrowserWithTargets as any, testDomains);
       await backend.getRawPage();
 
       expect(mockNewPage).toHaveBeenCalled();
@@ -1103,12 +1109,12 @@ describe('PuppeteerBackend', () => {
     it('skips about:blank tabs during domain matching', async () => {
       const blankPage = createMockPage();
       blankPage.url = vi.fn().mockReturnValue('about:blank');
-      const mockBrowserWithPages = {
+      const mockBrowserWithTargets = {
         ...mockBrowser,
-        pages: vi.fn().mockResolvedValue([blankPage]),
+        targets: vi.fn().mockReturnValue([createMockTarget(blankPage)]),
       };
 
-      const backend = new PuppeteerBackend(mockBrowserWithPages as any, testDomains);
+      const backend = new PuppeteerBackend(mockBrowserWithTargets as any, testDomains);
       await backend.getRawPage();
 
       expect(mockNewPage).toHaveBeenCalled();
@@ -1117,12 +1123,12 @@ describe('PuppeteerBackend', () => {
     it('skips tabs where page.url() throws (crashed tab)', async () => {
       const crashedPage = createMockPage();
       crashedPage.url = vi.fn().mockImplementation(() => { throw new Error('Target closed'); });
-      const mockBrowserWithPages = {
+      const mockBrowserWithTargets = {
         ...mockBrowser,
-        pages: vi.fn().mockResolvedValue([crashedPage]),
+        targets: vi.fn().mockReturnValue([createMockTarget(crashedPage)]),
       };
 
-      const backend = new PuppeteerBackend(mockBrowserWithPages as any, testDomains);
+      const backend = new PuppeteerBackend(mockBrowserWithTargets as any, testDomains);
       await backend.getRawPage();
 
       expect(mockNewPage).toHaveBeenCalled();
@@ -1131,17 +1137,17 @@ describe('PuppeteerBackend', () => {
     it('still uses Map cache on second call (no re-scan)', async () => {
       const existingPage = createMockPage();
       existingPage.url = vi.fn().mockReturnValue('https://x.com/home');
-      const mockBrowserWithPages = {
+      const mockBrowserWithTargets = {
         ...mockBrowser,
-        pages: vi.fn().mockResolvedValue([existingPage]),
+        targets: vi.fn().mockReturnValue([createMockTarget(existingPage)]),
       };
 
-      const backend = new PuppeteerBackend(mockBrowserWithPages as any, testDomains);
+      const backend = new PuppeteerBackend(mockBrowserWithTargets as any, testDomains);
       await backend.getRawPage();
       await backend.getRawPage();
 
-      // pages() scanned once, then Map cache hit
-      expect(mockBrowserWithPages.pages).toHaveBeenCalledTimes(1);
+      // targets() scanned once, then Map cache hit
+      expect(mockBrowserWithTargets.targets).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -1154,14 +1160,14 @@ describe('PuppeteerBackend', () => {
       freshPage.url = vi.fn().mockReturnValue('https://x.com/home');
       freshPage.goto = vi.fn().mockResolvedValue(undefined);
 
-      const mockBrowserWithPages = {
+      const mockBrowserWithTargets = {
         connected: true,
         newPage: vi.fn().mockResolvedValue(freshPage),
-        pages: vi.fn().mockResolvedValue([freshPage]),
+        targets: vi.fn().mockReturnValue([createMockTarget(freshPage)]),
       };
 
       const backend = new PuppeteerBackend(
-        mockBrowserWithPages as any,
+        mockBrowserWithTargets as any,
         { 'twitter': ['x.com'] },
       );
 
@@ -1185,34 +1191,32 @@ describe('PuppeteerBackend', () => {
       freshPage.url = vi.fn().mockReturnValue('https://x.com/home');
       freshPage.goto = vi.fn().mockResolvedValue(undefined);
 
-      const mockBrowserWithPages = {
+      const mockBrowserWithTargets = {
         connected: true,
         newPage: vi.fn().mockResolvedValue(freshPage),
-        pages: vi.fn().mockResolvedValue([freshPage]),
+        targets: vi.fn().mockReturnValue([createMockTarget(freshPage)]),
       };
 
       // Create backend with browser, then manually seed a stale page
       const backend = new PuppeteerBackend(
-        mockBrowserWithPages as any,
+        mockBrowserWithTargets as any,
         { '_default': ['x.com'] },
       );
 
       // First call to populate the cache with a good page
       await backend.getRawPage();
       // Now simulate: the cached page becomes stale
-      // We need to access the private map — use navigate which calls getPage
       // Replace the cached page with a stale one by creating a new backend
-      // that has both browser and a stale cache entry
       const backend2 = new PuppeteerBackend(
-        mockBrowserWithPages as any,
+        mockBrowserWithTargets as any,
         { '_default': ['x.com'] },
       );
       // Seed cache via first call
-      mockBrowserWithPages.pages.mockResolvedValue([closedPage]);
+      mockBrowserWithTargets.targets.mockReturnValue([createMockTarget(closedPage)]);
       // closedPage.url throws, so tab scan skips it, falls through to newPage
       await backend2.getRawPage();
       // newPage was called because closedPage was skipped during scan
-      expect(mockBrowserWithPages.newPage).toHaveBeenCalled();
+      expect(mockBrowserWithTargets.newPage).toHaveBeenCalled();
     });
   });
 
