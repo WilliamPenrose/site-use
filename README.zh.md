@@ -54,13 +54,19 @@ site-use 把这些浏览动作预先封装好，执行时零 token 消耗。agen
 npm install -g site-use
 ```
 
-### 2. 在 Claude Code 中添加插件
+### 2. 将技能添加到 AI agent
 
-在 Claude Code 中输入：
+**Claude Code：**
 
 ```
 /plugin marketplace add WilliamPenrose/site-use
 /plugin install site-use@site-use
+```
+
+**OpenClaw：**
+
+```bash
+openclaw skills install site-use-x
 ```
 
 ### 3. 开始

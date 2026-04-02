@@ -1,7 +1,7 @@
 ---
 name: x
 description: "Use when the user wants to collect tweets, search Twitter/X, get tweet details, set up site-use, or browse cached posts. Examples: 'set up site-use', 'grab latest tweets', 'search Twitter for AI news', 'get replies to this tweet'"
-metadata: { "openclaw": { "emoji": "🌐", "requires": { "bins": ["site-use"] }, "install": [{ "kind": "node", "package": "site-use", "bins": ["site-use"] }] } }
+metadata: { "openclaw": { "emoji": "🌐", "homepage": "https://github.com/WilliamPenrose/site-use", "requires": { "bins": ["site-use"] }, "install": [{ "kind": "node", "package": "site-use", "bins": ["site-use"] }] } }
 ---
 
 # Twitter/X — site-use skill

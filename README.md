@@ -54,13 +54,19 @@ You'll need [Node.js 22.14+](https://nodejs.org/) and [Claude Code](https://docs
 npm install -g site-use
 ```
 
-### 2. Add the plugin to Claude Code
+### 2. Add the skill to your AI agent
 
-In Claude Code, type:
+**Claude Code:**
 
 ```
 /plugin marketplace add WilliamPenrose/site-use
 /plugin install site-use@site-use
+```
+
+**OpenClaw:**
+
+```bash
+openclaw skills install site-use-x
 ```
 
 ### 3. Go
