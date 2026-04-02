@@ -25,6 +25,7 @@ export const plugin: SitePlugin = {
 
   workflows: [
     {
+      kind: 'collection' as const,
       name: 'feed',
       description:
         'Collect tweets from Twitter/X timeline. Supports "following" (chronological) ' +
@@ -46,6 +47,7 @@ export const plugin: SitePlugin = {
       },
     },
     {
+      kind: 'collection' as const,
       name: 'search',
       description:
         'Search Twitter for tweets matching a query. Supports Twitter search operators ' +
@@ -62,6 +64,7 @@ export const plugin: SitePlugin = {
       },
     },
     {
+      kind: 'collection' as const,
       name: 'tweet_detail',
       description:
         'Get a tweet with its replies. Returns the original tweet (with full text) as items[0] ' +

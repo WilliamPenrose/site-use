@@ -96,21 +96,30 @@ export interface AuthCapability {
 
 // ── Workflow declaration ───────────────────────────────────────
 
-export interface WorkflowDeclaration {
+interface WorkflowBase {
   name: string;
   description: string;
   params: ZodType;
   execute: (primitives: Primitives, params: unknown, trace?: Trace) => Promise<unknown>;
-
-  // Optional framework capabilities
-  cache?: CacheConfig;
-  localQuery?: (store: KnowledgeStore, params: unknown) => Promise<unknown>;
-  dumpRaw?: boolean;
-
-  // Existing fields
   expose?: ExposeTarget[];
   cli?: CliConfig;
 }
+
+export interface CollectionWorkflow extends WorkflowBase {
+  kind: 'collection';
+  cache?: CacheConfig;
+  localQuery?: (store: KnowledgeStore, params: unknown) => Promise<unknown>;
+  dumpRaw?: boolean;
+}
+
+export interface ActionWorkflow extends WorkflowBase {
+  kind: 'action';
+  dailyLimit?: number;
+  /** Comma-separated action names for shared daily limit quota (e.g. 'follow,unfollow'). */
+  dailyLimitKey?: string;
+}
+
+export type WorkflowDeclaration = CollectionWorkflow | ActionWorkflow;
 
 // ── Store adapter ──────────────────────────────────────────────
 
