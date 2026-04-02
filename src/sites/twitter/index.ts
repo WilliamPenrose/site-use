@@ -2,9 +2,9 @@ import type { SitePlugin } from '../../registry/types.js';
 import type { Primitives } from '../../primitives/types.js';
 import type { Trace } from '../../trace.js';
 import { twitterDetect, isLoggedIn } from './site.js';
-import { checkLogin, getFeed, getTweetDetail, getSearch } from './workflows.js';
+import { checkLogin, getFeed, getTweetDetail, getSearch, follow, unfollow } from './workflows.js';
 import { feedItemsToIngestItems } from './store-adapter.js';
-import { TwitterFeedParamsSchema, TweetDetailParamsSchema, TwitterSearchParamsSchema } from './types.js';
+import { TwitterFeedParamsSchema, TweetDetailParamsSchema, TwitterSearchParamsSchema, TwitterFollowActionParamsSchema } from './types.js';
 import { twitterLocalQuery } from './local-query.js';
 import { twitterDisplaySchema } from './display.js';
 
@@ -77,6 +77,40 @@ export const plugin: SitePlugin = {
       cli: {
         description: 'Get a tweet and its replies',
         help: `Options:\n  --url <url>             Tweet URL (required)\n  --count <n>            Max replies (1-100, default: 20)\n  --debug                Include diagnostic info`,
+      },
+    },
+    {
+      kind: 'action' as const,
+      name: 'follow',
+      description:
+        'Follow a Twitter/X user. Idempotent: safe to call if already following. ' +
+        'Detects current state before acting. Daily limit enforced (50/day).',
+      params: TwitterFollowActionParamsSchema,
+      execute: (primitives: Primitives, params: unknown, trace?: Trace) =>
+        follow(primitives, params as Parameters<typeof follow>[1], trace),
+      dailyLimit: 50,
+      dailyLimitKey: 'follow,unfollow',
+      expose: ['cli'],
+      cli: {
+        description: 'Follow a Twitter user',
+        help: `Options:\n  --handle <user>        Twitter handle (required, with or without @)\n  --url <url>            Profile URL (alternative to --handle)\n  --debug                Include diagnostic info`,
+      },
+    },
+    {
+      kind: 'action' as const,
+      name: 'unfollow',
+      description:
+        'Unfollow a Twitter/X user. Idempotent: safe to call if not following. ' +
+        'Handles confirmation dialog. Daily limit enforced (50/day).',
+      params: TwitterFollowActionParamsSchema,
+      execute: (primitives: Primitives, params: unknown, trace?: Trace) =>
+        unfollow(primitives, params as Parameters<typeof unfollow>[1], trace),
+      dailyLimit: 50,
+      dailyLimitKey: 'follow,unfollow',
+      expose: ['cli'],
+      cli: {
+        description: 'Unfollow a Twitter user',
+        help: `Options:\n  --handle <user>        Twitter handle (required, with or without @)\n  --url <url>            Profile URL (alternative to --handle)\n  --debug                Include diagnostic info`,
       },
     },
   ],
