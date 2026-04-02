@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import type { Primitives } from '../../primitives/types.js';
+import type { Primitives, SnapshotNode } from '../../primitives/types.js';
 import { isLoggedIn } from './site.js';
 import { makeEnsureState } from '../../ops/ensure-state.js';
 import { createDataCollector, type DataCollector } from '../../ops/data-collector.js';
@@ -14,8 +14,12 @@ import {
   GRAPHQL_TWEET_DETAIL_PATTERN,
   GRAPHQL_SEARCH_PATTERN,
 } from './extractors.js';
-import { SiteUseError, StateTransitionFailed } from '../../errors.js';
+import { SiteUseError, StateTransitionFailed, ElementNotFound, UserNotFound } from '../../errors.js';
 import type { RawTweetData, SearchTab } from './types.js';
+import { z } from 'zod';
+import { findByDescriptor } from '../../ops/matchers.js';
+import type { FollowResult, FollowState } from './types.js';
+import { TwitterFollowActionParamsSchema } from './types.js';
 import type { FeedResult as FrameworkFeedResult } from '../../registry/types.js';
 import { tweetToFeedItem } from './feed-item.js';
 import { NOOP_TRACE, NOOP_SPAN, type Trace, type SpanHandle } from '../../trace.js';
@@ -551,5 +555,213 @@ export async function getTweetDetail(
     } finally {
       cleanup();
     }
+  });
+}
+
+// ── Follow / Unfollow ────────────────────────────────────────────
+
+const FOLLOW_POLL_INTERVAL_MS = 500;
+const FOLLOW_POLL_TIMEOUT_MS = 10_000;
+
+function normalizeHandle(handle: string): string {
+  return handle.startsWith('@') ? handle.slice(1) : handle;
+}
+
+function handleFromUrl(url: string): string | null {
+  const match = url.match(/^https?:\/\/(?:x\.com|twitter\.com)\/([^/?#]+)/);
+  if (!match) return null;
+  const segment = match[1];
+  // Exclude known non-profile paths. Not exhaustive (explore, compose, lists, bookmarks, etc.),
+  // but sufficient for the expected use case (user passes a profile URL).
+  if (['home', 'search', 'login', 'i', 'settings', 'messages', 'notifications'].includes(segment)) {
+    return null;
+  }
+  return segment;
+}
+
+function resolveHandle(params: { handle?: string; url?: string }): string {
+  if (params.handle) return normalizeHandle(params.handle);
+  if (params.url) {
+    const h = handleFromUrl(params.url);
+    if (h) return h;
+    throw new SiteUseError('InvalidParams', `Cannot extract handle from URL: ${params.url}`, { retryable: false });
+  }
+  throw new SiteUseError('InvalidParams', 'Either handle or url is required', { retryable: false });
+}
+
+/**
+ * Detect follow state from ARIA snapshot.
+ * Returns matching button node + state, or null if no follow-related button found.
+ *
+ * ASSUMPTION: Twitter button ARIA names follow the pattern "Follow @handle",
+ * "Following @handle", "Pending @handle". This must be verified against a real
+ * Twitter profile snapshot before shipping. Run `site-use twitter check-login`
+ * then take a snapshot on a profile page to confirm.
+ */
+function detectFollowState(
+  snapshot: { idToNode: Map<string, SnapshotNode> },
+  handle: string,
+): { state: FollowState; node: SnapshotNode } | null {
+  const patterns: Array<{ state: FollowState; name: RegExp }> = [
+    { state: 'following', name: new RegExp(`^Following @${handle}$`, 'i') },
+    { state: 'pending', name: new RegExp(`^Pending @${handle}$`, 'i') },
+    { state: 'not_following', name: new RegExp(`^Follow @${handle}$`, 'i') },
+  ];
+  for (const pattern of patterns) {
+    const node = findByDescriptor(snapshot, { role: 'button', name: pattern.name });
+    if (node) return { state: pattern.state, node };
+  }
+  return null;
+}
+
+/**
+ * Poll until a follow/following/pending button appears.
+ * Also checks for UserNotFound and Blocked headings on each poll.
+ */
+async function pollForFollowButton(
+  primitives: Primitives,
+  handle: string,
+  timeoutMs: number = FOLLOW_POLL_TIMEOUT_MS,
+): Promise<{ state: FollowState; node: SnapshotNode }> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const snapshot = await primitives.takeSnapshot();
+    // Check error pages (English locale)
+    for (const [, node] of snapshot.idToNode) {
+      if (node.role === 'heading' && /account.*doesn.t exist|this account.*suspended/i.test(node.name)) {
+        throw new UserNotFound(`User @${handle} does not exist or is suspended`, { step: 'follow: checking user exists' });
+      }
+      if (node.role === 'heading' && /blocked/i.test(node.name)) {
+        throw new SiteUseError('Blocked', `You are blocked by @${handle}`, { retryable: false, step: 'follow: checking blocked status' });
+      }
+    }
+    const detected = detectFollowState(snapshot, handle);
+    if (detected) return detected;
+    await new Promise(r => setTimeout(r, FOLLOW_POLL_INTERVAL_MS));
+  }
+  throw new ElementNotFound(`No follow/following button found for @${handle}`, { step: 'follow: detecting button state' });
+}
+
+type FollowActionParams = z.input<typeof TwitterFollowActionParamsSchema>;
+
+export async function follow(
+  primitives: Primitives,
+  opts: FollowActionParams,
+  trace: Trace = NOOP_TRACE,
+): Promise<FollowResult> {
+  const handle = resolveHandle(opts);
+  return await trace.span('follow', async (rootSpan) => {
+    rootSpan.set('handle', handle);
+    await primitives.navigate(`https://x.com/${handle}`);
+    await checkLoginRedirect(primitives, rootSpan);
+
+    const { state: previousState, node } = await pollForFollowButton(primitives, handle);
+    rootSpan.set('previousState', previousState);
+
+    // Idempotent: already following or pending
+    if (previousState === 'following' || previousState === 'pending') {
+      return { action: 'follow' as const, handle, success: true, previousState, resultState: previousState };
+    }
+
+    // Click Follow
+    console.error(`[site-use] clicking Follow @${handle}...`);
+    await primitives.click(node.uid);
+
+    // Verify state transition
+    const deadline = Date.now() + FOLLOW_POLL_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      await new Promise(r => setTimeout(r, FOLLOW_POLL_INTERVAL_MS));
+      const snapshot = await primitives.takeSnapshot();
+      const detected = detectFollowState(snapshot, handle);
+      if (detected && (detected.state === 'following' || detected.state === 'pending')) {
+        rootSpan.set('resultState', detected.state);
+        return { action: 'follow' as const, handle, success: true, previousState: 'not_following' as const, resultState: detected.state };
+      }
+    }
+    throw new StateTransitionFailed(`Follow button clicked but state did not change for @${handle}`, { step: 'follow: verifying state transition' });
+  });
+}
+
+export async function unfollow(
+  primitives: Primitives,
+  opts: FollowActionParams,
+  trace: Trace = NOOP_TRACE,
+): Promise<FollowResult> {
+  const handle = resolveHandle(opts);
+  return await trace.span('unfollow', async (rootSpan) => {
+    rootSpan.set('handle', handle);
+    await primitives.navigate(`https://x.com/${handle}`);
+    await checkLoginRedirect(primitives, rootSpan);
+
+    const { state: previousState, node } = await pollForFollowButton(primitives, handle);
+    rootSpan.set('previousState', previousState);
+
+    // Idempotent: not following
+    if (previousState === 'not_following') {
+      return { action: 'unfollow' as const, handle, success: true, previousState, resultState: 'not_following' as const };
+    }
+
+    // Click Following/Pending button
+    console.error(`[site-use] clicking ${previousState === 'pending' ? 'Pending' : 'Following'} @${handle}...`);
+    await primitives.click(node.uid);
+
+    // Handle confirmation dialog — DOM-to-ARIA bridge pattern (see agent-guide §3)
+    // 1. evaluate() reads textContent from data-testid (locale-agnostic)
+    // 2. Match that text in ARIA snapshot
+    // 3. Click via primitives.click(uid) (Bezier path, anti-detection safe)
+    // NO fallback to direct DOM click — if ARIA match fails, throw for human investigation
+    await rootSpan.span('confirmDialog', async (s) => {
+      const dialogDeadline = Date.now() + FOLLOW_POLL_TIMEOUT_MS;
+      while (Date.now() < dialogDeadline) {
+        await new Promise(r => setTimeout(r, FOLLOW_POLL_INTERVAL_MS));
+
+        // Step 1: Read confirm button text from DOM via data-testid
+        const confirmText = await primitives.evaluate<string | null>(`(() => {
+          const btn = document.querySelector('[data-testid="confirmationSheetConfirm"]');
+          return btn ? btn.textContent?.trim() ?? null : null;
+        })()`);
+        if (!confirmText) continue; // Dialog not yet appeared
+
+        // Step 2: Match text in ARIA snapshot
+        const snapshot = await primitives.takeSnapshot();
+        const exactMatch = findByDescriptor(snapshot, { role: 'button', name: confirmText });
+        if (exactMatch) {
+          await primitives.click(exactMatch.uid);
+          s.set('method', 'dom-to-aria-exact');
+          s.set('confirmText', confirmText);
+          return;
+        }
+
+        // Fuzzy match (textContent vs ARIA name may differ in whitespace/casing)
+        const escaped = confirmText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const fuzzyMatch = findByDescriptor(snapshot, { role: 'button', name: new RegExp(escaped, 'i') });
+        if (fuzzyMatch) {
+          await primitives.click(fuzzyMatch.uid);
+          s.set('method', 'dom-to-aria-fuzzy');
+          s.set('confirmText', confirmText);
+          return;
+        }
+
+        // ARIA match failed — throw, do NOT fall back to direct click
+        throw new StateTransitionFailed(
+          `Confirm button DOM text "${confirmText}" found but no ARIA match`,
+          { step: 'unfollow: confirming dialog', diagnostics: { domText: confirmText } },
+        );
+      }
+      throw new StateTransitionFailed('Unfollow confirmation dialog did not appear', { step: 'unfollow: confirming dialog' });
+    });
+
+    // Verify state transition
+    const deadline = Date.now() + FOLLOW_POLL_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      await new Promise(r => setTimeout(r, FOLLOW_POLL_INTERVAL_MS));
+      const snapshot = await primitives.takeSnapshot();
+      const detected = detectFollowState(snapshot, handle);
+      if (detected && detected.state === 'not_following') {
+        rootSpan.set('resultState', 'not_following');
+        return { action: 'unfollow' as const, handle, success: true, previousState, resultState: 'not_following' as const };
+      }
+    }
+    throw new StateTransitionFailed(`Unfollow clicked but state did not change for @${handle}`, { step: 'unfollow: verifying state transition' });
   });
 }
