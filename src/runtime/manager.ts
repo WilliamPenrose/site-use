@@ -105,7 +105,7 @@ export class SiteRuntimeManager {
         }
       }
     } catch {
-      // browser.pages() failed
+      // safePages() failed
     }
     return null;
   }

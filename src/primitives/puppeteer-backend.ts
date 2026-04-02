@@ -322,7 +322,7 @@ export class PuppeteerBackend implements Primitives {
           }
         }
       } catch {
-        // browser.pages() failed — fall through to newPage
+        // safePages() failed — fall through to newPage
       }
     }
 
