@@ -13,6 +13,26 @@ let browserInstance: Browser | null = null;
 const HEALTH_CHECK_TIMEOUT_MS = 5_000;
 
 /**
+ * Safe replacement for browser.pages(). Puppeteer's browser.pages() attaches
+ * to every page target and sends Network.enable, which hangs on chrome://
+ * pages (e.g. chrome://newtab/). This filters them out before attaching.
+ */
+export async function safePages(browser: Browser): Promise<Page[]> {
+  const pages: Page[] = [];
+  for (const target of browser.targets()) {
+    try {
+      if (target.type() !== 'page') continue;
+      if (target.url().startsWith('chrome://')) continue;
+      const page = await target.page();
+      if (page) pages.push(page);
+    } catch {
+      // crashed or unreachable target — skip
+    }
+  }
+  return pages;
+}
+
+/**
  * Lightweight CDP health check. Sends Browser.getVersion (fast, no page needed).
  * If Chrome is unresponsive (e.g. long-running, memory pressure), this times out
  * and throws with a clear restart hint.
@@ -312,7 +332,7 @@ function buildLaunchArgs(config: ReturnType<typeof getConfig>, extraArgs?: strin
 // ---------------------------------------------------------------------------
 
 async function applyConnectionSetup(browser: Browser): Promise<void> {
-  const pages = await browser.pages();
+  const pages = await safePages(browser);
   await emulateFocus(pages);
   await applyCoordFix(pages);
   await unfreezePages(pages);
@@ -334,7 +354,7 @@ async function applyConnectionSetup(browser: Browser): Promise<void> {
 async function applyProxyAuth(browser: Browser): Promise<void> {
   const config = getConfig();
   if (config.proxy?.username) {
-    const pages = await browser.pages();
+    const pages = await safePages(browser);
     const page = pages[0];
     if (page) {
       await page.authenticate({
@@ -466,7 +486,7 @@ export async function launchAndDetach(extraArgs?: string[]): Promise<ChromeInfo>
   }
 
   try {
-    const pages = await browser.pages();
+    const pages = await safePages(browser);
     const blank = pages.find((p) => p.url() === 'about:blank');
     if (blank) {
       if (pages.length === 1) {

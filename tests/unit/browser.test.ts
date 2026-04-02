@@ -6,6 +6,7 @@ let chromeJsonStore: Record<string, string> = {};
 
 // Mock puppeteer-core before importing browser module
 const mockPage = { url: () => 'about:blank', close: vi.fn(), goto: vi.fn(), authenticate: vi.fn() };
+const mockTarget = { type: () => 'page', url: () => 'about:blank', page: vi.fn().mockResolvedValue(mockPage) };
 const mockCdpSession = { send: vi.fn().mockResolvedValue({}), detach: vi.fn().mockResolvedValue(undefined) };
 const mockBrowser = {
   connected: true,
@@ -13,6 +14,7 @@ const mockBrowser = {
   process: () => ({ pid: 12345 }),
   wsEndpoint: () => 'ws://127.0.0.1:9222/devtools/browser/mock',
   pages: vi.fn().mockResolvedValue([mockPage]),
+  targets: vi.fn().mockReturnValue([mockTarget]),
   target: () => ({ createCDPSession: vi.fn().mockResolvedValue(mockCdpSession) }),
   disconnect: vi.fn(),
   close: vi.fn(),
@@ -24,6 +26,7 @@ const mockConnectedBrowser = {
   process: () => ({ pid: 12345 }),
   wsEndpoint: () => 'ws://127.0.0.1:9222/devtools/browser/mock',
   pages: vi.fn().mockResolvedValue([mockPage]),
+  targets: vi.fn().mockReturnValue([mockTarget]),
   target: () => ({ createCDPSession: vi.fn().mockResolvedValue(mockCdpSession) }),
   disconnect: vi.fn(),
   close: vi.fn(),
@@ -231,6 +234,7 @@ describe('browser', () => {
         process: () => ({ pid: 67890 }),
         wsEndpoint: () => 'ws://127.0.0.1:9222/devtools/browser/new',
         pages: vi.fn().mockResolvedValue([mockPage]),
+        targets: vi.fn().mockReturnValue([mockTarget]),
         target: () => ({ createCDPSession: vi.fn().mockResolvedValue(mockCdpSession) }),
         disconnect: vi.fn(),
         close: vi.fn(),
