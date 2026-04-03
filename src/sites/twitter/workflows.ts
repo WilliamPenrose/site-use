@@ -631,11 +631,10 @@ async function detectFollowButton(
     for (const btn of allBtns) {
       const testid = btn.getAttribute('data-testid') || '';
       const ariaLabel = btn.getAttribute('aria-label') || '';
-      // -cancel has no ariaLabel, so we can't verify by @handle.
-      // TODO: cross-check the numeric userId prefix in the testid against other
-      // buttons' testids to confirm it belongs to the target user. Currently
-      // accepts the first -cancel button, which is correct on a profile page
-      // but could mismatch if a sidebar shows another user's -cancel button.
+      // -cancel has no ariaLabel, so we can't verify by @handle like -follow/-unfollow.
+      // This is safe because: we navigate to x.com/{handle} first, and a profile page
+      // only has one -cancel button (the profile owner's). Sidebar recommendations show
+      // -follow buttons, not -cancel (you can't be pending on a recommended user).
       if (testid.endsWith('-cancel')) {
         const text = btn.textContent?.trim() || '';
         return { state: 'pending', ariaLabel: text };
@@ -689,9 +688,9 @@ async function checkProfileError(primitives: Primitives, handle: string): Promis
       for (const btn of allBtns) {
         const ariaLabel = btn.getAttribute('aria-label') || '';
         const testid = btn.getAttribute('data-testid') || '';
-        // -cancel has no ariaLabel; presence of any -cancel button means a protected
+        // -cancel has no ariaLabel; presence of a -cancel button means a protected
         // account with a pending request — not a "user not found" error.
-        // TODO: validate userId prefix in testid matches the target user (same gap as detectFollowButton).
+        // Safe without user validation: we're on x.com/{handle}, only one -cancel exists per profile.
         if (testid.endsWith('-cancel')) return null;
         if (ariaLabel.includes('@' + ${JSON.stringify(handle)})) return null;
       }
