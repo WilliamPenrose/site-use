@@ -39,6 +39,10 @@ CLI (index.ts, cli/)
 - `pnpm test:unit` for fast feedback during development. `pnpm test` runs the full suite (excludes diagnose integration tests that need Chrome).
 - **Golden fixtures** (`src/sites/*/__tests__/fixtures/golden/`) are reference snapshots captured from real API responses. Never edit them by hand — they are the source of truth for extraction/parsing tests. To update, re-capture from a live session.
 
+## Plugin Version
+
+When updating skills (`skills/`), bump the version in **both** `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`. Use date format (`YYYY.M.D`). Both files must stay in sync.
+
 ## Known Approximations
 
 - **Local mode `--tab following`**: The DB has no `source_tab` field tracking which tab a tweet was fetched from. Instead, `--tab following` is approximated by filtering on the `following` metric (`author.following = true`). This works because the Following tab only shows tweets from authors you follow. `--tab for_you` applies no filter and returns all cached tweets. See `runLocalQuery` in `src/cli/workflow.ts`.
