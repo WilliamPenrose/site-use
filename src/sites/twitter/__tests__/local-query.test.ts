@@ -58,6 +58,21 @@ describe('twitterLocalQuery', () => {
     }));
   });
 
+  it('falls back to all cached data for for_you when source_tab returns empty', async () => {
+    const store = {
+      search: vi.fn()
+        .mockResolvedValueOnce({ items: [] })  // source_tab='for_you' → empty (pre-upgrade data)
+        .mockResolvedValueOnce({ items: [
+          { rawJson: makeFeedItemJson({ id: '1' }) },
+          { rawJson: makeFeedItemJson({ id: '2' }) },
+        ] }),  // fallback: all cached
+    } as unknown as KnowledgeStore;
+
+    const result = await twitterLocalQuery(store, { tab: 'for_you' });
+    expect(store.search).toHaveBeenCalledTimes(2);
+    expect(result.items).toHaveLength(2);
+  });
+
   it('returns empty for non-well-known tab with no source_tab data', async () => {
     const store = createMockStore([]);
     const result = await twitterLocalQuery(store, { tab: 'vibe coding' });

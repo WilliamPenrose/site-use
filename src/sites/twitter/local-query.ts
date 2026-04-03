@@ -27,7 +27,15 @@ export async function twitterLocalQuery(
       metricFilters: [{ metric: 'following', op: '=' as const, numValue: 1 }],
     });
     items = fallbackResult.items.map(row => JSON.parse(row.rawJson!) as FeedItem);
+  } else if (!tab || tab === 'for_you') {
+    // Layer 2 (for_you): return all cached tweets — backwards compatible with pre-upgrade data
+    const allResult = await store.search({
+      site: 'twitter',
+      max_results: maxResults,
+    });
+    items = allResult.items.map(row => JSON.parse(row.rawJson!) as FeedItem);
   } else {
+    // Non-well-known tab with no source_tab data — no fallback available
     items = [];
   }
 
