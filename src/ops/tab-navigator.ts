@@ -122,8 +122,36 @@ export async function ensureTab(
   tabSelector: string,
   wellKnown?: Record<string, number>,
 ): Promise<EnsureTabResult> {
-  const tabs = await discoverTabs(primitives, tabSelector);
-  const matched = matchTab(tabName, tabs, wellKnown);
+  // Discover tabs, then try to match. If the target is not a well-known alias
+  // and not found, poll longer — pinned List/Community tabs may still be rendering.
+  let tabs = await discoverTabs(primitives, tabSelector);
+  let matched: TabInfo;
+  try {
+    matched = matchTab(tabName, tabs, wellKnown);
+  } catch (err) {
+    if (!(err instanceof TabNotFoundError)) throw err;
+    // Well-known tabs (for_you, following) should always be in the first 2 tabs.
+    // If matchTab failed for a well-known alias, something is wrong — don't retry.
+    const normalizedInput = tabName.normalize('NFC').toLowerCase().replace(/_/g, ' ').trim();
+    const isWellKnown = wellKnown && (
+      wellKnown[normalizedInput.replace(/ /g, '_')] !== undefined ||
+      wellKnown[tabName] !== undefined
+    );
+    if (isWellKnown) throw err;
+
+    // Non-well-known tab: poll for more tabs to appear (pinned tabs load later)
+    const deadline = Date.now() + DEFAULT_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      await new Promise(r => setTimeout(r, DEFAULT_POLL_MS));
+      tabs = await discoverTabs(primitives, tabSelector, { timeoutMs: 3000 });
+      try {
+        matched = matchTab(tabName, tabs, wellKnown);
+        break;
+      } catch { /* keep polling */ }
+    }
+    // @ts-expect-error — matched is assigned in the loop or we throw
+    if (!matched) throw err;
+  }
   const availableTabs = tabs.map(t => t.name);
 
   // scrollIntoView via evaluate() because no ARIA snapshot/uid exists yet —
