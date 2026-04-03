@@ -105,17 +105,22 @@ export function wrapToolHandler(opts: WrapOptions): (params: Record<string, unkn
               return await opts.handler(rawParams, runtime, trace);
             });
             // 3. Log action (same DB, same mutex)
+            // Skip logging for idempotent no-ops (previousState === resultState)
+            // to avoid consuming daily quota on repeated safe calls.
             try {
               const r = actionResult as Record<string, unknown>;
-              logAction(db, {
-                site: opts.siteName,
-                action: String(r.action ?? opts.toolName),
-                target: String(r.target ?? r.handle ?? ''),
-                success: true,
-                prevState: r.previousState as string | undefined,
-                resultState: r.resultState as string | undefined,
-                timestamp: new Date().toISOString(),
-              });
+              const isNoop = r.previousState !== undefined && r.previousState === r.resultState;
+              if (!isNoop) {
+                logAction(db, {
+                  site: opts.siteName,
+                  action: String(r.action ?? opts.toolName),
+                  target: String(r.target ?? r.handle ?? ''),
+                  success: true,
+                  prevState: r.previousState as string | undefined,
+                  resultState: r.resultState as string | undefined,
+                  timestamp: new Date().toISOString(),
+                });
+              }
             } catch (logErr) {
               console.warn(`[site-use] action log failed: ${logErr instanceof Error ? logErr.message : String(logErr)}`);
             }

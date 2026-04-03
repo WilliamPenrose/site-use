@@ -573,13 +573,17 @@ function normalizeHandle(handle: string): string {
   return h;
 }
 
+const RESERVED_PATHS = new Set([
+  'home', 'search', 'explore', 'i', 'settings', 'messages',
+  'notifications', 'compose', 'hashtag', 'lists', 'bookmarks',
+  'communities', 'premium', 'jobs', 'tos', 'privacy',
+]);
+
 function handleFromUrl(url: string): string | null {
   const match = url.match(/^https?:\/\/(?:x\.com|twitter\.com)\/([^/?#]+)/);
   if (!match) return null;
   const segment = match[1];
-  // Positive match: Twitter handles are 1-15 alphanumeric/underscore characters.
-  // This rejects all non-profile paths (home, search, i, explore, etc.) without
-  // maintaining an exclusion list.
+  if (RESERVED_PATHS.has(segment.toLowerCase())) return null;
   if (!TWITTER_HANDLE_RE.test(segment)) return null;
   return segment;
 }
