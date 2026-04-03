@@ -668,36 +668,39 @@ async function detectFollowButton(
 /**
  * Check for error pages via data-testid (locale-agnostic).
  * - data-testid="error-detail" → page-level error (invalid path)
- * - data-testid="emptyState" WITHOUT a follow button → user does not exist / suspended
- * - data-testid="emptyState" WITH a follow button → protected account (not an error)
- *
- * Known gap: blocked-by-user state has no known data-testid. If a user is
- * blocked, pollForFollowButton will time out (10s) with ElementNotFound
- * instead of a fast, specific error. Acceptable until a data-testid for
- * the blocked state is identified.
+ * - data-testid="emptyState" + follow/cancel button → protected account (not an error)
+ * - data-testid="emptyState" + UserName but no follow button → blocked by user
+ * - data-testid="emptyState" + no UserName, no follow button → user does not exist / suspended
  */
 async function checkProfileError(primitives: Primitives, handle: string): Promise<void> {
   const errorType = await primitives.evaluate<string | null>(`(() => {
     if (document.querySelector('[data-testid="error-detail"]')) return 'errorDetail';
     if (document.querySelector('[data-testid="emptyState"]')) {
-      // Protected accounts show emptyState ("posts are protected") alongside a follow/cancel button.
-      // Only treat as error if there is no follow-related button for this user.
+      // Protected accounts show emptyState alongside a follow/cancel button — not an error.
       const allBtns = document.querySelectorAll(
         'button[data-testid$="-follow"], button[data-testid$="-unfollow"], button[data-testid$="-cancel"]'
       );
       for (const btn of allBtns) {
         const ariaLabel = btn.getAttribute('aria-label') || '';
         const testid = btn.getAttribute('data-testid') || '';
-        // -cancel has no ariaLabel; presence of a -cancel button means a protected
-        // account with a pending request — not a "user not found" error.
-        // Safe without user validation: we're on x.com/{handle}, only one -cancel exists per profile.
+        // -cancel: pending on protected account. Safe without user validation:
+        // we're on x.com/{handle}, only one -cancel exists per profile.
         if (testid.endsWith('-cancel')) return null;
         if (ariaLabel.includes('@' + ${JSON.stringify(handle)})) return null;
       }
+      // No follow button for this user. Distinguish blocked vs not-found:
+      // Blocked pages still show UserName; not-found pages don't.
+      if (document.querySelector('[data-testid="UserName"]')) return 'blocked';
       return 'emptyState';
     }
     return null;
   })()`);
+  if (errorType === 'blocked') {
+    throw new SiteUseError('Blocked', `You are blocked by @${handle}`, {
+      retryable: false,
+      step: 'follow: checking blocked status',
+    });
+  }
   if (errorType === 'emptyState') {
     throw new UserNotFound(`User @${handle} does not exist or is suspended`, { step: 'follow: checking user exists' });
   }
