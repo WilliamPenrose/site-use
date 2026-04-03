@@ -45,6 +45,7 @@ Rules:
 - Always attribute sources (who said it)
 - Mention what was filtered out so the user knows coverage
 - Include links to original tweets for deep-dive
+- Deduplicate against the previous digest. Only report new signals — if a topic was already covered in the last cycle, skip it unless there's a meaningful update.
 
 ### Step 4: Ask for feedback
 
@@ -72,12 +73,12 @@ Collect → Filter by Memory → Summarize → Feedback → Update Memory → Ne
 If the user wants automatic digests:
 
 ```
-/loop 2h /site-use:digest
+/loop 2h Run a digest: fetch latest tweets (following tab, 50 items), filter by my preferences in Memory, summarize top signals with tweet URLs, skip anything already reported in the previous digest.
 ```
 
-This runs the full digest flow every 2 hours. The user can adjust frequency.
+The loop prompt must be self-contained — each trigger starts a fresh context with no memory of the previous cycle's conversation. Write the full workflow into the prompt so the AI knows exactly what to do.
 
-Note: `/loop` is session-scoped — it stops when Claude Code exits. Remind the user of this when setting it up.
+The user can adjust frequency. Note: `/loop` is session-scoped — it stops when Claude Code exits. Remind the user of this when setting it up.
 
 ## Important
 
