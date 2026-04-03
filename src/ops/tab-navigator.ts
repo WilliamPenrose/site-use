@@ -161,9 +161,13 @@ export async function ensureTab(
     tabs[${matched.index}]?.scrollIntoView({ inline: 'center', behavior: 'smooth' });
   })()`);
 
-  // ARIA path click via ensure-state
+  // ARIA path click via ensure-state.
+  // Use RegExp for name matching: ARIA tree may have trailing whitespace
+  // that DOM textContent.trim() strips (observed on pinned Community tabs).
+  const escaped = matched.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const namePattern = new RegExp(`^\\s*${escaped}\\s*$`);
   const ensure = makeEnsureState(primitives);
-  const result = await ensure({ role: 'tab', name: matched.name, selected: true });
+  const result = await ensure({ role: 'tab', name: namePattern, selected: true });
 
   return { action: result.action, availableTabs };
 }
