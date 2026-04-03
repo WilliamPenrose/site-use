@@ -117,47 +117,37 @@ describe('follow', () => {
     expect(primitives.click).not.toHaveBeenCalled();
   });
 
-  it('returns noop when pending (protected account)', async () => {
-    const primitives = createMockPrimitives({
-      evaluate: mockEvaluate({ followButton: { state: 'not_following', ariaLabel: 'Pending @testuser' } }),
-      takeSnapshot: vi.fn().mockResolvedValue(buildSnapshot([
-        { uid: '42', role: 'button', name: 'Pending @testuser' },
-      ])),
-    });
-
-    const result = await follow(primitives, { handle: '@testuser' });
-
-    expect(result.previousState).toBe('pending');
-    expect(result.resultState).toBe('pending');
-    expect(primitives.click).not.toHaveBeenCalled();
-  });
-
-  it('handles protected account: Follow → Pending', async () => {
+  it('detects pending via ariaLabel change (protected account)', async () => {
+    // Protected account: after clicking, testid stays -follow but ariaLabel changes
     let evalCount = 0;
     const primitives = createMockPrimitives({
       evaluate: vi.fn().mockImplementation(async (expr: string) => {
         if (expr.includes('location.href')) return 'https://x.com/testuser';
-        if (expr.includes('emptyState')) return null; // no error page
+        if (expr.includes('emptyState')) return null;
         if (expr.includes('"-follow"') || expr.includes('"-unfollow"')) {
           evalCount++;
-          if (evalCount <= 1) return { state: 'not_following', ariaLabel: 'Follow @testuser' };
-          return { state: 'not_following', ariaLabel: 'Pending @testuser' };
+          // Pre-click: not_following with ariaLabel "フォロー @testuser"
+          if (evalCount <= 1) return { state: 'not_following', ariaLabel: 'フォロー @testuser' };
+          // Post-click: still -follow testid but ariaLabel changed → pending
+          return { state: 'not_following', ariaLabel: 'フォローリクエスト済み @testuser' };
         }
         return undefined;
       }),
       takeSnapshot: vi.fn()
         .mockResolvedValueOnce(buildSnapshot([
-          { uid: '42', role: 'button', name: 'Follow @testuser' },
+          { uid: '42', role: 'button', name: 'フォロー @testuser' },
         ]))
         .mockResolvedValue(buildSnapshot([
-          { uid: '43', role: 'button', name: 'Pending @testuser' },
+          { uid: '43', role: 'button', name: 'フォローリクエスト済み @testuser' },
         ])),
     });
 
     const result = await follow(primitives, { handle: 'testuser' });
 
-    expect(result.resultState).toBe('pending');
     expect(result.success).toBe(true);
+    expect(result.previousState).toBe('not_following');
+    expect(result.resultState).toBe('pending');
+    expect(primitives.click).toHaveBeenCalledWith('42');
   });
 
   it('normalizes handle with @ prefix', async () => {
