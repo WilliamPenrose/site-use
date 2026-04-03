@@ -595,32 +595,76 @@ function resolveHandle(params: { handle?: string; url?: string }): string {
 }
 
 /**
- * Detect follow state from ARIA snapshot.
- * Returns matching button node + state, or null if no follow-related button found.
- *
- * ASSUMPTION: Twitter button ARIA names follow the pattern "Follow @handle",
- * "Following @handle", "Pending @handle". This must be verified against a real
- * Twitter profile snapshot before shipping. Run `site-use twitter check-login`
- * then take a snapshot on a profile page to confirm.
+ * DOM query result for the follow button found via data-testid.
+ * data-testid format: "{userId}-follow" (not following) or "{userId}-unfollow" (following).
+ * "Pending" state has the same testid as "follow" but different aria-label text.
  */
-function detectFollowState(
+interface FollowButtonDomInfo {
+  state: FollowState;
+  ariaLabel: string;
+}
+
+/**
+ * Detect follow state via DOM-to-ARIA bridge pattern (locale-agnostic).
+ *
+ * Phase 1 (DOM): Use data-testid to find the follow button and determine state.
+ *   - testid ending with "-unfollow" + aria-label containing @handle → following
+ *   - testid ending with "-follow" + aria-label containing @handle → not_following or pending
+ *   - "Pending" is detected by the aria-label containing locale-specific pending text
+ *     (but since we can't hardcode locale text, we check if the button text differs from
+ *     the "follow" text pattern — pending buttons have distinct styling/text in all locales)
+ *
+ * Phase 2 (ARIA): Match the aria-label in the ARIA snapshot to get the clickable uid.
+ */
+async function detectFollowButton(
+  primitives: Primitives,
   snapshot: { idToNode: Map<string, SnapshotNode> },
   handle: string,
-): { state: FollowState; node: SnapshotNode } | null {
-  const patterns: Array<{ state: FollowState; name: RegExp }> = [
-    { state: 'following', name: new RegExp(`^Following @${handle}$`, 'i') },
-    { state: 'pending', name: new RegExp(`^Pending @${handle}$`, 'i') },
-    { state: 'not_following', name: new RegExp(`^Follow @${handle}$`, 'i') },
-  ];
-  for (const pattern of patterns) {
-    const node = findByDescriptor(snapshot, { role: 'button', name: pattern.name });
-    if (node) return { state: pattern.state, node };
+): Promise<{ state: FollowState; node: SnapshotNode } | null> {
+  // Phase 1: DOM query via data-testid (locale-agnostic)
+  const domInfo = await primitives.evaluate<FollowButtonDomInfo | null>(`(() => {
+    const handle = ${JSON.stringify(handle)};
+    // Look for "-unfollow" testid first (following state)
+    const allBtns = document.querySelectorAll('button[data-testid$="-unfollow"], button[data-testid$="-follow"]');
+    for (const btn of allBtns) {
+      const testid = btn.getAttribute('data-testid') || '';
+      const ariaLabel = btn.getAttribute('aria-label') || '';
+      // Must contain @handle to be the right user's button (profile may show other users' buttons)
+      if (!ariaLabel.includes('@' + handle)) continue;
+      if (testid.endsWith('-unfollow')) {
+        return { state: 'following', ariaLabel };
+      }
+      if (testid.endsWith('-follow')) {
+        // Check for pending: pending buttons typically have a different aria-label pattern
+        // In practice, Twitter uses data-testid="{id}-follow" for both "follow" and "pending" states
+        // The aria-label text distinguishes them (contains locale-specific "pending" text)
+        // Since we can't check text, we rely on the ARIA snapshot name matching below
+        return { state: 'not_following', ariaLabel };
+      }
+    }
+    return null;
+  })()`);
+
+  if (!domInfo) return null;
+
+  // Phase 2: Match aria-label in ARIA snapshot to get clickable uid
+  const escaped = domInfo.ariaLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const node = findByDescriptor(snapshot, { role: 'button', name: new RegExp(escaped, 'i') });
+  if (!node) return null;
+
+  // Refine state: check if the ARIA name suggests "pending" (button with -follow testid
+  // but ARIA name doesn't match typical "follow" pattern — contains pending indicator)
+  // For pending detection, we check the ARIA name against known pending patterns
+  if (domInfo.state === 'not_following' && /pending/i.test(node.name)) {
+    return { state: 'pending', node };
   }
-  return null;
+
+  return { state: domInfo.state, node };
 }
 
 /**
  * Poll until a follow/following/pending button appears.
+ * Uses DOM-to-ARIA bridge for locale-agnostic button detection.
  * Also checks for UserNotFound and Blocked headings on each poll.
  */
 async function pollForFollowButton(
@@ -631,16 +675,16 @@ async function pollForFollowButton(
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const snapshot = await primitives.takeSnapshot();
-    // Check error pages (English locale)
+    // Check error pages — match common patterns across locales
     for (const [, node] of snapshot.idToNode) {
-      if (node.role === 'heading' && /account.*doesn.t exist|this account.*suspended/i.test(node.name)) {
+      if (node.role === 'heading' && /account.*doesn.t exist|this account.*suspended|アカウントは存在しません/i.test(node.name)) {
         throw new UserNotFound(`User @${handle} does not exist or is suspended`, { step: 'follow: checking user exists' });
       }
-      if (node.role === 'heading' && /blocked/i.test(node.name)) {
+      if (node.role === 'heading' && /blocked|ブロック/i.test(node.name)) {
         throw new SiteUseError('Blocked', `You are blocked by @${handle}`, { retryable: false, step: 'follow: checking blocked status' });
       }
     }
-    const detected = detectFollowState(snapshot, handle);
+    const detected = await detectFollowButton(primitives, snapshot, handle);
     if (detected) return detected;
     await new Promise(r => setTimeout(r, FOLLOW_POLL_INTERVAL_MS));
   }
@@ -677,7 +721,7 @@ export async function follow(
     while (Date.now() < deadline) {
       await new Promise(r => setTimeout(r, FOLLOW_POLL_INTERVAL_MS));
       const snapshot = await primitives.takeSnapshot();
-      const detected = detectFollowState(snapshot, handle);
+      const detected = await detectFollowButton(primitives, snapshot, handle);
       if (detected && (detected.state === 'following' || detected.state === 'pending')) {
         rootSpan.set('resultState', detected.state);
         return { action: 'follow' as const, handle, success: true, previousState: 'not_following' as const, resultState: detected.state };
@@ -761,7 +805,7 @@ export async function unfollow(
     while (Date.now() < deadline) {
       await new Promise(r => setTimeout(r, FOLLOW_POLL_INTERVAL_MS));
       const snapshot = await primitives.takeSnapshot();
-      const detected = detectFollowState(snapshot, handle);
+      const detected = await detectFollowButton(primitives, snapshot, handle);
       if (detected && detected.state === 'not_following') {
         rootSpan.set('resultState', 'not_following');
         return { action: 'unfollow' as const, handle, success: true, previousState, resultState: 'not_following' as const };

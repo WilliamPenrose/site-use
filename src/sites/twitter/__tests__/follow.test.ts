@@ -18,24 +18,37 @@ function createMockPrimitives(overrides: Partial<Primitives> = {}): Primitives {
   };
 }
 
-// Note: SnapshotNode has optional fields (children, value, etc.) but findByDescriptor
-// iterates idToNode Map values flat (not tree recursion), so only uid/role/name are needed.
 function buildSnapshot(nodes: Array<Partial<SnapshotNode> & Pick<SnapshotNode, 'uid' | 'role' | 'name'>>): Snapshot {
   const idToNode = new Map<string, SnapshotNode>();
   for (const node of nodes) idToNode.set(node.uid, { children: [], ...node } as SnapshotNode);
   return { idToNode };
 }
 
-function mockEvaluate(overrides: Record<string, unknown> = {}) {
-  const defaults: Record<string, unknown> = {
-    'location.href': 'https://x.com/testuser',
-  };
-  const merged = { ...defaults, ...overrides };
+/**
+ * Build a mock evaluate function that handles:
+ * - location.href check (for login redirect detection)
+ * - data-testid DOM query (for DOM-to-ARIA bridge follow button detection)
+ * - confirmationSheetConfirm query (for unfollow dialog)
+ *
+ * followButton: simulates the DOM query result for the follow button.
+ *   { state, ariaLabel } — returned when evaluate is called with data-testid query
+ */
+function mockEvaluate(opts: {
+  url?: string;
+  followButton?: { state: 'following' | 'not_following' | 'pending'; ariaLabel: string } | null;
+  confirmText?: string | null;
+} = {}) {
+  const { url = 'https://x.com/testuser', followButton, confirmText } = opts;
   return vi.fn().mockImplementation(async (expr: string) => {
-    for (const [key, value] of Object.entries(merged)) {
-      if (expr.includes(key)) {
-        return typeof value === 'function' ? (value as Function)() : value;
-      }
+    if (expr.includes('location.href')) return url;
+    // DOM-to-ARIA bridge: unfollow confirmation dialog (check BEFORE data-testid
+    // because the confirm dialog query also contains 'data-testid')
+    if (expr.includes('confirmationSheetConfirm')) {
+      return confirmText ?? null;
+    }
+    // DOM-to-ARIA bridge: follow button detection via data-testid
+    if (expr.includes('data-testid$="-unfollow"') || expr.includes('data-testid$="-follow"')) {
+      return followButton ?? null;
     }
     return undefined;
   });
@@ -52,8 +65,18 @@ beforeEach(async () => {
 
 describe('follow', () => {
   it('follows user when Follow button is found', async () => {
+    let evalCount = 0;
     const primitives = createMockPrimitives({
-      evaluate: mockEvaluate(),
+      evaluate: vi.fn().mockImplementation(async (expr: string) => {
+        if (expr.includes('location.href')) return 'https://x.com/testuser';
+        if (expr.includes('data-testid')) {
+          evalCount++;
+          // First call: not_following; subsequent calls: following (after click)
+          if (evalCount <= 1) return { state: 'not_following', ariaLabel: 'Follow @testuser' };
+          return { state: 'following', ariaLabel: 'Following @testuser' };
+        }
+        return undefined;
+      }),
       takeSnapshot: vi.fn()
         .mockResolvedValueOnce(buildSnapshot([
           { uid: '42', role: 'button', name: 'Follow @testuser' },
@@ -78,7 +101,7 @@ describe('follow', () => {
 
   it('returns noop when already following', async () => {
     const primitives = createMockPrimitives({
-      evaluate: mockEvaluate(),
+      evaluate: mockEvaluate({ followButton: { state: 'following', ariaLabel: 'Following @testuser' } }),
       takeSnapshot: vi.fn().mockResolvedValue(buildSnapshot([
         { uid: '42', role: 'button', name: 'Following @testuser' },
       ])),
@@ -94,7 +117,7 @@ describe('follow', () => {
 
   it('returns noop when pending (protected account)', async () => {
     const primitives = createMockPrimitives({
-      evaluate: mockEvaluate(),
+      evaluate: mockEvaluate({ followButton: { state: 'not_following', ariaLabel: 'Pending @testuser' } }),
       takeSnapshot: vi.fn().mockResolvedValue(buildSnapshot([
         { uid: '42', role: 'button', name: 'Pending @testuser' },
       ])),
@@ -108,8 +131,17 @@ describe('follow', () => {
   });
 
   it('handles protected account: Follow → Pending', async () => {
+    let evalCount = 0;
     const primitives = createMockPrimitives({
-      evaluate: mockEvaluate(),
+      evaluate: vi.fn().mockImplementation(async (expr: string) => {
+        if (expr.includes('location.href')) return 'https://x.com/testuser';
+        if (expr.includes('data-testid')) {
+          evalCount++;
+          if (evalCount <= 1) return { state: 'not_following', ariaLabel: 'Follow @testuser' };
+          return { state: 'not_following', ariaLabel: 'Pending @testuser' };
+        }
+        return undefined;
+      }),
       takeSnapshot: vi.fn()
         .mockResolvedValueOnce(buildSnapshot([
           { uid: '42', role: 'button', name: 'Follow @testuser' },
@@ -127,7 +159,7 @@ describe('follow', () => {
 
   it('normalizes handle with @ prefix', async () => {
     const primitives = createMockPrimitives({
-      evaluate: mockEvaluate(),
+      evaluate: mockEvaluate({ followButton: { state: 'following', ariaLabel: 'Following @testuser' } }),
       takeSnapshot: vi.fn().mockResolvedValue(buildSnapshot([
         { uid: '42', role: 'button', name: 'Following @testuser' },
       ])),
@@ -140,7 +172,7 @@ describe('follow', () => {
 
   it('resolves handle from profile URL', async () => {
     const primitives = createMockPrimitives({
-      evaluate: mockEvaluate(),
+      evaluate: mockEvaluate({ followButton: { state: 'following', ariaLabel: 'Following @elonmusk' } }),
       takeSnapshot: vi.fn().mockResolvedValue(buildSnapshot([
         { uid: '42', role: 'button', name: 'Following @elonmusk' },
       ])),
@@ -151,9 +183,38 @@ describe('follow', () => {
     expect(primitives.navigate).toHaveBeenCalledWith('https://x.com/elonmusk');
   });
 
+  it('works with non-English locale (Japanese)', async () => {
+    let evalCount = 0;
+    const primitives = createMockPrimitives({
+      evaluate: vi.fn().mockImplementation(async (expr: string) => {
+        if (expr.includes('location.href')) return 'https://x.com/testuser';
+        if (expr.includes('data-testid')) {
+          evalCount++;
+          if (evalCount <= 1) return { state: 'not_following', ariaLabel: 'フォロー @testuser' };
+          return { state: 'following', ariaLabel: 'フォロー中 @testuser' };
+        }
+        return undefined;
+      }),
+      takeSnapshot: vi.fn()
+        .mockResolvedValueOnce(buildSnapshot([
+          { uid: '42', role: 'button', name: 'フォロー @testuser' },
+        ]))
+        .mockResolvedValue(buildSnapshot([
+          { uid: '43', role: 'button', name: 'フォロー中 @testuser' },
+        ])),
+    });
+
+    const result = await follow(primitives, { handle: 'testuser' });
+
+    expect(result.success).toBe(true);
+    expect(result.previousState).toBe('not_following');
+    expect(result.resultState).toBe('following');
+    expect(primitives.click).toHaveBeenCalledWith('42');
+  });
+
   it('throws on login redirect', async () => {
     const primitives = createMockPrimitives({
-      evaluate: mockEvaluate({ 'location.href': 'https://x.com/i/flow/login' }),
+      evaluate: mockEvaluate({ url: 'https://x.com/i/flow/login' }),
     });
 
     await expect(follow(primitives, { handle: 'testuser' }))
@@ -162,7 +223,7 @@ describe('follow', () => {
 
   it('throws when user does not exist', async () => {
     const primitives = createMockPrimitives({
-      evaluate: mockEvaluate(),
+      evaluate: mockEvaluate({ followButton: null }),
       takeSnapshot: vi.fn().mockResolvedValue(buildSnapshot([
         { uid: '1', role: 'heading', name: "This account doesn't exist" },
       ])),
@@ -183,11 +244,17 @@ describe('follow', () => {
 describe('unfollow', () => {
   it('unfollows user via DOM-to-ARIA bridge (exact match)', async () => {
     let snapshotCount = 0;
+    let evalCount = 0;
     const primitives = createMockPrimitives({
       evaluate: vi.fn().mockImplementation(async (expr: string) => {
         if (expr.includes('location.href')) return 'https://x.com/testuser';
-        // DOM-to-ARIA bridge: return confirm button textContent
+        // Check confirmationSheetConfirm BEFORE data-testid (confirm query contains both)
         if (expr.includes('confirmationSheetConfirm')) return 'Unfollow';
+        if (expr.includes('data-testid')) {
+          evalCount++;
+          if (evalCount <= 1) return { state: 'following', ariaLabel: 'Following @testuser' };
+          return { state: 'not_following', ariaLabel: 'Follow @testuser' };
+        }
         return undefined;
       }),
       takeSnapshot: vi.fn().mockImplementation(async () => {
@@ -198,7 +265,6 @@ describe('unfollow', () => {
           ]);
         }
         if (snapshotCount === 2) {
-          // Dialog snapshot: button with matching text
           return buildSnapshot([
             { uid: '42', role: 'button', name: 'Following @testuser' },
             { uid: '99', role: 'button', name: 'Unfollow' },
@@ -225,7 +291,7 @@ describe('unfollow', () => {
 
   it('returns noop when not following', async () => {
     const primitives = createMockPrimitives({
-      evaluate: mockEvaluate(),
+      evaluate: mockEvaluate({ followButton: { state: 'not_following', ariaLabel: 'Follow @testuser' } }),
       takeSnapshot: vi.fn().mockResolvedValue(buildSnapshot([
         { uid: '42', role: 'button', name: 'Follow @testuser' },
       ])),
@@ -240,29 +306,33 @@ describe('unfollow', () => {
 
   it('unfollows via DOM-to-ARIA bridge with non-English locale (fuzzy match)', async () => {
     let snapshotCount = 0;
+    let evalCount = 0;
     const primitives = createMockPrimitives({
       evaluate: vi.fn().mockImplementation(async (expr: string) => {
         if (expr.includes('location.href')) return 'https://x.com/testuser';
-        // Chinese locale: textContent is "取消关注"
         if (expr.includes('confirmationSheetConfirm')) return '取消关注';
+        if (expr.includes('data-testid')) {
+          evalCount++;
+          if (evalCount <= 1) return { state: 'following', ariaLabel: 'フォロー中 @testuser' };
+          return { state: 'not_following', ariaLabel: 'フォロー @testuser' };
+        }
         return undefined;
       }),
       takeSnapshot: vi.fn().mockImplementation(async () => {
         snapshotCount++;
         if (snapshotCount === 1) {
           return buildSnapshot([
-            { uid: '42', role: 'button', name: 'Following @testuser' },
+            { uid: '42', role: 'button', name: 'フォロー中 @testuser' },
           ]);
         }
         if (snapshotCount === 2) {
-          // ARIA name matches the DOM textContent
           return buildSnapshot([
-            { uid: '42', role: 'button', name: 'Following @testuser' },
+            { uid: '42', role: 'button', name: 'フォロー中 @testuser' },
             { uid: '99', role: 'button', name: '取消关注' },
           ]);
         }
         return buildSnapshot([
-          { uid: '43', role: 'button', name: 'Follow @testuser' },
+          { uid: '43', role: 'button', name: 'フォロー @testuser' },
         ]);
       }),
     });
@@ -277,8 +347,8 @@ describe('unfollow', () => {
     const primitives = createMockPrimitives({
       evaluate: vi.fn().mockImplementation(async (expr: string) => {
         if (expr.includes('location.href')) return 'https://x.com/testuser';
-        // DOM has text but ARIA snapshot won't have a matching button
         if (expr.includes('confirmationSheetConfirm')) return 'SomeText';
+        if (expr.includes('data-testid')) return { state: 'following', ariaLabel: 'Following @testuser' };
         return undefined;
       }),
       takeSnapshot: vi.fn().mockImplementation(async () => {
@@ -302,7 +372,7 @@ describe('unfollow', () => {
 
   it('throws on login redirect', async () => {
     const primitives = createMockPrimitives({
-      evaluate: mockEvaluate({ 'location.href': 'https://x.com/i/flow/login' }),
+      evaluate: mockEvaluate({ url: 'https://x.com/i/flow/login' }),
     });
 
     await expect(unfollow(primitives, { handle: 'testuser' }))
