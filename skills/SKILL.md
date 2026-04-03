@@ -1,6 +1,6 @@
 ---
 name: site-use
-description: "Personal AI for social media — collect tweets, daily digest, track topics, search cached posts. Use when the user wants to browse Twitter/X, get a summary of what's happening, monitor topics long-term, or analyze cached social media data. Examples: 'what's hot today', 'grab latest tweets', 'search Twitter for AI news', 'track this topic for a week', 'set up site-use'"
+description: "Twitter/X browser automation CLI — fetch timeline, generate daily digest, track authors/topics, and search locally cached tweets. Use when the user wants to: pull their Twitter feed, get a digest or briefing of what's happening on Twitter, monitor specific accounts or keywords over time, search through previously collected tweets, deep-dive into a tweet thread, or manage the site-use browser (launch, reconnect). Do NOT trigger for: writing/composing tweets, Twitter API development, scraping non-Twitter sites, Reddit/HN/RSS content, sentiment analysis of exported data, or building dashboards."
 metadata: { "openclaw": { "emoji": "🌐", "homepage": "https://github.com/WilliamPenrose/site-use", "requires": { "bins": ["site-use"] }, "install": [{ "kind": "node", "package": "site-use", "bins": ["site-use"] }] } }
 ---
 
