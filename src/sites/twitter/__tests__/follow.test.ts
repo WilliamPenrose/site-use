@@ -35,7 +35,7 @@ function buildSnapshot(nodes: Array<Partial<SnapshotNode> & Pick<SnapshotNode, '
  */
 function mockEvaluate(opts: {
   url?: string;
-  followButton?: { state: 'following' | 'not_following' | 'pending'; ariaLabel: string } | null;
+  followButton?: { state: 'following' | 'not_following'; ariaLabel: string } | null;
   confirmText?: string | null;
 } = {}) {
   const { url = 'https://x.com/testuser', followButton, confirmText } = opts;
@@ -346,8 +346,9 @@ describe('unfollow', () => {
     const primitives = createMockPrimitives({
       evaluate: vi.fn().mockImplementation(async (expr: string) => {
         if (expr.includes('location.href')) return 'https://x.com/testuser';
+        if (expr.includes('emptyState')) return null;
         if (expr.includes('confirmationSheetConfirm')) return 'SomeText';
-        if (expr.includes('data-testid')) return { state: 'following', ariaLabel: 'Following @testuser' };
+        if (expr.includes('"-follow"') || expr.includes('"-unfollow"')) return { state: 'following', ariaLabel: 'Following @testuser' };
         return undefined;
       }),
       takeSnapshot: vi.fn().mockImplementation(async () => {

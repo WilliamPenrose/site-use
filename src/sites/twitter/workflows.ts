@@ -652,6 +652,11 @@ async function detectFollowButton(
  * Check for error pages via data-testid (locale-agnostic).
  * - data-testid="emptyState" → user does not exist / suspended
  * - data-testid="error-detail" → page-level error (invalid path)
+ *
+ * Known gap: blocked-by-user state has no known data-testid. If a user is
+ * blocked, pollForFollowButton will time out (10s) with ElementNotFound
+ * instead of a fast, specific error. Acceptable until a data-testid for
+ * the blocked state is identified.
  */
 async function checkProfileError(primitives: Primitives, handle: string): Promise<void> {
   const errorType = await primitives.evaluate<string | null>(`(() => {
@@ -703,6 +708,8 @@ export async function follow(
     await primitives.navigate(`https://x.com/${handle}`);
     await checkLoginRedirect(primitives, rootSpan);
 
+    // preClickLabel: captured at detection time, before click. Used to detect
+    // pending state post-click by comparing ariaLabel change.
     const { state: previousState, ariaLabel: preClickLabel, node } = await pollForFollowButton(primitives, handle);
     rootSpan.set('previousState', previousState);
 
@@ -712,7 +719,11 @@ export async function follow(
     }
 
     // state is 'not_following' (testid = -follow). Could be actual "follow" or "pending".
-    // Click and determine result by observing what changes.
+    // We cannot distinguish them pre-click without locale-dependent text matching.
+    // Known limitation: if the account is already pending, this click CANCELS the
+    // pending request (Twitter toggles it). The verify loop may then misreport the
+    // result. This only affects protected accounts and the consequence is non-destructive
+    // (user can call follow again). Click and determine result by observing what changes.
     console.error(`[site-use] clicking Follow @${handle}...`);
     await primitives.click(node.uid);
 
