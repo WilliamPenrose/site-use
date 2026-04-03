@@ -1,8 +1,20 @@
+import type { Primitives } from '../primitives/types.js';
+import { makeEnsureState } from './ensure-state.js';
 import { StateTransitionFailed } from '../errors.js';
 
 export interface TabInfo {
   name: string;
   index: number;
+}
+
+export interface DiscoverOptions {
+  timeoutMs?: number;
+  pollMs?: number;
+}
+
+export interface EnsureTabResult {
+  action: 'already_there' | 'transitioned';
+  availableTabs: string[];
 }
 
 export class TabNotFoundError extends StateTransitionFailed {
@@ -60,4 +72,70 @@ export function matchTab(
   }
 
   throw new TabNotFoundError(input, tabs.map(t => t.name));
+}
+
+const DEFAULT_TIMEOUT_MS = 10_000;
+const DEFAULT_POLL_MS = 500;
+
+/**
+ * Read all tab elements from the DOM via querySelectorAll.
+ * Polls until at least one tab appears (SPA may still be rendering).
+ */
+export async function discoverTabs(
+  primitives: Primitives,
+  tabSelector: string,
+  opts: DiscoverOptions = {},
+): Promise<TabInfo[]> {
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, pollMs = DEFAULT_POLL_MS } = opts;
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const raw = await primitives.evaluate<string>(`(() => {
+      const tabs = document.querySelectorAll('${tabSelector}');
+      return JSON.stringify(Array.from(tabs).map((t, i) => ({
+        name: t.textContent?.trim() ?? '',
+        index: i,
+      })));
+    })()`);
+
+    const tabs: TabInfo[] = JSON.parse(raw);
+    if (tabs.length > 0 && tabs[0].name) return tabs;
+
+    await new Promise(r => setTimeout(r, pollMs));
+  }
+
+  throw new StateTransitionFailed(
+    `No tabs found in DOM after ${timeoutMs}ms`,
+    { step: `discoverTabs: polling ${tabSelector}` },
+  );
+}
+
+/**
+ * Ensure a specific tab is selected. Site-agnostic — tabSelector and wellKnown
+ * are passed by the calling site.
+ *
+ * Flow: discoverTabs → matchTab → scrollIntoView → ensure click via ARIA path
+ */
+export async function ensureTab(
+  primitives: Primitives,
+  tabName: string,
+  tabSelector: string,
+  wellKnown?: Record<string, number>,
+): Promise<EnsureTabResult> {
+  const tabs = await discoverTabs(primitives, tabSelector);
+  const matched = matchTab(tabName, tabs, wellKnown);
+  const availableTabs = tabs.map(t => t.name);
+
+  // scrollIntoView via evaluate() because no ARIA snapshot/uid exists yet —
+  // the snapshot is taken inside makeEnsureState below.
+  await primitives.evaluate(`(() => {
+    const tabs = document.querySelectorAll('${tabSelector}');
+    tabs[${matched.index}]?.scrollIntoView({ inline: 'center', behavior: 'smooth' });
+  })()`);
+
+  // ARIA path click via ensure-state
+  const ensure = makeEnsureState(primitives);
+  const result = await ensure({ role: 'tab', name: matched.name, selected: true });
+
+  return { action: result.action, availableTabs };
 }
