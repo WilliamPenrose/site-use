@@ -108,3 +108,25 @@ export class CdpThrottled extends SiteUseError {
     this.name = 'CdpThrottled';
   }
 }
+
+export class UserNotFound extends SiteUseError {
+  constructor(message: string, context: ErrorContext = {}) {
+    super('UserNotFound', message, {
+      retryable: false,
+      hint: 'The user does not exist or the account has been suspended/deactivated.',
+      ...context,
+    });
+    this.name = 'UserNotFound';
+  }
+}
+
+export class DailyLimitExceeded extends SiteUseError {
+  constructor(message: string, context: ErrorContext = {}) {
+    super('DailyLimitExceeded', message, {
+      retryable: false,
+      hint: 'Daily operation limit reached. Wait until tomorrow to continue.',
+      ...context,
+    });
+    this.name = 'DailyLimitExceeded';
+  }
+}

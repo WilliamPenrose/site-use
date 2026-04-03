@@ -1,6 +1,6 @@
 import { z, type ZodType } from 'zod';
 import type { SiteRuntime } from '../runtime/types.js';
-import { SiteUseError, BrowserDisconnected, RateLimited } from '../errors.js';
+import { SiteUseError, BrowserDisconnected, RateLimited, DailyLimitExceeded } from '../errors.js';
 import { resolveHint } from './default-descriptions.js';
 import { Trace, type TraceData } from '../trace.js';
 
@@ -21,6 +21,11 @@ export interface ToolResult {
   isError?: boolean;
 }
 
+export interface ActionOpts {
+  dailyLimit?: number;
+  dailyLimitKey?: string;
+}
+
 export interface WrapOptions {
   siteName: string;
   toolName: string;
@@ -33,6 +38,7 @@ export interface WrapOptions {
     storeAdapter: { toIngestItems: (items: any[]) => any[] };
     siteName: string;
   };
+  actionOpts?: ActionOpts;
 }
 
 export function wrapToolHandler(opts: WrapOptions): (params: Record<string, unknown>) => Promise<ToolResult> {
@@ -73,6 +79,57 @@ export function wrapToolHandler(opts: WrapOptions): (params: Record<string, unkn
 
     try {
       const result = await runtime.mutex.run(async () => {
+        // Action workflows: dailyLimitCheck + execute + logAction all inside mutex
+        if (opts.actionOpts) {
+          const { getDailyActionCount, logAction } = await import('../storage/action-log.js');
+          const { getConfig, getKnowledgeDbPath } = await import('../config.js');
+          const { initializeDatabase } = await import('../storage/schema.js');
+          const cfg = getConfig();
+          const dbPath = getKnowledgeDbPath(cfg.dataDir);
+          const db = initializeDatabase(dbPath);
+          try {
+            // 1. Daily limit check
+            if (opts.actionOpts.dailyLimit) {
+              const key = opts.actionOpts.dailyLimitKey ?? opts.toolName;
+              const actions = key.includes(',') ? key.split(',') : [key];
+              const count = getDailyActionCount(db, opts.siteName, actions);
+              if (count >= opts.actionOpts.dailyLimit) {
+                throw new DailyLimitExceeded(
+                  `Daily limit reached: ${count}/${opts.actionOpts.dailyLimit} today`,
+                  { diagnostics: { used: count, limit: opts.actionOpts.dailyLimit } },
+                );
+              }
+            }
+            // 2. Execute handler
+            const actionResult = await trace.span('handler', async () => {
+              return await opts.handler(rawParams, runtime, trace);
+            });
+            // 3. Log action (same DB, same mutex)
+            // Skip logging for idempotent no-ops (previousState === resultState)
+            // to avoid consuming daily quota on repeated safe calls.
+            try {
+              const r = actionResult as Record<string, unknown>;
+              const isNoop = r.previousState !== undefined && r.previousState === r.resultState;
+              if (!isNoop) {
+                logAction(db, {
+                  site: opts.siteName,
+                  action: String(r.action ?? opts.toolName),
+                  target: String(r.target ?? r.handle ?? ''),
+                  success: true,
+                  prevState: r.previousState as string | undefined,
+                  resultState: r.resultState as string | undefined,
+                  timestamp: new Date().toISOString(),
+                });
+              }
+            } catch (logErr) {
+              console.warn(`[site-use] action log failed: ${logErr instanceof Error ? logErr.message : String(logErr)}`);
+            }
+            return actionResult;
+          } finally {
+            db.close();
+          }
+        }
+        // Collection workflows: existing behavior unchanged
         return await trace.span('handler', async () => {
           return await opts.handler(rawParams, runtime, trace);
         });

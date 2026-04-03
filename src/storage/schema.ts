@@ -103,5 +103,19 @@ export function initializeDatabase(dbPath: string): DatabaseSync {
     // FTS table doesn't exist yet or migration not needed — ok
   }
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS action_log (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      site         TEXT NOT NULL,
+      action       TEXT NOT NULL,
+      target       TEXT NOT NULL,
+      success      INTEGER NOT NULL,
+      prev_state   TEXT,
+      result_state TEXT,
+      timestamp    TEXT NOT NULL
+    )
+  `);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_action_log_daily ON action_log(site, action, timestamp)');
+
   return db;
 }

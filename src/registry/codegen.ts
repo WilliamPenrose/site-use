@@ -1,5 +1,5 @@
 import { z, type ZodType } from 'zod';
-import type { SitePlugin } from './types.js';
+import type { SitePlugin, CollectionWorkflow, ActionWorkflow } from './types.js';
 import type { SiteRuntimeManager } from '../runtime/manager.js';
 import { wrapToolHandler } from './tool-wrapper.js';
 import { setLastFetchTime } from '../fetch-timestamps.js';
@@ -68,7 +68,8 @@ export function generateCliCommands(
       for (const wf of workflows) {
         if (!shouldExposeCli(wf.expose)) continue;
 
-        const hasCacheSupport = !!(wf.localQuery && wf.cache);
+        const isAction = wf.kind === 'action';
+        const hasCacheSupport = !isAction && !!((wf as CollectionWorkflow).localQuery && (wf as CollectionWorkflow).cache);
 
         const wrappedWf = wrapToolHandler({
           siteName: plugin.name,
@@ -81,16 +82,21 @@ export function generateCliCommands(
             : undefined,
           handler: async (params, runtime, trace) => {
             const result = await wf.execute(runtime.primitives, params, trace);
-            if (wf.cache) {
+            if (!isAction && (wf as CollectionWorkflow).cache) {
+              const cacheConfig = (wf as CollectionWorkflow).cache!;
               const cfg = getConfig();
               const tsPath = path.join(cfg.dataDir, 'fetch-timestamps.json');
-              const variant = wf.cache.variantKey
-                ? ((params as Record<string, unknown>)[wf.cache.variantKey] as string | undefined) ?? wf.cache.defaultVariant ?? 'default'
-                : wf.cache.defaultVariant ?? 'default';
+              const variant = cacheConfig.variantKey
+                ? ((params as Record<string, unknown>)[cacheConfig.variantKey] as string | undefined) ?? cacheConfig.defaultVariant ?? 'default'
+                : cacheConfig.defaultVariant ?? 'default';
               setLastFetchTime(tsPath, plugin.name, variant);
             }
             return result;
           },
+          actionOpts: isAction ? {
+            dailyLimit: (wf as ActionWorkflow).dailyLimit,
+            dailyLimitKey: (wf as ActionWorkflow).dailyLimitKey,
+          } : undefined,
         });
 
         commands.push({
@@ -100,6 +106,14 @@ export function generateCliCommands(
           handler: async (args) => {
             if (args?.includes('--help') || args?.includes('-h')) {
               console.log(buildWorkflowHelp(plugin.name, wf));
+              return;
+            }
+
+            if (isAction) {
+              const params = parseCliArgs(args, wf.params);
+              const result = unwrapToolResult(await wrappedWf(params));
+              if (result === null) return;
+              console.log(JSON.stringify(result, null, 2));
               return;
             }
 
@@ -238,7 +252,7 @@ function rotateDumpFiles(dir: string): void {
 
 function buildWorkflowHelp(
   siteName: string,
-  wf: { name: string; cache?: { defaultMaxAge: number }; localQuery?: unknown; dumpRaw?: boolean; cli?: { description?: string; help?: string } },
+  wf: { name: string; kind?: string; cache?: { defaultMaxAge: number }; localQuery?: unknown; dumpRaw?: boolean; cli?: { description?: string; help?: string } },
 ): string {
   const lines: string[] = [];
   const desc = wf.cli?.description ?? wf.name;
@@ -249,26 +263,28 @@ function buildWorkflowHelp(
     lines.push('');
   }
 
-  if (wf.dumpRaw) {
-    lines.push('Dump options:');
-    lines.push('  --dump-raw [dir]       Dump raw responses to directory (default: ~/.site-use/dump/{site}/)');
-    lines.push('');
-  }
-
-  if (wf.cache) {
-    lines.push('Cache options:');
-    if (wf.localQuery) {
-      lines.push('  --local                Force local cache query (no browser)');
+  if (wf.kind !== 'action') {
+    if (wf.dumpRaw) {
+      lines.push('Dump options:');
+      lines.push('  --dump-raw [dir]       Dump raw responses to directory (default: ~/.site-use/dump/{site}/)');
+      lines.push('');
     }
-    lines.push('  --fetch                Force fetch from browser (skip freshness check)');
-    lines.push(`  --max-age <minutes>    Max cache age before auto-fetching (default: ${wf.cache.defaultMaxAge})`);
+
+    if (wf.cache) {
+      lines.push('Cache options:');
+      if (wf.localQuery) {
+        lines.push('  --local                Force local cache query (no browser)');
+      }
+      lines.push('  --fetch                Force fetch from browser (skip freshness check)');
+      lines.push(`  --max-age <minutes>    Max cache age before auto-fetching (default: ${wf.cache.defaultMaxAge})`);
+      lines.push('');
+    }
+
+    lines.push('Output options:');
+    lines.push(`  --fields <list>        Comma-separated fields: ${SEARCH_FIELDS.join(',')}`);
+    lines.push('  --quiet, -q            Suppress JSON output, show one-line summary only');
     lines.push('');
   }
-
-  lines.push('Output options:');
-  lines.push(`  --fields <list>        Comma-separated fields: ${SEARCH_FIELDS.join(',')}`);
-  lines.push('  --quiet, -q            Suppress JSON output, show one-line summary only');
-  lines.push('');
 
   return lines.join('\n');
 }

@@ -32,21 +32,37 @@ const SitePluginSchema = z.object({
     navigationFailed: z.string().optional(),
     stateTransitionFailed: z.string().optional(),
   }).optional(),
-  workflows: z.array(z.object({
-    name: z.string().min(1),
-    description: z.string().min(1),
-    params: z.unknown(),
-    execute: z.function(),
-    cache: z.object({
-      defaultMaxAge: z.number(),
-      variantKey: z.string().optional(),
-      defaultVariant: z.string().optional(),
-    }).optional(),
-    localQuery: z.function().optional(),
-    dumpRaw: z.boolean().optional(),
-    expose: z.array(z.enum(['mcp', 'cli'])).optional(),
-    cli: z.unknown().optional(),
-  })).optional(),
+  workflows: z.array(z.discriminatedUnion('kind', [
+    // Collection workflow
+    z.object({
+      kind: z.literal('collection'),
+      name: z.string().min(1),
+      description: z.string().min(1),
+      params: z.unknown(),
+      execute: z.function(),
+      cache: z.object({
+        defaultMaxAge: z.number(),
+        variantKey: z.string().optional(),
+        defaultVariant: z.string().optional(),
+      }).optional(),
+      localQuery: z.function().optional(),
+      dumpRaw: z.boolean().optional(),
+      expose: z.array(z.enum(['mcp', 'cli'])).optional(),
+      cli: z.unknown().optional(),
+    }),
+    // Action workflow
+    z.object({
+      kind: z.literal('action'),
+      name: z.string().min(1),
+      description: z.string().min(1),
+      params: z.unknown(),
+      execute: z.function(),
+      dailyLimit: z.number().optional(),
+      dailyLimitKey: z.string().optional(),
+      expose: z.array(z.enum(['mcp', 'cli'])).optional(),
+      cli: z.unknown().optional(),
+    }),
+  ])).optional(),
 });
 
 /**
@@ -84,7 +100,7 @@ export function validatePlugins(plugins: unknown[]): void {
     const workflows = (validated as Record<string, unknown>).workflows as Array<Record<string, unknown>> | undefined;
     if (workflows) {
       for (const wf of workflows) {
-        if (wf.localQuery && !wf.cache) {
+        if (wf.kind === 'collection' && wf.localQuery && !wf.cache) {
           throw new Error(
             `Plugin "${validated.name}" workflow "${wf.name}" declares localQuery without cache. localQuery requires cache for freshness decisions.`,
           );
