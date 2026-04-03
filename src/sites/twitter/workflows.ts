@@ -663,9 +663,28 @@ async function detectFollowButton(
 }
 
 /**
+ * Check for error pages via data-testid (locale-agnostic).
+ * - data-testid="emptyState" → user does not exist / suspended
+ * - data-testid="error-detail" → page-level error (invalid path)
+ */
+async function checkProfileError(primitives: Primitives, handle: string): Promise<void> {
+  const errorType = await primitives.evaluate<string | null>(`(() => {
+    if (document.querySelector('[data-testid="emptyState"]')) return 'emptyState';
+    if (document.querySelector('[data-testid="error-detail"]')) return 'errorDetail';
+    return null;
+  })()`);
+  if (errorType === 'emptyState') {
+    throw new UserNotFound(`User @${handle} does not exist or is suspended`, { step: 'follow: checking user exists' });
+  }
+  if (errorType === 'errorDetail') {
+    throw new UserNotFound(`Profile page for @${handle} not found`, { step: 'follow: checking page exists' });
+  }
+}
+
+/**
  * Poll until a follow/following/pending button appears.
  * Uses DOM-to-ARIA bridge for locale-agnostic button detection.
- * Also checks for UserNotFound and Blocked headings on each poll.
+ * Uses data-testid for locale-agnostic error page detection.
  */
 async function pollForFollowButton(
   primitives: Primitives,
@@ -674,16 +693,8 @@ async function pollForFollowButton(
 ): Promise<{ state: FollowState; node: SnapshotNode }> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
+    await checkProfileError(primitives, handle);
     const snapshot = await primitives.takeSnapshot();
-    // Check error pages — match common patterns across locales
-    for (const [, node] of snapshot.idToNode) {
-      if (node.role === 'heading' && /account.*doesn.t exist|this account.*suspended|アカウントは存在しません/i.test(node.name)) {
-        throw new UserNotFound(`User @${handle} does not exist or is suspended`, { step: 'follow: checking user exists' });
-      }
-      if (node.role === 'heading' && /blocked|ブロック/i.test(node.name)) {
-        throw new SiteUseError('Blocked', `You are blocked by @${handle}`, { retryable: false, step: 'follow: checking blocked status' });
-      }
-    }
     const detected = await detectFollowButton(primitives, snapshot, handle);
     if (detected) return detected;
     await new Promise(r => setTimeout(r, FOLLOW_POLL_INTERVAL_MS));

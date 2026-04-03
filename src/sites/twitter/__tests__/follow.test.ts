@@ -41,13 +41,14 @@ function mockEvaluate(opts: {
   const { url = 'https://x.com/testuser', followButton, confirmText } = opts;
   return vi.fn().mockImplementation(async (expr: string) => {
     if (expr.includes('location.href')) return url;
-    // DOM-to-ARIA bridge: unfollow confirmation dialog (check BEFORE data-testid
-    // because the confirm dialog query also contains 'data-testid')
+    // Error page check (locale-agnostic via data-testid)
+    if (expr.includes('emptyState')) return null;
+    // DOM-to-ARIA bridge: unfollow confirmation dialog
     if (expr.includes('confirmationSheetConfirm')) {
       return confirmText ?? null;
     }
-    // DOM-to-ARIA bridge: follow button detection via data-testid
-    if (expr.includes('data-testid$="-unfollow"') || expr.includes('data-testid$="-follow"')) {
+    // DOM-to-ARIA bridge: follow button detection
+    if (expr.includes('"-unfollow"') || expr.includes('"-follow"')) {
       return followButton ?? null;
     }
     return undefined;
@@ -69,7 +70,8 @@ describe('follow', () => {
     const primitives = createMockPrimitives({
       evaluate: vi.fn().mockImplementation(async (expr: string) => {
         if (expr.includes('location.href')) return 'https://x.com/testuser';
-        if (expr.includes('data-testid')) {
+        if (expr.includes('emptyState')) return null; // no error page
+        if (expr.includes('"-follow"') || expr.includes('"-unfollow"')) {
           evalCount++;
           // First call: not_following; subsequent calls: following (after click)
           if (evalCount <= 1) return { state: 'not_following', ariaLabel: 'Follow @testuser' };
@@ -135,7 +137,8 @@ describe('follow', () => {
     const primitives = createMockPrimitives({
       evaluate: vi.fn().mockImplementation(async (expr: string) => {
         if (expr.includes('location.href')) return 'https://x.com/testuser';
-        if (expr.includes('data-testid')) {
+        if (expr.includes('emptyState')) return null; // no error page
+        if (expr.includes('"-follow"') || expr.includes('"-unfollow"')) {
           evalCount++;
           if (evalCount <= 1) return { state: 'not_following', ariaLabel: 'Follow @testuser' };
           return { state: 'not_following', ariaLabel: 'Pending @testuser' };
@@ -188,7 +191,8 @@ describe('follow', () => {
     const primitives = createMockPrimitives({
       evaluate: vi.fn().mockImplementation(async (expr: string) => {
         if (expr.includes('location.href')) return 'https://x.com/testuser';
-        if (expr.includes('data-testid')) {
+        if (expr.includes('emptyState')) return null; // no error page
+        if (expr.includes('"-follow"') || expr.includes('"-unfollow"')) {
           evalCount++;
           if (evalCount <= 1) return { state: 'not_following', ariaLabel: 'フォロー @testuser' };
           return { state: 'following', ariaLabel: 'フォロー中 @testuser' };
@@ -221,12 +225,15 @@ describe('follow', () => {
       .rejects.toThrow('Not logged in');
   });
 
-  it('throws when user does not exist', async () => {
+  it('throws when user does not exist (via data-testid)', async () => {
     const primitives = createMockPrimitives({
-      evaluate: mockEvaluate({ followButton: null }),
-      takeSnapshot: vi.fn().mockResolvedValue(buildSnapshot([
-        { uid: '1', role: 'heading', name: "This account doesn't exist" },
-      ])),
+      evaluate: vi.fn().mockImplementation(async (expr: string) => {
+        if (expr.includes('location.href')) return 'https://x.com/nonexistent';
+        // data-testid="emptyState" present → user not found
+        if (expr.includes('emptyState')) return 'emptyState';
+        if (expr.includes('data-testid')) return null;
+        return undefined;
+      }),
     });
 
     await expect(follow(primitives, { handle: 'nonexistent' }))
@@ -250,7 +257,8 @@ describe('unfollow', () => {
         if (expr.includes('location.href')) return 'https://x.com/testuser';
         // Check confirmationSheetConfirm BEFORE data-testid (confirm query contains both)
         if (expr.includes('confirmationSheetConfirm')) return 'Unfollow';
-        if (expr.includes('data-testid')) {
+        if (expr.includes('emptyState')) return null; // no error page
+        if (expr.includes('"-follow"') || expr.includes('"-unfollow"')) {
           evalCount++;
           if (evalCount <= 1) return { state: 'following', ariaLabel: 'Following @testuser' };
           return { state: 'not_following', ariaLabel: 'Follow @testuser' };
@@ -311,7 +319,8 @@ describe('unfollow', () => {
       evaluate: vi.fn().mockImplementation(async (expr: string) => {
         if (expr.includes('location.href')) return 'https://x.com/testuser';
         if (expr.includes('confirmationSheetConfirm')) return '取消关注';
-        if (expr.includes('data-testid')) {
+        if (expr.includes('emptyState')) return null; // no error page
+        if (expr.includes('"-follow"') || expr.includes('"-unfollow"')) {
           evalCount++;
           if (evalCount <= 1) return { state: 'following', ariaLabel: 'フォロー中 @testuser' };
           return { state: 'not_following', ariaLabel: 'フォロー @testuser' };
