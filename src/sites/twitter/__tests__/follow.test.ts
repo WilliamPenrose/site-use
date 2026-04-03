@@ -318,6 +318,56 @@ describe('unfollow', () => {
     expect(primitives.click).not.toHaveBeenCalled();
   });
 
+  it('cancels pending follow request via confirmation dialog', async () => {
+    let snapshotCount = 0;
+    let evalCount = 0;
+    const primitives = createMockPrimitives({
+      evaluate: vi.fn().mockImplementation(async (expr: string) => {
+        if (expr.includes('location.href')) return 'https://x.com/testuser';
+        if (expr.includes('emptyState')) return null;
+        if (expr.includes('confirmationSheetConfirm')) return '破棄';
+        if (expr.includes('"-cancel"')) {
+          evalCount++;
+          // Pre-click: pending
+          if (evalCount <= 1) return { state: 'pending', ariaLabel: '未承認' };
+          // Post-confirm: not_following
+          return { state: 'not_following', ariaLabel: 'フォロー @testuser' };
+        }
+        return undefined;
+      }),
+      takeSnapshot: vi.fn().mockImplementation(async () => {
+        snapshotCount++;
+        if (snapshotCount === 1) {
+          return buildSnapshot([
+            { uid: '42', role: 'button', name: '未承認' },
+          ]);
+        }
+        if (snapshotCount === 2) {
+          // Confirmation dialog appeared
+          return buildSnapshot([
+            { uid: '42', role: 'button', name: '未承認' },
+            { uid: '99', role: 'button', name: '破棄' },
+          ]);
+        }
+        return buildSnapshot([
+          { uid: '43', role: 'button', name: 'フォロー @testuser' },
+        ]);
+      }),
+    });
+
+    const result = await unfollow(primitives, { handle: 'testuser' });
+
+    expect(result).toEqual({
+      action: 'unfollow',
+      handle: 'testuser',
+      success: true,
+      previousState: 'pending',
+      resultState: 'not_following',
+    });
+    expect(primitives.click).toHaveBeenCalledWith('42');  // Cancel button
+    expect(primitives.click).toHaveBeenCalledWith('99');  // Confirm dialog
+  });
+
   it('unfollows via DOM-to-ARIA bridge with non-English locale (fuzzy match)', async () => {
     let snapshotCount = 0;
     let evalCount = 0;

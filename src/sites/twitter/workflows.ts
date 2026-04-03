@@ -631,11 +631,12 @@ async function detectFollowButton(
     for (const btn of allBtns) {
       const testid = btn.getAttribute('data-testid') || '';
       const ariaLabel = btn.getAttribute('aria-label') || '';
-      // -cancel has no ariaLabel, so check testid contains the userId only
+      // -cancel has no ariaLabel, so we can't verify by @handle.
+      // TODO: cross-check the numeric userId prefix in the testid against other
+      // buttons' testids to confirm it belongs to the target user. Currently
+      // accepts the first -cancel button, which is correct on a profile page
+      // but could mismatch if a sidebar shows another user's -cancel button.
       if (testid.endsWith('-cancel')) {
-        // Verify this cancel button belongs to the right user by extracting userId
-        // from other buttons' testids on the page, or by position (profile page primary button).
-        // For now, accept the first -cancel button if we're on the user's profile page.
         const text = btn.textContent?.trim() || '';
         return { state: 'pending', ariaLabel: text };
       }
@@ -652,19 +653,15 @@ async function detectFollowButton(
 
   if (!domInfo) return null;
 
-  // Phase 2: Match in ARIA snapshot to get clickable uid
-  if (domInfo.ariaLabel) {
-    const escaped = domInfo.ariaLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const node = findByDescriptor(snapshot, { role: 'button', name: new RegExp(escaped, 'i') });
-    if (node) return { state: domInfo.state, node };
-  }
+  // Phase 2: Match in ARIA snapshot to get clickable uid.
+  // For -follow/-unfollow, ariaLabel is the real aria-label (e.g. "フォロー @handle").
+  // For -cancel, ariaLabel is the button's textContent (e.g. "未承認") since aria-label is null.
+  // If ariaLabel is empty (no textContent), we can't match — return null and let poll retry.
+  if (!domInfo.ariaLabel) return null;
 
-  // Pending button may have no ariaLabel — match by button text (e.g. "未承認", "Pending")
-  if (domInfo.state === 'pending' && domInfo.ariaLabel) {
-    const escaped = domInfo.ariaLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const node = findByDescriptor(snapshot, { role: 'button', name: new RegExp(escaped, 'i') });
-    if (node) return { state: 'pending', node };
-  }
+  const escaped = domInfo.ariaLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const node = findByDescriptor(snapshot, { role: 'button', name: new RegExp(escaped, 'i') });
+  if (node) return { state: domInfo.state, node };
 
   return null;
 }
@@ -692,7 +689,9 @@ async function checkProfileError(primitives: Primitives, handle: string): Promis
       for (const btn of allBtns) {
         const ariaLabel = btn.getAttribute('aria-label') || '';
         const testid = btn.getAttribute('data-testid') || '';
-        // -cancel has no ariaLabel, so just check it exists (it's user-specific by testid prefix)
+        // -cancel has no ariaLabel; presence of any -cancel button means a protected
+        // account with a pending request — not a "user not found" error.
+        // TODO: validate userId prefix in testid matches the target user (same gap as detectFollowButton).
         if (testid.endsWith('-cancel')) return null;
         if (ariaLabel.includes('@' + ${JSON.stringify(handle)})) return null;
       }
