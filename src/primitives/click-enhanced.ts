@@ -250,11 +250,14 @@ export async function waitForElementStable(
   const { timeoutMs = 3000, pollIntervalMs = 100, threshold = 2 } = options;
   const samples: Point[] = [];
   const startTime = Date.now();
+  let getBoxModelFailures = 0;
+  let totalPolls = 0;
 
   const client = await page.createCDPSession();
   try {
     let lastQuad: number[] = [];
     while (Date.now() - startTime < timeoutMs) {
+      totalPolls++;
       let x: number, y: number;
       try {
         const { model } = await Promise.race([
@@ -268,6 +271,7 @@ export async function waitForElementStable(
         x = (quad[0] + quad[2] + quad[4] + quad[6]) / 4;
         y = (quad[1] + quad[3] + quad[5] + quad[7]) / 4;
       } catch {
+        getBoxModelFailures++;
         // Element may be offscreen or detached — reset samples and retry
         samples.length = 0;
         await new Promise((r) => setTimeout(r, pollIntervalMs));
@@ -294,8 +298,11 @@ export async function waitForElementStable(
 
       await new Promise((r) => setTimeout(r, pollIntervalMs));
     }
+    const detail = getBoxModelFailures === totalPolls
+      ? `DOM.getBoxModel failed all ${totalPolls} attempts (node may be detached or layout not ready)`
+      : `last position: ${JSON.stringify(samples[samples.length - 1])}`;
     throw new Error(
-      `Element did not stabilize within ${timeoutMs}ms (last position: ${JSON.stringify(samples[samples.length - 1])})`,
+      `Element did not stabilize within ${timeoutMs}ms (${detail})`,
     );
   } finally {
     await client.detach();

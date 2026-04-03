@@ -199,8 +199,14 @@ export class PuppeteerBackend implements Primitives {
     if (windowState === 'minimized') {
       console.error('[site-use] window is minimized — restoring with bringToFront');
       await page.bringToFront();
-      // Wait for compositor to become ready after un-minimize
-      await new Promise((r) => setTimeout(r, COMPOSITOR_SETTLE_MS));
+      // Wait for compositor to actually produce a frame (rAF fires only after
+      // the renderer is unblocked). Timeout guards against frozen renderer.
+      await Promise.race([
+        page.evaluate(() => new Promise<void>(r => {
+          requestAnimationFrame(() => requestAnimationFrame(() => r()));
+        })),
+        new Promise<void>(r => setTimeout(r, 5000)),
+      ]);
     }
   }
 
