@@ -156,6 +156,7 @@ describe('getFeed', () => {
         home: {
           home_timeline_urt: {
             instructions: [{
+              type: 'TimelineAddEntries',
               entries: [{
                 content: {
                   entryType: 'TimelineTimelineItem',

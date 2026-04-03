@@ -78,7 +78,7 @@ export function generateCliCommands(
           onBrowserDisconnected: () => runtimeManager.clearAll(),
           paramsSchema: wf.params,
           autoIngest: plugin.storeAdapter
-            ? { storeAdapter: plugin.storeAdapter as { toIngestItems: (items: any[]) => any[] }, siteName: plugin.name }
+            ? { storeAdapter: plugin.storeAdapter as { toIngestItems: (items: any[], context?: Record<string, unknown>) => any[] }, siteName: plugin.name }
             : undefined,
           handler: async (params, runtime, trace) => {
             const result = await wf.execute(runtime.primitives, params, trace);

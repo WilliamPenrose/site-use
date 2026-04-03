@@ -60,6 +60,7 @@ export interface FeedItem {
 export interface FeedMeta {
   coveredUsers: string[];
   timeRange: { from: string; to: string };
+  extra?: Record<string, unknown>;
 }
 
 export interface FeedResult {
@@ -124,7 +125,7 @@ export type WorkflowDeclaration = CollectionWorkflow | ActionWorkflow;
 // ── Store adapter ──────────────────────────────────────────────
 
 export interface StoreAdapter {
-  toIngestItems: (items: FeedItem[]) => IngestItem[];
+  toIngestItems: (items: FeedItem[], context?: Record<string, unknown>) => IngestItem[];
 }
 
 // ── Error hints ────────────────────────────────────────────────
