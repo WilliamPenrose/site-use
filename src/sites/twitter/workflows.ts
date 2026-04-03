@@ -563,19 +563,24 @@ export async function getTweetDetail(
 const FOLLOW_POLL_INTERVAL_MS = 500;
 const FOLLOW_POLL_TIMEOUT_MS = 10_000;
 
+const TWITTER_HANDLE_RE = /^[A-Za-z0-9_]{1,15}$/;
+
 function normalizeHandle(handle: string): string {
-  return handle.startsWith('@') ? handle.slice(1) : handle;
+  const h = handle.startsWith('@') ? handle.slice(1) : handle;
+  if (!TWITTER_HANDLE_RE.test(h)) {
+    throw new SiteUseError('InvalidParams', `Invalid Twitter handle: ${handle}`, { retryable: false });
+  }
+  return h;
 }
 
 function handleFromUrl(url: string): string | null {
   const match = url.match(/^https?:\/\/(?:x\.com|twitter\.com)\/([^/?#]+)/);
   if (!match) return null;
   const segment = match[1];
-  // Exclude known non-profile paths. Not exhaustive (explore, compose, lists, bookmarks, etc.),
-  // but sufficient for the expected use case (user passes a profile URL).
-  if (['home', 'search', 'login', 'i', 'settings', 'messages', 'notifications'].includes(segment)) {
-    return null;
-  }
+  // Positive match: Twitter handles are 1-15 alphanumeric/underscore characters.
+  // This rejects all non-profile paths (home, search, i, explore, etc.) without
+  // maintaining an exclusion list.
+  if (!TWITTER_HANDLE_RE.test(segment)) return null;
   return segment;
 }
 
