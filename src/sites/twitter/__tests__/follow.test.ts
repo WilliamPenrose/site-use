@@ -35,7 +35,7 @@ function buildSnapshot(nodes: Array<Partial<SnapshotNode> & Pick<SnapshotNode, '
  */
 function mockEvaluate(opts: {
   url?: string;
-  followButton?: { state: 'following' | 'not_following'; ariaLabel: string } | null;
+  followButton?: { state: 'following' | 'not_following' | 'pending'; ariaLabel: string } | null;
   confirmText?: string | null;
 } = {}) {
   const { url = 'https://x.com/testuser', followButton, confirmText } = opts;
@@ -47,8 +47,8 @@ function mockEvaluate(opts: {
     if (expr.includes('confirmationSheetConfirm')) {
       return confirmText ?? null;
     }
-    // DOM-to-ARIA bridge: follow button detection
-    if (expr.includes('"-unfollow"') || expr.includes('"-follow"')) {
+    // DOM-to-ARIA bridge: follow button detection (query contains all three: -unfollow, -follow, -cancel)
+    if (expr.includes('"-cancel"')) {
       return followButton ?? null;
     }
     return undefined;
@@ -71,7 +71,7 @@ describe('follow', () => {
       evaluate: vi.fn().mockImplementation(async (expr: string) => {
         if (expr.includes('location.href')) return 'https://x.com/testuser';
         if (expr.includes('emptyState')) return null; // no error page
-        if (expr.includes('"-follow"') || expr.includes('"-unfollow"')) {
+        if (expr.includes('"-cancel"')) {
           evalCount++;
           // First call: not_following; subsequent calls: following (after click)
           if (evalCount <= 1) return { state: 'not_following', ariaLabel: 'Follow @testuser' };
@@ -117,19 +117,35 @@ describe('follow', () => {
     expect(primitives.click).not.toHaveBeenCalled();
   });
 
-  it('detects pending via ariaLabel change (protected account)', async () => {
-    // Protected account: after clicking, testid stays -follow but ariaLabel changes
+  it('returns noop when already pending (protected account)', async () => {
+    const primitives = createMockPrimitives({
+      evaluate: mockEvaluate({ followButton: { state: 'pending', ariaLabel: '未承認' } }),
+      takeSnapshot: vi.fn().mockResolvedValue(buildSnapshot([
+        { uid: '42', role: 'button', name: '未承認' },
+      ])),
+    });
+
+    const result = await follow(primitives, { handle: '@testuser' });
+
+    expect(result.previousState).toBe('pending');
+    expect(result.resultState).toBe('pending');
+    expect(result.success).toBe(true);
+    expect(primitives.click).not.toHaveBeenCalled();
+  });
+
+  it('detects pending via -cancel testid (protected account)', async () => {
     let evalCount = 0;
     const primitives = createMockPrimitives({
       evaluate: vi.fn().mockImplementation(async (expr: string) => {
         if (expr.includes('location.href')) return 'https://x.com/testuser';
         if (expr.includes('emptyState')) return null;
-        if (expr.includes('"-follow"') || expr.includes('"-unfollow"')) {
+        if (expr.includes('confirmationSheetConfirm')) return null;
+        if (expr.includes('"-cancel"')) {
           evalCount++;
-          // Pre-click: not_following with ariaLabel "フォロー @testuser"
+          // 1st call: not_following (before click)
           if (evalCount <= 1) return { state: 'not_following', ariaLabel: 'フォロー @testuser' };
-          // Post-click: still -follow testid but ariaLabel changed → pending
-          return { state: 'not_following', ariaLabel: 'フォローリクエスト済み @testuser' };
+          // 2nd call: pending (after click, testid became -cancel)
+          return { state: 'pending', ariaLabel: '未承認' };
         }
         return undefined;
       }),
@@ -138,7 +154,7 @@ describe('follow', () => {
           { uid: '42', role: 'button', name: 'フォロー @testuser' },
         ]))
         .mockResolvedValue(buildSnapshot([
-          { uid: '43', role: 'button', name: 'フォローリクエスト済み @testuser' },
+          { uid: '43', role: 'button', name: '未承認' },
         ])),
     });
 
@@ -182,7 +198,7 @@ describe('follow', () => {
       evaluate: vi.fn().mockImplementation(async (expr: string) => {
         if (expr.includes('location.href')) return 'https://x.com/testuser';
         if (expr.includes('emptyState')) return null; // no error page
-        if (expr.includes('"-follow"') || expr.includes('"-unfollow"')) {
+        if (expr.includes('"-cancel"')) {
           evalCount++;
           if (evalCount <= 1) return { state: 'not_following', ariaLabel: 'フォロー @testuser' };
           return { state: 'following', ariaLabel: 'フォロー中 @testuser' };
@@ -248,7 +264,7 @@ describe('unfollow', () => {
         // Check confirmationSheetConfirm BEFORE data-testid (confirm query contains both)
         if (expr.includes('confirmationSheetConfirm')) return 'Unfollow';
         if (expr.includes('emptyState')) return null; // no error page
-        if (expr.includes('"-follow"') || expr.includes('"-unfollow"')) {
+        if (expr.includes('"-cancel"')) {
           evalCount++;
           if (evalCount <= 1) return { state: 'following', ariaLabel: 'Following @testuser' };
           return { state: 'not_following', ariaLabel: 'Follow @testuser' };
@@ -310,7 +326,7 @@ describe('unfollow', () => {
         if (expr.includes('location.href')) return 'https://x.com/testuser';
         if (expr.includes('confirmationSheetConfirm')) return '取消关注';
         if (expr.includes('emptyState')) return null; // no error page
-        if (expr.includes('"-follow"') || expr.includes('"-unfollow"')) {
+        if (expr.includes('"-cancel"')) {
           evalCount++;
           if (evalCount <= 1) return { state: 'following', ariaLabel: 'フォロー中 @testuser' };
           return { state: 'not_following', ariaLabel: 'フォロー @testuser' };

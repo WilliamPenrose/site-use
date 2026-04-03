@@ -18,7 +18,7 @@ import { SiteUseError, StateTransitionFailed, ElementNotFound, UserNotFound } fr
 import type { RawTweetData, SearchTab } from './types.js';
 import { z } from 'zod';
 import { findByDescriptor } from '../../ops/matchers.js';
-import type { FollowResult } from './types.js';
+import type { FollowResult, FollowState } from './types.js';
 import { TwitterFollowActionParamsSchema } from './types.js';
 import type { FeedResult as FrameworkFeedResult } from '../../registry/types.js';
 import { tweetToFeedItem } from './feed-item.js';
@@ -596,37 +596,49 @@ function resolveHandle(params: { handle?: string; url?: string }): string {
 
 /**
  * DOM query result for the follow button found via data-testid.
- * data-testid is binary: "{userId}-follow" or "{userId}-unfollow".
- * Pending shares "-follow" testid — distinguished post-click by ariaLabel change.
+ * Twitter uses three testid suffixes (verified 2026-04-03):
+ *   - "{userId}-follow"   → not following
+ *   - "{userId}-unfollow" → following
+ *   - "{userId}-cancel"   → pending (follow request sent to protected account)
  */
 interface FollowButtonDomInfo {
-  /** 'following' (testid -unfollow) or 'not_following' (testid -follow). No pending here. */
-  state: 'following' | 'not_following';
+  state: FollowState;
   ariaLabel: string;
 }
 
 /**
  * Detect follow state via DOM-to-ARIA bridge pattern (locale-agnostic).
  *
- * Returns a binary state based solely on data-testid:
- *   - testid "-unfollow" → following
- *   - testid "-follow"   → not_following (could also be pending — caller decides)
+ * Phase 1 (DOM): data-testid determines state unambiguously:
+ *   - "-unfollow" → following
+ *   - "-follow"   → not_following
+ *   - "-cancel"   → pending
  *
- * Pending detection is NOT done here. It's the caller's responsibility to
- * compare ariaLabel before/after a click to detect pending (see follow()).
+ * Phase 2 (ARIA): Match ariaLabel in snapshot to get clickable uid.
+ *   For pending ("-cancel"), ariaLabel is null — fall back to button text matching.
  */
 async function detectFollowButton(
   primitives: Primitives,
   snapshot: { idToNode: Map<string, SnapshotNode> },
   handle: string,
-): Promise<{ state: 'following' | 'not_following'; ariaLabel: string; node: SnapshotNode } | null> {
+): Promise<{ state: FollowState; node: SnapshotNode } | null> {
   // Phase 1: DOM query via data-testid (locale-agnostic)
   const domInfo = await primitives.evaluate<FollowButtonDomInfo | null>(`(() => {
     const handle = ${JSON.stringify(handle)};
-    const allBtns = document.querySelectorAll('button[data-testid$="-unfollow"], button[data-testid$="-follow"]');
+    const allBtns = document.querySelectorAll(
+      'button[data-testid$="-unfollow"], button[data-testid$="-follow"], button[data-testid$="-cancel"]'
+    );
     for (const btn of allBtns) {
       const testid = btn.getAttribute('data-testid') || '';
       const ariaLabel = btn.getAttribute('aria-label') || '';
+      // -cancel has no ariaLabel, so check testid contains the userId only
+      if (testid.endsWith('-cancel')) {
+        // Verify this cancel button belongs to the right user by extracting userId
+        // from other buttons' testids on the page, or by position (profile page primary button).
+        // For now, accept the first -cancel button if we're on the user's profile page.
+        const text = btn.textContent?.trim() || '';
+        return { state: 'pending', ariaLabel: text };
+      }
       if (!ariaLabel.includes('@' + handle)) continue;
       if (testid.endsWith('-unfollow')) {
         return { state: 'following', ariaLabel };
@@ -640,18 +652,28 @@ async function detectFollowButton(
 
   if (!domInfo) return null;
 
-  // Phase 2: Match aria-label in ARIA snapshot to get clickable uid
-  const escaped = domInfo.ariaLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const node = findByDescriptor(snapshot, { role: 'button', name: new RegExp(escaped, 'i') });
-  if (!node) return null;
+  // Phase 2: Match in ARIA snapshot to get clickable uid
+  if (domInfo.ariaLabel) {
+    const escaped = domInfo.ariaLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const node = findByDescriptor(snapshot, { role: 'button', name: new RegExp(escaped, 'i') });
+    if (node) return { state: domInfo.state, node };
+  }
 
-  return { state: domInfo.state, ariaLabel: domInfo.ariaLabel, node };
+  // Pending button may have no ariaLabel — match by button text (e.g. "未承認", "Pending")
+  if (domInfo.state === 'pending' && domInfo.ariaLabel) {
+    const escaped = domInfo.ariaLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const node = findByDescriptor(snapshot, { role: 'button', name: new RegExp(escaped, 'i') });
+    if (node) return { state: 'pending', node };
+  }
+
+  return null;
 }
 
 /**
  * Check for error pages via data-testid (locale-agnostic).
- * - data-testid="emptyState" → user does not exist / suspended
  * - data-testid="error-detail" → page-level error (invalid path)
+ * - data-testid="emptyState" WITHOUT a follow button → user does not exist / suspended
+ * - data-testid="emptyState" WITH a follow button → protected account (not an error)
  *
  * Known gap: blocked-by-user state has no known data-testid. If a user is
  * blocked, pollForFollowButton will time out (10s) with ElementNotFound
@@ -660,8 +682,22 @@ async function detectFollowButton(
  */
 async function checkProfileError(primitives: Primitives, handle: string): Promise<void> {
   const errorType = await primitives.evaluate<string | null>(`(() => {
-    if (document.querySelector('[data-testid="emptyState"]')) return 'emptyState';
     if (document.querySelector('[data-testid="error-detail"]')) return 'errorDetail';
+    if (document.querySelector('[data-testid="emptyState"]')) {
+      // Protected accounts show emptyState ("posts are protected") alongside a follow/cancel button.
+      // Only treat as error if there is no follow-related button for this user.
+      const allBtns = document.querySelectorAll(
+        'button[data-testid$="-follow"], button[data-testid$="-unfollow"], button[data-testid$="-cancel"]'
+      );
+      for (const btn of allBtns) {
+        const ariaLabel = btn.getAttribute('aria-label') || '';
+        const testid = btn.getAttribute('data-testid') || '';
+        // -cancel has no ariaLabel, so just check it exists (it's user-specific by testid prefix)
+        if (testid.endsWith('-cancel')) return null;
+        if (ariaLabel.includes('@' + ${JSON.stringify(handle)})) return null;
+      }
+      return 'emptyState';
+    }
     return null;
   })()`);
   if (errorType === 'emptyState') {
@@ -677,13 +713,13 @@ async function checkProfileError(primitives: Primitives, handle: string): Promis
  * Uses DOM-to-ARIA bridge for locale-agnostic button detection.
  * Uses data-testid for locale-agnostic error page detection.
  *
- * Returns binary state (following / not_following) + ariaLabel for post-click comparison.
+ * Returns state (following / not_following / pending) with the matched node.
  */
 async function pollForFollowButton(
   primitives: Primitives,
   handle: string,
   timeoutMs: number = FOLLOW_POLL_TIMEOUT_MS,
-): Promise<{ state: 'following' | 'not_following'; ariaLabel: string; node: SnapshotNode }> {
+): Promise<{ state: FollowState; node: SnapshotNode }> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     await checkProfileError(primitives, handle);
@@ -708,43 +744,30 @@ export async function follow(
     await primitives.navigate(`https://x.com/${handle}`);
     await checkLoginRedirect(primitives, rootSpan);
 
-    // preClickLabel: captured at detection time, before click. Used to detect
-    // pending state post-click by comparing ariaLabel change.
-    const { state: previousState, ariaLabel: preClickLabel, node } = await pollForFollowButton(primitives, handle);
+    const { state: previousState, node } = await pollForFollowButton(primitives, handle);
     rootSpan.set('previousState', previousState);
 
-    // Idempotent: already following
-    if (previousState === 'following') {
-      return { action: 'follow' as const, handle, success: true, previousState: 'following', resultState: 'following' };
+    // Idempotent: already following or pending
+    if (previousState === 'following' || previousState === 'pending') {
+      return { action: 'follow' as const, handle, success: true, previousState, resultState: previousState };
     }
 
-    // state is 'not_following' (testid = -follow). Could be actual "follow" or "pending".
-    // We cannot distinguish them pre-click without locale-dependent text matching.
-    // Known limitation: if the account is already pending, this click CANCELS the
-    // pending request (Twitter toggles it). The verify loop may then misreport the
-    // result. This only affects protected accounts and the consequence is non-destructive
-    // (user can call follow again). Click and determine result by observing what changes.
+    // state is 'not_following' (testid = -follow)
     console.error(`[site-use] clicking Follow @${handle}...`);
     await primitives.click(node.uid);
 
     // Verify state transition:
-    //   testid → -unfollow                              → following (public account)
-    //   testid stays -follow but ariaLabel changed       → pending (protected account)
-    //   testid stays -follow and ariaLabel unchanged     → no change yet, keep polling
+    //   testid → -unfollow  → following (public account)
+    //   testid → -cancel    → pending (protected account)
+    //   testid stays -follow → no change yet, keep polling
     const deadline = Date.now() + FOLLOW_POLL_TIMEOUT_MS;
     while (Date.now() < deadline) {
       await new Promise(r => setTimeout(r, FOLLOW_POLL_INTERVAL_MS));
       const snapshot = await primitives.takeSnapshot();
       const detected = await detectFollowButton(primitives, snapshot, handle);
-      if (!detected) continue;
-      if (detected.state === 'following') {
-        rootSpan.set('resultState', 'following');
-        return { action: 'follow' as const, handle, success: true, previousState: 'not_following' as const, resultState: 'following' as const };
-      }
-      // testid still -follow: check if ariaLabel changed (→ pending)
-      if (detected.state === 'not_following' && detected.ariaLabel !== preClickLabel) {
-        rootSpan.set('resultState', 'pending');
-        return { action: 'follow' as const, handle, success: true, previousState: 'not_following' as const, resultState: 'pending' as const };
+      if (detected && detected.state !== 'not_following') {
+        rootSpan.set('resultState', detected.state);
+        return { action: 'follow' as const, handle, success: true, previousState: 'not_following' as const, resultState: detected.state };
       }
     }
     throw new StateTransitionFailed(`Follow button clicked but state did not change for @${handle}`, { step: 'follow: verifying state transition' });
@@ -765,34 +788,31 @@ export async function unfollow(
     const { state: previousState, node } = await pollForFollowButton(primitives, handle);
     rootSpan.set('previousState', previousState);
 
-    // Idempotent: not following (testid = -follow; could be pending too, but
-    // unfollow on a pending state is the same as "cancel request" — safe to skip)
+    // Idempotent: not following
     if (previousState === 'not_following') {
       return { action: 'unfollow' as const, handle, success: true, previousState: 'not_following', resultState: 'not_following' as const };
     }
 
-    // Click Following button
-    console.error(`[site-use] clicking Following @${handle}...`);
+    // Both pending (-cancel) and following (-unfollow) require:
+    //   1. Click the button
+    //   2. Handle confirmation dialog (confirmationSheetConfirm)
+    //   3. Verify state transition
+    const label = previousState === 'pending' ? 'cancel pending' : 'unfollow';
+    console.error(`[site-use] ${label}: clicking ${previousState === 'pending' ? 'Cancel' : 'Following'} @${handle}...`);
     await primitives.click(node.uid);
 
-    // Handle confirmation dialog — DOM-to-ARIA bridge pattern (see agent-guide §3)
-    // 1. evaluate() reads textContent from data-testid (locale-agnostic)
-    // 2. Match that text in ARIA snapshot
-    // 3. Click via primitives.click(uid) (Bezier path, anti-detection safe)
-    // NO fallback to direct DOM click — if ARIA match fails, throw for human investigation
+    // Handle confirmation dialog — DOM-to-ARIA bridge pattern (see guide §3)
     await rootSpan.span('confirmDialog', async (s) => {
       const dialogDeadline = Date.now() + FOLLOW_POLL_TIMEOUT_MS;
       while (Date.now() < dialogDeadline) {
         await new Promise(r => setTimeout(r, FOLLOW_POLL_INTERVAL_MS));
 
-        // Step 1: Read confirm button text from DOM via data-testid
         const confirmText = await primitives.evaluate<string | null>(`(() => {
           const btn = document.querySelector('[data-testid="confirmationSheetConfirm"]');
           return btn ? btn.textContent?.trim() ?? null : null;
         })()`);
-        if (!confirmText) continue; // Dialog not yet appeared
+        if (!confirmText) continue;
 
-        // Step 2: Match text in ARIA snapshot
         const snapshot = await primitives.takeSnapshot();
         const exactMatch = findByDescriptor(snapshot, { role: 'button', name: confirmText });
         if (exactMatch) {
@@ -802,7 +822,6 @@ export async function unfollow(
           return;
         }
 
-        // Fuzzy match (textContent vs ARIA name may differ in whitespace/casing)
         const escaped = confirmText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const fuzzyMatch = findByDescriptor(snapshot, { role: 'button', name: new RegExp(escaped, 'i') });
         if (fuzzyMatch) {
@@ -812,13 +831,12 @@ export async function unfollow(
           return;
         }
 
-        // ARIA match failed — throw, do NOT fall back to direct click
         throw new StateTransitionFailed(
           `Confirm button DOM text "${confirmText}" found but no ARIA match`,
-          { step: 'unfollow: confirming dialog', diagnostics: { domText: confirmText } },
+          { step: `${label}: confirming dialog`, diagnostics: { domText: confirmText } },
         );
       }
-      throw new StateTransitionFailed('Unfollow confirmation dialog did not appear', { step: 'unfollow: confirming dialog' });
+      throw new StateTransitionFailed(`Confirmation dialog did not appear for ${label}`, { step: `${label}: confirming dialog` });
     });
 
     // Verify state transition
