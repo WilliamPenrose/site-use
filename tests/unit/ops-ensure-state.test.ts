@@ -125,6 +125,75 @@ describe('ensureState — element state', () => {
     vi.useRealTimers();
   });
 
+  it('retries click with fresh snapshot when click throws', async () => {
+    const beforeSnapshot = buildSnapshot([
+      { uid: '1', role: 'tab', name: 'Following', selected: false },
+    ]);
+    const freshSnapshot = buildSnapshot([
+      { uid: '2', role: 'tab', name: 'Following', selected: false },
+    ]);
+    const afterSnapshot = buildSnapshot([
+      { uid: '3', role: 'tab', name: 'Following', selected: true },
+    ]);
+    const primitives = createMockPrimitives({
+      takeSnapshot: vi.fn()
+        .mockResolvedValueOnce(beforeSnapshot)   // initial find
+        .mockResolvedValueOnce(freshSnapshot)    // re-snapshot after click failure
+        .mockResolvedValueOnce(afterSnapshot),   // poll verification
+      click: vi.fn()
+        .mockRejectedValueOnce(new Error('Element did not stabilize'))
+        .mockResolvedValueOnce(undefined),
+    });
+    const ensure = makeEnsureState(primitives);
+
+    const result = await ensure({ role: 'tab', name: 'Following', selected: true });
+
+    expect(primitives.click).toHaveBeenCalledTimes(2);
+    expect(primitives.click).toHaveBeenNthCalledWith(1, '1'); // stale uid
+    expect(primitives.click).toHaveBeenNthCalledWith(2, '2'); // fresh uid
+    expect(result.action).toBe('transitioned');
+  });
+
+  it('skips retry click if condition already met after re-snapshot', async () => {
+    const beforeSnapshot = buildSnapshot([
+      { uid: '1', role: 'tab', name: 'Following', selected: false },
+    ]);
+    const alreadyDoneSnapshot = buildSnapshot([
+      { uid: '2', role: 'tab', name: 'Following', selected: true },
+    ]);
+    const primitives = createMockPrimitives({
+      takeSnapshot: vi.fn()
+        .mockResolvedValueOnce(beforeSnapshot)
+        .mockResolvedValueOnce(alreadyDoneSnapshot),
+      click: vi.fn()
+        .mockRejectedValueOnce(new Error('Element did not stabilize')),
+    });
+    const ensure = makeEnsureState(primitives);
+
+    const result = await ensure({ role: 'tab', name: 'Following', selected: true });
+
+    expect(primitives.click).toHaveBeenCalledTimes(1);
+    expect(result.action).toBe('transitioned');
+  });
+
+  it('throws after exhausting click retries', async () => {
+    const snapshot = buildSnapshot([
+      { uid: '1', role: 'tab', name: 'Following', selected: false },
+    ]);
+    const primitives = createMockPrimitives({
+      takeSnapshot: vi.fn().mockResolvedValue(snapshot),
+      click: vi.fn().mockRejectedValue(new Error('Element did not stabilize')),
+    });
+    const ensure = makeEnsureState(primitives);
+
+    await expect(
+      ensure({ role: 'tab', name: 'Following', selected: true }),
+    ).rejects.toThrow('Element did not stabilize');
+
+    // 1 initial + 2 retries = 3 total
+    expect(primitives.click).toHaveBeenCalledTimes(3);
+  });
+
   it('throws StateTransitionFailed on poll timeout', async () => {
     vi.useFakeTimers();
     const stuckSnapshot = buildSnapshot([
