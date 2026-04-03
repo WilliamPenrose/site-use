@@ -86,4 +86,102 @@ describe('action workflow pipeline', () => {
     vi.doUnmock('../../src/config.js');
     vi.doUnmock('../../src/storage/schema.js');
   });
+
+  it('idempotent noop (previousState === resultState) does not call logAction', async () => {
+    vi.resetModules();
+
+    const mockLogAction = vi.fn();
+    vi.doMock('../../src/storage/action-log.js', () => ({
+      getDailyActionCount: vi.fn().mockReturnValue(0),
+      logAction: mockLogAction,
+    }));
+    vi.doMock('../../src/config.js', () => ({
+      getConfig: () => ({ dataDir: '/tmp/test' }),
+      getKnowledgeDbPath: () => '/tmp/test/knowledge.db',
+    }));
+    vi.doMock('../../src/storage/schema.js', () => ({
+      initializeDatabase: () => ({
+        close: vi.fn(),
+      }),
+    }));
+
+    const { wrapToolHandler: wrappedFn } = await import('../../src/registry/tool-wrapper.js');
+
+    const mockRuntime = createMockRuntime();
+    // Handler returns noop: previousState === resultState
+    const handler = vi.fn().mockResolvedValue({
+      action: 'follow',
+      handle: 'user1',
+      success: true,
+      previousState: 'following',
+      resultState: 'following',
+    });
+
+    const wrapped = wrappedFn({
+      siteName: 'test',
+      toolName: 'test_follow',
+      getRuntime: async () => mockRuntime,
+      handler,
+      actionOpts: { dailyLimit: 50 },
+    });
+
+    const result = await wrapped({});
+    expect(result.isError).toBeUndefined();
+    const parsed = JSON.parse((result.content[0] as { text: string }).text);
+    expect(parsed.previousState).toBe('following');
+    expect(parsed.resultState).toBe('following');
+    // logAction should NOT be called for noop
+    expect(mockLogAction).not.toHaveBeenCalled();
+
+    vi.doUnmock('../../src/storage/action-log.js');
+    vi.doUnmock('../../src/config.js');
+    vi.doUnmock('../../src/storage/schema.js');
+  });
+
+  it('state-changing action calls logAction', async () => {
+    vi.resetModules();
+
+    const mockLogAction = vi.fn();
+    vi.doMock('../../src/storage/action-log.js', () => ({
+      getDailyActionCount: vi.fn().mockReturnValue(0),
+      logAction: mockLogAction,
+    }));
+    vi.doMock('../../src/config.js', () => ({
+      getConfig: () => ({ dataDir: '/tmp/test' }),
+      getKnowledgeDbPath: () => '/tmp/test/knowledge.db',
+    }));
+    vi.doMock('../../src/storage/schema.js', () => ({
+      initializeDatabase: () => ({
+        close: vi.fn(),
+      }),
+    }));
+
+    const { wrapToolHandler: wrappedFn } = await import('../../src/registry/tool-wrapper.js');
+
+    const mockRuntime = createMockRuntime();
+    const handler = vi.fn().mockResolvedValue({
+      action: 'follow',
+      handle: 'user1',
+      success: true,
+      previousState: 'not_following',
+      resultState: 'following',
+    });
+
+    const wrapped = wrappedFn({
+      siteName: 'test',
+      toolName: 'test_follow',
+      getRuntime: async () => mockRuntime,
+      handler,
+      actionOpts: { dailyLimit: 50 },
+    });
+
+    const result = await wrapped({});
+    expect(result.isError).toBeUndefined();
+    // logAction SHOULD be called for state-changing action
+    expect(mockLogAction).toHaveBeenCalledOnce();
+
+    vi.doUnmock('../../src/storage/action-log.js');
+    vi.doUnmock('../../src/config.js');
+    vi.doUnmock('../../src/storage/schema.js');
+  });
 });

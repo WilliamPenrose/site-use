@@ -246,6 +246,20 @@ describe('follow', () => {
       .rejects.toThrow('does not exist or is suspended');
   });
 
+  it('rejects reserved path as handle from URL', async () => {
+    const primitives = createMockPrimitives();
+
+    await expect(follow(primitives, { url: 'https://x.com/home' }))
+      .rejects.toThrow('Cannot extract handle from URL');
+  });
+
+  it('rejects explore path from URL', async () => {
+    const primitives = createMockPrimitives();
+
+    await expect(follow(primitives, { url: 'https://x.com/explore' }))
+      .rejects.toThrow('Cannot extract handle from URL');
+  });
+
   it('throws when neither handle nor url provided', async () => {
     const primitives = createMockPrimitives();
 
