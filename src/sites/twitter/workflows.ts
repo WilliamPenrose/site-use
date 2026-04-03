@@ -16,10 +16,14 @@ import {
 } from './extractors.js';
 import { SiteUseError, StateTransitionFailed, ElementNotFound, UserNotFound } from '../../errors.js';
 import type { RawTweetData, SearchTab } from './types.js';
+import { TwitterFeedParamsSchema } from './types.js';
 import { z } from 'zod';
 import { findByDescriptor } from '../../ops/matchers.js';
 import type { FollowResult, FollowState } from './types.js';
 import { TwitterFollowActionParamsSchema } from './types.js';
+import { ensureTab as ensureTabNav } from '../../ops/tab-navigator.js';
+
+type FeedParams = z.infer<typeof TwitterFeedParamsSchema>;
 import type { FeedResult as FrameworkFeedResult } from '../../registry/types.js';
 import { tweetToFeedItem } from './feed-item.js';
 import { NOOP_TRACE, NOOP_SPAN, type Trace, type SpanHandle } from '../../trace.js';
@@ -69,70 +73,14 @@ async function checkLoginRedirect(
  * page load response is captured. Scroll + collection is delegated
  * to collectData.
  */
-export type TimelineFeed = 'following' | 'for_you';
-
-const TAB_INDICES: Record<TimelineFeed, number> = {
-  for_you: 0,
-  following: 1,
-};
-
 const TAB_SELECTOR = '[data-testid="primaryColumn"] [role="tablist"] [role="tab"]';
-
-const TAB_DISCOVERY_POLL_MS = 500;
-const TAB_DISCOVERY_TIMEOUT_MS = 10_000;
-
-/**
- * Ensure the given tab is selected on the Twitter home timeline.
- *
- * Two-phase approach (JS discovery + ensure interaction):
- * 1. evaluate() reads the tab's textContent by position index (locale-agnostic),
- *    polling until the tab element appears in the DOM (SPA may still be rendering)
- * 2. ensure() uses that text as ARIA name to click via CDP Input (human-like)
- *
- * This preserves the full anti-detection path (Bezier mouse trajectory,
- * coordinate jitter, throttle) while being language-independent.
- */
-export async function ensureTab(
-  primitives: Primitives,
-  tab: TimelineFeed,
-): Promise<'already_there' | 'transitioned'> {
-  const index = TAB_INDICES[tab];
-  const ensure = makeEnsureState(primitives);
-
-  // Phase 1: JS discovery — poll for the tab's locale-specific text by position
-  const deadline = Date.now() + TAB_DISCOVERY_TIMEOUT_MS;
-  let tabText: string | null = null;
-  while (Date.now() < deadline) {
-    tabText = await primitives.evaluate<string | null>(`(() => {
-      const tabs = document.querySelectorAll('${TAB_SELECTOR}');
-      return tabs[${index}]?.textContent?.trim() ?? null;
-    })()`);
-    if (tabText) break;
-    await new Promise(r => setTimeout(r, TAB_DISCOVERY_POLL_MS));
-  }
-
-  if (!tabText) {
-    throw new StateTransitionFailed(
-      `Tab at index ${index} not found in DOM after ${TAB_DISCOVERY_TIMEOUT_MS}ms`,
-      { step: `ensureTab: reading tab text at index ${index}` },
-    );
-  }
-
-  // Phase 2: ensure interaction — click via CDP with human-like behavior
-  const result = await ensure({ role: 'tab', name: tabText, selected: true });
-  return result.action;
-}
-
-export interface GetFeedOptions {
-  count?: number;
-  tab?: TimelineFeed;
-  dumpRaw?: string;
-}
+const WELL_KNOWN_TABS: Record<string, number> = { for_you: 0, following: 1 };
 
 
 export interface EnsureTimelineResult {
   navAction: 'already_there' | 'transitioned';
   tabAction: 'already_there' | 'transitioned';
+  availableTabs: string[];
   reloaded: boolean;
   waits: WaitRecord[];
 }
@@ -149,13 +97,29 @@ export interface CollectDataResult {
 export async function ensureTimeline(
   primitives: Primitives,
   collector: DataCollector<RawTweetData>,
-  opts: { tab: TimelineFeed; t0: number },
+  opts: {
+    tab: string;
+    t0: number;
+    reRegisterInterceptor: () => Promise<void>;
+  },
   span: SpanHandle = NOOP_SPAN,
 ): Promise<EnsureTimelineResult> {
-  const { tab, t0 } = opts;
+  const { tab, t0, reRegisterInterceptor } = opts;
   const ensure = makeEnsureState(primitives);
   let navAction: 'already_there' | 'transitioned' = 'already_there';
   let tabAction: 'already_there' | 'transitioned' = 'already_there';
+  let availableTabs: string[] = [];
+
+  async function switchTab(s?: SpanHandle) {
+    await reRegisterInterceptor();
+    const tabResult = await ensureTabNav(primitives, tab, TAB_SELECTOR, WELL_KNOWN_TABS);
+    tabAction = tabResult.action;
+    availableTabs = tabResult.availableTabs;
+    if (s) {
+      s.set('tabAction', tabAction);
+      s.set('tab', tab);
+    }
+  }
 
   const result = await ensurePage(primitives, {
     collector,
@@ -169,24 +133,14 @@ export async function ensureTimeline(
       }
     },
     afterNavigate: async (_p, s) => {
-      const prevLength = collector.length;
-      tabAction = await ensureTab(primitives, tab);
-      s.set('tabAction', tabAction);
-      s.set('tab', tab);
-      if (tabAction !== 'already_there') {
-        const dataFromSwitch = collector.items.slice(prevLength);
-        collector.clear();
-        if (dataFromSwitch.length > 0) {
-          collector.push(...dataFromSwitch);
-        }
-      }
+      await switchTab(s);
     },
     afterReload: async () => {
-      await ensureTab(primitives, tab);
+      await switchTab();
     },
   }, span);
 
-  return { navAction, tabAction, ...result };
+  return { navAction, tabAction, availableTabs, ...result };
 }
 
 export interface EnsureTweetDetailResult {
@@ -393,11 +347,10 @@ export async function collectData(
 
 export async function getFeed(
   primitives: Primitives,
-  opts: GetFeedOptions = {},
+  opts: FeedParams & { dumpRaw?: string },
   trace: Trace = NOOP_TRACE,
 ): Promise<FrameworkFeedResult> {
   const { count = 20, tab = 'for_you', dumpRaw } = opts;
-
   const t0 = Date.now();
 
   return await trace.span('getFeed', async (rootSpan) => {
@@ -409,29 +362,34 @@ export async function getFeed(
     const collector = createDataCollector<RawTweetData>();
     let dumpIndex = 0;
 
-    const cleanup = await primitives.interceptRequest(
-      GRAPHQL_TIMELINE_PATTERN,
-      (response) => {
-        try {
-          if (dumpRaw) {
-            fs.mkdirSync(dumpRaw, { recursive: true });
-            const outPath = path.join(dumpRaw, `graphql-${dumpIndex++}.json`);
-            fs.writeFileSync(outPath, response.body);
-          }
-          const parsed = parseGraphQLTimeline(response.body);
-          collector.push(...parsed);
-          graphqlCount++;
-          rootSpan.set('graphqlResponses', graphqlCount);
-        } catch {
-          graphqlFailures++;
-          rootSpan.set('graphqlFailures', graphqlFailures);
+    const handler = (response: { url: string; status: number; body: string }) => {
+      try {
+        if (dumpRaw) {
+          fs.mkdirSync(dumpRaw, { recursive: true });
+          const outPath = path.join(dumpRaw, `graphql-${dumpIndex++}.json`);
+          fs.writeFileSync(outPath, response.body);
         }
-      },
-    );
+        const parsed = parseGraphQLTimeline(response.body);
+        collector.push(...parsed);
+        graphqlCount++;
+        rootSpan.set('graphqlResponses', graphqlCount);
+      } catch {
+        graphqlFailures++;
+        rootSpan.set('graphqlFailures', graphqlFailures);
+      }
+    };
+
+    let cleanup = await primitives.interceptRequest(GRAPHQL_TIMELINE_PATTERN, handler);
+
+    const reRegisterInterceptor = async () => {
+      cleanup();
+      collector.clear();
+      cleanup = await primitives.interceptRequest(GRAPHQL_TIMELINE_PATTERN, handler);
+    };
 
     try {
-      await rootSpan.span('ensureTimeline', async (s) => {
-        await ensureTimeline(primitives, collector, { tab, t0 }, s);
+      const timelineResult = await rootSpan.span('ensureTimeline', async (s) => {
+        return await ensureTimeline(primitives, collector, { tab, t0, reRegisterInterceptor }, s);
       });
 
       await rootSpan.span('collectData', async (s) => {
@@ -454,6 +412,7 @@ export async function getFeed(
         meta: {
           coveredUsers: meta.coveredUsers,
           timeRange: { from: meta.timeRange.from, to: meta.timeRange.to },
+          extra: { availableTabs: timelineResult.availableTabs },
         },
       };
     } finally {
