@@ -101,7 +101,7 @@ async function ensureElementState(
   for (let attempt = 0; attempt <= MAX_CLICK_RETRIES; attempt++) {
     if (attempt > 0) {
       console.error(
-        `[site-use] click failed, re-snapshotting (attempt ${attempt + 1}/${MAX_CLICK_RETRIES + 1})...`,
+        `[site-use] click failed, re-snapshotting (attempt ${attempt + 1}/${MAX_CLICK_RETRIES + 1}, ${deadline - Date.now()}ms remaining)...`,
       );
       await sleep(POLL_INTERVAL_MS);
       snapshot = await primitives.takeSnapshot();

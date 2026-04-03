@@ -300,7 +300,9 @@ export async function waitForElementStable(
     }
     const detail = getBoxModelFailures === totalPolls
       ? `DOM.getBoxModel failed all ${totalPolls} attempts (node may be detached or layout not ready)`
-      : `last position: ${JSON.stringify(samples[samples.length - 1])}`;
+      : samples.length > 0
+        ? `last position: ${JSON.stringify(samples[samples.length - 1])}`
+        : `DOM.getBoxModel failed last ${getBoxModelFailures} of ${totalPolls} attempts (node became unavailable)`;
     throw new Error(
       `Element did not stabilize within ${timeoutMs}ms (${detail})`,
     );
