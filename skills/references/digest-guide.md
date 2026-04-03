@@ -1,0 +1,86 @@
+# Digest Guide
+
+## What is a digest
+
+A digest is a summarized briefing of recent social media activity, organized by topic (not by person or source). It includes a feedback step where the user indicates what's interesting and what's not, which updates their preferences in Memory.
+
+## When to trigger
+
+- User asks: "what's hot", "any updates", "today's summary", "briefing"
+- Or via `/loop` for recurring digests
+
+## Flow
+
+### Step 1: Collect fresh data
+
+```bash
+site-use twitter feed --fetch --count 50 --tab following --fields author,text,url,timestamp
+```
+
+Adjust `--tab` and `--count` based on user preferences in Memory. If the user prefers specific Lists (once multi-feed is supported), collect from those too.
+
+### Step 2: Read user preferences from Memory
+
+Before summarizing, check Memory for:
+- **Interests** — topics to highlight
+- **Not interested** — topics to suppress or de-prioritize
+- **Digest preferences** — how many signals, what depth
+
+### Step 3: Generate summary
+
+Summarize by **topic/signal**, not by person:
+
+```
+3 signals worth noting today:
+
+1. [Topic A] — Brief summary. (Sources: @author1, @author2)
+2. [Topic B] — Brief summary. (Source: @author3)
+3. [Topic C] — Brief summary. (Source: @author4)
+
+Filtered out: 12 posts about [topics the user marked as not interested]
+```
+
+Rules:
+- Lead with the most relevant signals based on user preferences
+- Always attribute sources (who said it)
+- Mention what was filtered out so the user knows coverage
+- Include links to original tweets for deep-dive
+
+### Step 4: Ask for feedback
+
+After presenting the digest, ask:
+
+- "Any of these worth digging into?"
+- "Anything here you'd rather not see next time?"
+- "Any topics missing that you expected to see?"
+
+### Step 5: Update Memory
+
+Based on the user's feedback:
+- Add new interests or ignored topics
+- Adjust signal priority
+- Note any specific requests ("more about X", "less about Y")
+
+This creates the learning loop:
+
+```
+Collect → Filter by Memory → Summarize → Feedback → Update Memory → Next digest is better
+```
+
+## Recurring digest via /loop
+
+If the user wants automatic digests:
+
+```
+/loop 2h /site-use:digest
+```
+
+This runs the full digest flow every 2 hours. The user can adjust frequency.
+
+Note: `/loop` is session-scoped — it stops when Claude Code exits. Remind the user of this when setting it up.
+
+## Important
+
+- A digest is NOT just "fetch and dump." The value is in filtering, prioritizing, and asking for feedback.
+- If Memory has no preferences yet, trigger onboard first.
+- Keep digests concise. 3-5 signals is better than 20. The user can always ask to expand.

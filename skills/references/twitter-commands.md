@@ -1,36 +1,4 @@
----
-name: x
-description: "Use when the user wants to collect tweets, search Twitter/X, get tweet details, set up site-use, or browse cached posts. Examples: 'set up site-use', 'grab latest tweets', 'search Twitter for AI news', 'get replies to this tweet'"
-metadata: { "openclaw": { "emoji": "🌐", "homepage": "https://github.com/WilliamPenrose/site-use", "requires": { "bins": ["site-use"] }, "install": [{ "kind": "node", "package": "site-use", "bins": ["site-use"] }] } }
----
-
-# Twitter/X — site-use skill
-
-## Scope
-
-Only use `site-use` commands listed below.
-Do not use puppeteer, chrome-devtools-mcp, or any other browser automation tool directly.
-
-## First-time setup
-
-When the user asks to set up site-use or you get a `BrowserNotRunning` error on first use:
-
-1. Run `site-use browser launch` to start Chrome
-2. Tell the user to log in to Twitter in the Chrome window that opened
-3. Wait for the user to confirm they've logged in
-4. Run `site-use twitter check-login` to verify
-5. If logged in, run `site-use twitter feed --count 10 --fields author,text,url` to collect the first batch
-
-The launched Chrome uses an isolated profile — the user's regular browser data is never exposed.
-
-## When to use which command
-
-| Need | Command |
-|------|---------|
-| Latest timeline | `site-use twitter feed` |
-| Search Twitter | `site-use twitter search` |
-| Specific tweet + replies | `site-use twitter tweet_detail` |
-| Query cached data | `site-use search` |
+# Twitter Commands Reference
 
 ## Intent Freshness
 
@@ -160,22 +128,20 @@ site-use stats              # Show storage statistics
 | `--fetch` | Force fresh fetch — skip freshness check |
 | `--max-age <min>` | Custom staleness threshold (default: 120) |
 
-## Error Recovery
+## Time Convention
 
-| Error | Action |
-|-------|--------|
-| **SessionExpired** | Ask the user to log in manually in Chrome, then retry |
-| **RateLimited** | Stop ALL twitter commands. Wait 15+ min. Use `search` for cached data meanwhile |
-| **BrowserDisconnected** | Run `site-use browser launch`, then retry |
-| **BrowserNotRunning** | Run `site-use browser launch` first |
-| **ElementNotFound** | Page may still be loading. Wait a few seconds, retry |
+All timestamps are **local timezone ISO 8601** (e.g. `2026-03-29T10:03:00+08:00`). Date filters (`--start-date`, `--end-date`) accept flexible local formats — `"2026-03-29"`, `"yesterday"`, `"2026-03-29 10:00"` all work.
 
-### Rate limiting deserves extra care
+When the user doesn't specify a time range, default to the last 24 hours.
 
-- Do not retry immediately. Wait for the reset time shown in the error.
-- Do not run any twitter commands during cooldown — this can extend the limit.
-- Switch to offline work — use `search` to analyze cached data.
-- If "account suspended" appears, alert the user — this is a policy issue, not a quota issue.
+## Tips
+
+- **Always use `--fields` to control output size.** Output exceeding ~30KB gets truncated to a temp file. Always pass `--fields author,text,url` (or whichever fields needed) to keep output compact.
+- **Prefer `search` over re-fetching.** If tweets were collected recently, search the cache instead. Saves time and avoids rate limits.
+- **Use `--local` for offline analysis.** When the browser isn't running or you want speed, `--local` reads from cache without touching the browser.
+- **Use `--debug` when troubleshooting.** Adds diagnostic trace. On errors, trace is always included regardless of `--debug`.
+- **Short search queries are slow.** Full-text search needs 3+ characters. Shorter queries fall back to a full table scan.
+- **Combine filters for precision.** `search "AI" --min-likes 500 --start-date "yesterday"` is more useful than a broad search.
 
 ## Examples
 
@@ -210,22 +176,3 @@ site-use twitter feed --local --tab for_you --fields author,text,url
 ```
 
 User asks about past data → use cache. No reason to fetch.
-
-## Time Convention
-
-All timestamps are **local timezone ISO 8601** (e.g. `2026-03-29T10:03:00+08:00`). Date filters (`--start-date`, `--end-date`) accept flexible local formats — `"2026-03-29"`, `"yesterday"`, `"2026-03-29 10:00"` all work.
-
-When the user doesn't specify a time range, default to the last 24 hours.
-
-## Constraints
-
-- **Sequential only.** Never run multiple `site-use` commands in parallel — they share a single browser tab. Run them one at a time.
-
-## Tips
-
-- **Always use `--fields` to control output size.** Output exceeding ~30KB gets truncated to a temp file. Always pass `--fields author,text,url` (or whichever fields needed) to keep output compact.
-- **Prefer `search` over re-fetching.** If tweets were collected recently, search the cache instead. Saves time and avoids rate limits.
-- **Use `--local` for offline analysis.** When the browser isn't running or you want speed, `--local` reads from cache without touching the browser.
-- **Use `--debug` when troubleshooting.** Adds diagnostic trace. On errors, trace is always included regardless of `--debug`.
-- **Short search queries are slow.** Full-text search needs 3+ characters. Shorter queries fall back to a full table scan.
-- **Combine filters for precision.** `search "AI" --min-likes 500 --start-date "yesterday"` is more useful than a broad search.
