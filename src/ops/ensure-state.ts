@@ -5,6 +5,7 @@ import { ElementNotFound, StateTransitionFailed } from '../errors.js';
 
 const POLL_INTERVAL_MS = 500;
 const POLL_TIMEOUT_MS = 15_000;
+const MAX_CLICK_RETRIES = 2;
 
 export interface EnsureStateResult {
   action: 'already_there' | 'transitioned';
@@ -95,9 +96,35 @@ async function ensureElementState(
     return { action: 'already_there', snapshot };
   }
 
-  // Click to transition
-  console.error(`[site-use] clicking ${target.role} "${target.name}"...`);
-  await primitives.click(match.uid);
+  // Click to transition — retry with fresh snapshot if click fails
+  // (backendNodeId may be stale after window restore or SPA re-render)
+  for (let attempt = 0; attempt <= MAX_CLICK_RETRIES; attempt++) {
+    if (attempt > 0) {
+      console.error(
+        `[site-use] click failed, re-snapshotting (attempt ${attempt + 1}/${MAX_CLICK_RETRIES + 1}, ${deadline - Date.now()}ms remaining)...`,
+      );
+      await sleep(POLL_INTERVAL_MS);
+      snapshot = await primitives.takeSnapshot();
+      match = findByDescriptor(snapshot, target);
+      if (!match) {
+        throw new ElementNotFound(
+          `No element found matching role="${target.role}" name="${target.name}" on retry`,
+          { step: `ensureState: re-find ${target.role} "${target.name}"` },
+        );
+      }
+      if (meetsCondition(match, target)) {
+        return { action: 'transitioned', snapshot };
+      }
+    }
+
+    try {
+      console.error(`[site-use] clicking ${target.role} "${target.name}"...`);
+      await primitives.click(match.uid);
+      break;
+    } catch (err) {
+      if (attempt === MAX_CLICK_RETRIES) throw err;
+    }
+  }
 
   // Poll until condition met or timeout
   while (Date.now() < deadline) {
