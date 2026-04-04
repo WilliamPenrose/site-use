@@ -157,7 +157,6 @@ export async function ensureTab(
     }
     if (!matched) throw err;
   }
-  const availableTabs = tabs.map(t => t.name);
 
   // scrollIntoView via evaluate() because no ARIA snapshot/uid exists yet —
   // the snapshot is taken inside makeEnsureState below.
@@ -173,6 +172,7 @@ export async function ensureTab(
   const namePattern = new RegExp(`^\\s*${escaped}\\s*$`);
   const ensure = makeEnsureState(primitives);
   const result = await ensure({ role: 'tab', name: namePattern, selected: true });
+  const availableTabs = tabs.map(t => t.name);
 
   return { action: result.action, availableTabs };
 }

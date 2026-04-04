@@ -21,7 +21,7 @@ import { z } from 'zod';
 import { findByDescriptor } from '../../ops/matchers.js';
 import type { FollowResult, FollowState } from './types.js';
 import { TwitterFollowActionParamsSchema } from './types.js';
-import { ensureTab as ensureTabNav } from '../../ops/tab-navigator.js';
+import { ensureTab as ensureTabNav, discoverTabs } from '../../ops/tab-navigator.js';
 
 type FeedParams = z.infer<typeof TwitterFeedParamsSchema>;
 import type { FeedResult as FrameworkFeedResult } from '../../registry/types.js';
@@ -75,6 +75,35 @@ async function checkLoginRedirect(
  */
 const TAB_SELECTOR = '[data-testid="primaryColumn"] [role="tablist"] [role="tab"]';
 const WELL_KNOWN_TABS: Record<string, number> = { for_you: 0, following: 1 };
+
+function isWellKnownTab(tab: string): boolean {
+  const normalized = tab.normalize('NFC').toLowerCase().replace(/_/g, ' ').trim().replace(/ /g, '_');
+  return normalized in WELL_KNOWN_TABS;
+}
+
+/**
+ * Re-discover tabs after data collection, polling until the count stabilizes
+ * (two consecutive reads return the same set). Pinned List/Community tabs
+ * render later than the default For you / Following tabs.
+ *
+ * Best-effort: returns fallback on timeout or error.
+ */
+async function discoverStableTabs(
+  primitives: Primitives,
+  fallback: string[],
+): Promise<string[]> {
+  let prev = fallback;
+  for (let i = 0; i < 6; i++) {
+    await new Promise(r => setTimeout(r, 1000));
+    try {
+      const fresh = await discoverTabs(primitives, TAB_SELECTOR, { timeoutMs: 2000 });
+      const names = fresh.map(t => t.name);
+      if (names.length === prev.length && names.every((n, j) => n === prev[j])) return names;
+      prev = names;
+    } catch { return prev; }
+  }
+  return prev;
+}
 
 
 export interface EnsureTimelineResult {
@@ -412,7 +441,11 @@ export async function getFeed(
         meta: {
           coveredUsers: meta.coveredUsers,
           timeRange: { from: meta.timeRange.from, to: meta.timeRange.to },
-          extra: { availableTabs: timelineResult.availableTabs },
+          extra: {
+            availableTabs: isWellKnownTab(tab)
+              ? await discoverStableTabs(primitives, timelineResult.availableTabs)
+              : timelineResult.availableTabs,
+          },
         },
       };
     } finally {
