@@ -80,6 +80,9 @@ const DEFAULT_POLL_MS = 500;
 /**
  * Read all tab elements from the DOM via querySelectorAll.
  * Polls until at least one tab appears (SPA may still be rendering).
+ *
+ * @param tabSelector - CSS selector for tab elements. Must be a trusted constant —
+ *   interpolated into evaluate() without escaping. Do not pass user input.
  */
 export async function discoverTabs(
   primitives: Primitives,
@@ -98,8 +101,8 @@ export async function discoverTabs(
       })));
     })()`);
 
-    const tabs: TabInfo[] = JSON.parse(raw);
-    if (tabs.length > 0 && tabs[0].name) return tabs;
+    const tabs: TabInfo[] = JSON.parse(raw).filter((t: TabInfo) => t.name);
+    if (tabs.length > 0) return tabs;
 
     await new Promise(r => setTimeout(r, pollMs));
   }
@@ -125,7 +128,7 @@ export async function ensureTab(
   // Discover tabs, then try to match. If the target is not a well-known alias
   // and not found, poll longer — pinned List/Community tabs may still be rendering.
   let tabs = await discoverTabs(primitives, tabSelector);
-  let matched: TabInfo;
+  let matched: TabInfo | undefined;
   try {
     matched = matchTab(tabName, tabs, wellKnown);
   } catch (err) {
@@ -149,7 +152,6 @@ export async function ensureTab(
         break;
       } catch { /* keep polling */ }
     }
-    // @ts-expect-error — matched is assigned in the loop or we throw
     if (!matched) throw err;
   }
   const availableTabs = tabs.map(t => t.name);
