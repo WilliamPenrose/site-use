@@ -142,8 +142,11 @@ export async function ensureTab(
     );
     if (isWellKnown) throw err;
 
-    // Non-well-known tab: poll for more tabs to appear (pinned tabs load later)
-    const deadline = Date.now() + DEFAULT_TIMEOUT_MS;
+    // Non-well-known tab: poll for more tabs to appear (pinned tabs load later).
+    // Use a longer timeout — page may have just navigated/reloaded and pinned tabs
+    // render significantly later than the default For you / Following tabs.
+    const PINNED_TAB_TIMEOUT_MS = 15_000;
+    const deadline = Date.now() + PINNED_TAB_TIMEOUT_MS;
     while (Date.now() < deadline) {
       await new Promise(r => setTimeout(r, DEFAULT_POLL_MS));
       tabs = await discoverTabs(primitives, tabSelector, { timeoutMs: 3000 });
