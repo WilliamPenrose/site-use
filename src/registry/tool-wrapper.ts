@@ -35,7 +35,7 @@ export interface WrapOptions {
   resultSchema?: ZodType;
   onBrowserDisconnected?: () => void;
   autoIngest?: {
-    storeAdapter: { toIngestItems: (items: any[]) => any[] };
+    storeAdapter: { toIngestItems: (items: any[], context?: Record<string, unknown>) => any[] };
     siteName: string;
   };
   actionOpts?: ActionOpts;
@@ -60,6 +60,7 @@ export function wrapToolHandler(opts: WrapOptions): (params: Record<string, unkn
       );
     }
 
+    let parsedParams: Record<string, unknown> = rawParams;
     if (opts.paramsSchema) {
       const parseResult = opts.paramsSchema.safeParse(rawParams);
       if (!parseResult.success) {
@@ -73,6 +74,7 @@ export function wrapToolHandler(opts: WrapOptions): (params: Record<string, unkn
           isError: true,
         };
       }
+      parsedParams = parseResult.data as Record<string, unknown>;
     }
 
     const trace = new Trace(opts.toolName);
@@ -155,7 +157,7 @@ export function wrapToolHandler(opts: WrapOptions): (params: Record<string, unkn
             const dbPath = getKnowledgeDbPath(cfg.dataDir);
             const store = createStore(dbPath);
             const ingestItems = opts.autoIngest.storeAdapter
-              .toIngestItems(feedResult.items)
+              .toIngestItems(feedResult.items, parsedParams)
               .map((item: any) => ({ ...item, site: opts.autoIngest!.siteName }));
             z.array(IngestItemSchema).parse(ingestItems);
             await store.ingest(ingestItems);
