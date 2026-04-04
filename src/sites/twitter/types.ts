@@ -144,6 +144,7 @@ export const FeedMetaSchema = z.object({
     from: z.string(),
     to: z.string(),
   }),
+  availableTabs: z.array(z.string()).optional(),
 });
 
 export type FeedMeta = z.infer<typeof FeedMetaSchema>;
