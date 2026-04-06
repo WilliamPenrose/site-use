@@ -40,6 +40,7 @@ function mockEvaluate(overrides: Record<string, unknown> = {}) {
   const defaults: Record<string, unknown> = {
     'location.href': 'https://x.com/home',
     'AppTabBar_Home_Link': true,
+    'querySelectorAll': JSON.stringify([{ name: 'For you', index: 0 }, { name: 'Following', index: 1 }]),
     'textContent': 'MockTab',
   };
   const merged = { ...defaults, ...overrides };
@@ -60,7 +61,6 @@ let ensureTimeline: typeof import('../workflows.js').ensureTimeline;
 let collectData: typeof import('../workflows.js').collectData;
 let ensureTweetDetail: typeof import('../workflows.js').ensureTweetDetail;
 let getTweetDetail: typeof import('../workflows.js').getTweetDetail;
-let ensureTab: typeof import('../workflows.js').ensureTab;
 
 beforeEach(async () => {
   const mod = await import('../workflows.js');
@@ -70,7 +70,6 @@ beforeEach(async () => {
   collectData = mod.collectData;
   ensureTweetDetail = mod.ensureTweetDetail;
   getTweetDetail = mod.getTweetDetail;
-  ensureTab = mod.ensureTab;
 });
 
 describe('checkLogin', () => {
@@ -145,7 +144,7 @@ describe('getFeed', () => {
       }),
     });
 
-    const result = await getFeed(primitives, { count: 0 });
+    const result = await getFeed(primitives, { count: 0, tab: 'for_you', debug: false });
     expect(primitives.navigate).toHaveBeenCalledWith('https://x.com/home');
     expect(result.items).toBeDefined();
   });
@@ -156,6 +155,7 @@ describe('getFeed', () => {
         home: {
           home_timeline_urt: {
             instructions: [{
+              type: 'TimelineAddEntries',
               entries: [{
                 content: {
                   entryType: 'TimelineTimelineItem',
@@ -220,22 +220,20 @@ describe('getFeed', () => {
       }),
     });
 
-    const result = await getFeed(primitives, { count: 1 });
+    const result = await getFeed(primitives, { count: 1, tab: 'for_you', debug: false });
     expect(result.items).toHaveLength(1);
     expect(result.items[0].text).toBe('Test tweet');
     expect(result.items[0].author.handle).toBe('testuser');
     expect(result.meta.coveredUsers).toContain('testuser');
   });
 
-  it('MCP schema param names match GetFeedOptions', async () => {
-    // Simulate the exact data flow: MCP schema parse → plugin.collect → getFeed
-    const mcpInput = { count: 1, tab: 'following' as const };
+  it('MCP schema params can be used as getFeed options', async () => {
+    const mcpInput = { count: 1, tab: 'following' };
     const parsed = TwitterFeedParamsSchema.parse(mcpInput);
-
-    // getFeed receives the parsed object — check plugin-level params
-    const opts = parsed as NonNullable<Parameters<typeof getFeed>[1]>;
-    expect(opts.count).toBe(1);
-    expect(opts.tab).toBe('following');
+    expect(parsed.count).toBe(1);
+    expect(parsed.tab).toBe('following');
+    const customTab = TwitterFeedParamsSchema.parse({ tab: 'vibe coding' });
+    expect(customTab.tab).toBe('vibe coding');
   });
 
   it('records trace spans when Trace is provided', { timeout: 30000 }, async () => {
@@ -275,7 +273,7 @@ describe('getFeed', () => {
     });
 
     const trace = new Trace('twitter_feed');
-    const result = await getFeed(primitives, { count: 0 }, trace);
+    const result = await getFeed(primitives, { count: 0, tab: 'for_you', debug: false }, trace);
 
     // Result should NOT have debug field
     expect(result).not.toHaveProperty('debug');
@@ -325,6 +323,7 @@ describe('ensureTimeline', () => {
     const result = await ensureTimeline(primitives, collector, {
       tab: 'for_you',
       t0: Date.now(),
+      reRegisterInterceptor: vi.fn(),
     });
 
     expect(result.navAction).toBe('already_there');
@@ -360,6 +359,7 @@ describe('ensureTimeline', () => {
     const result = await ensureTimeline(primitives, collector, {
       tab: 'following',
       t0: Date.now(),
+      reRegisterInterceptor: vi.fn().mockImplementation(async () => { collector.clear(); }),
     });
 
     expect(result.tabAction).toBe('transitioned');
@@ -395,6 +395,7 @@ describe('ensureTimeline', () => {
     const result = await ensureTimeline(primitives, collector, {
       tab: 'following',
       t0: Date.now(),
+      reRegisterInterceptor: vi.fn(),
     });
 
     expect(result.reloaded).toBe(true);
@@ -423,6 +424,7 @@ describe('ensureTimeline', () => {
     const result = await ensureTimeline(primitives, collector, {
       tab: 'following',
       t0: Date.now(),
+      reRegisterInterceptor: vi.fn(),
     });
 
     expect(result.reloaded).toBe(true);
@@ -446,6 +448,7 @@ describe('ensureTimeline', () => {
     const result = await ensureTimeline(primitives, collector, {
       tab: 'for_you',
       t0: Date.now(),
+      reRegisterInterceptor: vi.fn(),
     });
 
     expect(result.waits.length).toBeGreaterThan(0);
@@ -597,77 +600,6 @@ describe('ensureTweetDetail', () => {
         t0: Date.now(),
       }),
     ).rejects.toThrow('Not logged in');
-  });
-});
-
-describe('ensureTab', () => {
-  it('returns already_there when target tab is already selected', async () => {
-    const primitives = createMockPrimitives({
-      evaluate: mockEvaluate({ 'textContent': 'For you' }),
-      takeSnapshot: vi.fn().mockResolvedValue(
-        buildSnapshot([
-          { uid: '10', role: 'tab', name: 'For you', selected: true },
-        ]),
-      ),
-    });
-
-    const result = await ensureTab(primitives, 'for_you');
-    expect(result).toBe('already_there');
-    // Should NOT have called click — tab was already selected
-    expect(primitives.click).not.toHaveBeenCalled();
-  });
-
-  it('clicks tab via ensure and returns transitioned when not selected', async () => {
-    let clicked = false;
-    const primitives = createMockPrimitives({
-      evaluate: mockEvaluate({ 'textContent': 'Following' }),
-      takeSnapshot: vi.fn()
-        .mockResolvedValueOnce(buildSnapshot([
-          { uid: '11', role: 'tab', name: 'Following', selected: false },
-        ]))
-        .mockResolvedValue(buildSnapshot([
-          { uid: '11', role: 'tab', name: 'Following', selected: true },
-        ])),
-      click: vi.fn().mockImplementation(async () => { clicked = true; }),
-    });
-
-    const result = await ensureTab(primitives, 'following');
-    expect(result).toBe('transitioned');
-    expect(clicked).toBe(true);
-    // Click should go through primitives.click (CDP), not evaluate
-    expect(primitives.click).toHaveBeenCalledWith('11');
-  });
-
-  it('throws StateTransitionFailed when tab text not found in DOM', { timeout: 15000 }, async () => {
-    const primitives = createMockPrimitives({
-      evaluate: mockEvaluate({ 'textContent': null }),
-    });
-
-    await expect(ensureTab(primitives, 'following')).rejects.toThrow('not found in DOM');
-  });
-
-  it('uses index 0 for for_you and index 1 for following', async () => {
-    const expressions: string[] = [];
-    const primitives = createMockPrimitives({
-      evaluate: vi.fn().mockImplementation(async (expr: string) => {
-        expressions.push(expr);
-        if (expr.includes('textContent')) return 'TabText';
-        if (expr.includes('location.href')) return 'https://x.com/home';
-        return undefined;
-      }),
-      takeSnapshot: vi.fn().mockResolvedValue(
-        buildSnapshot([
-          { uid: '10', role: 'tab', name: 'TabText', selected: true },
-        ]),
-      ),
-    });
-
-    await ensureTab(primitives, 'for_you');
-    expect(expressions.some(e => e.includes('[0]'))).toBe(true);
-
-    expressions.length = 0;
-    await ensureTab(primitives, 'following');
-    expect(expressions.some(e => e.includes('[1]'))).toBe(true);
   });
 });
 

@@ -23,7 +23,7 @@ const SitePluginSchema = z.object({
     cli: z.unknown().optional(),
   }).optional(),
   storeAdapter: z.object({
-    toIngestItems: z.function(),
+    toIngestItems: z.function().args(z.array(z.any()), z.record(z.unknown()).optional()),
   }).optional(),
   hints: z.object({
     sessionExpired: z.string().optional(),

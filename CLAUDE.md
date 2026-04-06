@@ -45,5 +45,5 @@ When updating skills (`skills/`), bump the version in **both** `.claude-plugin/p
 
 ## Known Approximations
 
-- **Local mode `--tab following`**: The DB has no `source_tab` field tracking which tab a tweet was fetched from. Instead, `--tab following` is approximated by filtering on the `following` metric (`author.following = true`). This works because the Following tab only shows tweets from authors you follow. `--tab for_you` applies no filter and returns all cached tweets. See `runLocalQuery` in `src/cli/workflow.ts`.
+- **Local mode tab filtering**: Uses two-layer filtering in `twitterLocalQuery` (`src/sites/twitter/local-query.ts`). Layer 1: filter by `source_tab` metric (written on ingest since multi-feed support). Layer 2 fallback for historical data without `source_tab`: `--tab following` falls back to `following` metric (`author.following = true`); `--tab for_you` falls back to returning all cached tweets; other tabs return empty.
 

@@ -8,6 +8,7 @@ import {
   parseGraphQLTimeline,
   parseTweetDetail,
   processFullText,
+  findInstructions,
 } from '../extractors.js';
 import type { RawTweetData } from '../types.js';
 
@@ -226,6 +227,107 @@ describe('processFullText', () => {
 });
 
 // ---------------------------------------------------------------------------
+// findInstructions — recursive search for timeline instructions
+// ---------------------------------------------------------------------------
+
+describe('findInstructions', () => {
+  it('finds instructions in Home timeline response', () => {
+    const data = {
+      data: {
+        home: {
+          home_timeline_urt: {
+            instructions: [{ type: 'TimelineAddEntries', entries: [] }],
+          },
+        },
+      },
+    };
+    const result = findInstructions(data);
+    expect(result).toEqual([{ type: 'TimelineAddEntries', entries: [] }]);
+  });
+
+  it('finds instructions in List timeline response', () => {
+    const data = {
+      data: {
+        list: {
+          tweets_timeline: {
+            timeline: {
+              instructions: [{ type: 'TimelineAddEntries', entries: [] }],
+            },
+          },
+        },
+      },
+    };
+    const result = findInstructions(data);
+    expect(result).toEqual([{ type: 'TimelineAddEntries', entries: [] }]);
+  });
+
+  it('finds instructions in Community timeline response', () => {
+    const data = {
+      data: {
+        communityResults: {
+          result: {
+            ranked_community_timeline: {
+              timeline: {
+                instructions: [
+                  { type: 'TimelineClearCache' },
+                  { type: 'TimelineAddEntries', entries: [] },
+                ],
+              },
+            },
+          },
+        },
+      },
+    };
+    const result = findInstructions(data);
+    expect(result).toHaveLength(2);
+    expect(result![0].type).toBe('TimelineClearCache');
+  });
+
+  it('skips instructions arrays without Timeline-typed elements', () => {
+    const data = {
+      instructions: [{ type: 'SomethingElse' }],
+      nested: {
+        instructions: [{ type: 'TimelineAddEntries', entries: [] }],
+      },
+    };
+    const result = findInstructions(data);
+    expect(result).toEqual([{ type: 'TimelineAddEntries', entries: [] }]);
+  });
+
+  it('returns null when no instructions found', () => {
+    expect(findInstructions({ data: { empty: {} } })).toBeNull();
+    expect(findInstructions(null)).toBeNull();
+    expect(findInstructions('string')).toBeNull();
+  });
+
+  it('respects maxDepth', () => {
+    let obj: any = { instructions: [{ type: 'TimelineAddEntries' }] };
+    for (let i = 0; i < 4; i++) obj = { nested: obj };
+    expect(findInstructions(obj)).toBeTruthy();
+
+    let deep: any = { instructions: [{ type: 'TimelineAddEntries' }] };
+    for (let i = 0; i < 9; i++) deep = { nested: deep };
+    expect(findInstructions(deep)).toBeNull();
+  });
+
+  it('handles extra data wrapper (real response has data.data.xxx)', () => {
+    const data = {
+      data: {
+        data: {
+          home: {
+            home_timeline_urt: {
+              instructions: [{ type: 'TimelineAddEntries', entries: [] }],
+            },
+          },
+        },
+      },
+    };
+    const result = findInstructions(data);
+    expect(result).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // parseGraphQLTimeline — fixture-driven tests
 // ---------------------------------------------------------------------------
 
@@ -259,6 +361,64 @@ function wrapAsTimeline(itemContent: FixtureEntry | Record<string, unknown>): st
               },
             }],
           }],
+        },
+      },
+    },
+  });
+}
+
+function wrapAsListTimeline(itemContent: FixtureEntry | Record<string, unknown>): string {
+  return JSON.stringify({
+    data: {
+      list: {
+        tweets_timeline: {
+          timeline: {
+            instructions: [{
+              type: 'TimelineAddEntries',
+              entries: [{
+                entryId: 'tweet-test',
+                sortIndex: '1',
+                content: {
+                  __typename: 'TimelineTimelineItem',
+                  entryType: 'TimelineTimelineItem',
+                  itemContent: {
+                    __typename: 'TimelineTweet',
+                    ...itemContent,
+                  },
+                },
+              }],
+            }],
+          },
+        },
+      },
+    },
+  });
+}
+
+function wrapAsCommunityTimeline(itemContent: FixtureEntry | Record<string, unknown>): string {
+  return JSON.stringify({
+    data: {
+      communityResults: {
+        result: {
+          ranked_community_timeline: {
+            timeline: {
+              instructions: [{
+                type: 'TimelineAddEntries',
+                entries: [{
+                  entryId: 'tweet-test',
+                  sortIndex: '1',
+                  content: {
+                    __typename: 'TimelineTimelineItem',
+                    entryType: 'TimelineTimelineItem',
+                    itemContent: {
+                      __typename: 'TimelineTweet',
+                      ...itemContent,
+                    },
+                  },
+                }],
+              }],
+            },
+          },
         },
       },
     },
@@ -509,6 +669,37 @@ describe('parseGraphQLTimeline (real fixtures)', () => {
 });
 
 // ---------------------------------------------------------------------------
+// parseGraphQLTimeline — cross response shapes
+// ---------------------------------------------------------------------------
+
+describe('parseGraphQLTimeline across response shapes', () => {
+  const fixture = allFixtures.find(f => f._variant.includes('original'));
+
+  it('parses Home timeline response', () => {
+    const body = wrapAsTimeline(fixture!);
+    const result = parseGraphQLTimeline(body);
+    expect(result.length).toBeGreaterThan(0);
+  });
+
+  it('parses List timeline response', () => {
+    const body = wrapAsListTimeline(fixture!);
+    const result = parseGraphQLTimeline(body);
+    expect(result.length).toBeGreaterThan(0);
+  });
+
+  it('parses Community timeline response', () => {
+    const body = wrapAsCommunityTimeline(fixture!);
+    const result = parseGraphQLTimeline(body);
+    expect(result.length).toBeGreaterThan(0);
+  });
+
+  it('returns empty array for non-timeline response', () => {
+    const body = JSON.stringify({ data: { viewer: {} } });
+    expect(parseGraphQLTimeline(body)).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // parseGraphQLTimeline — edge cases requiring hand-crafted data
 // (these scenarios are not present in the fixture dump)
 // ---------------------------------------------------------------------------
@@ -544,7 +735,7 @@ describe('parseGraphQLTimeline (edge cases)', () => {
       data: {
         home: {
           home_timeline_urt: {
-            instructions: [{ entries }],
+            instructions: [{ type: 'TimelineAddEntries', entries }],
           },
         },
       },
@@ -557,6 +748,7 @@ describe('parseGraphQLTimeline (edge cases)', () => {
         home: {
           home_timeline_urt: {
             instructions: [{
+              type: 'TimelineAddEntries',
               entries: [{
                 content: {
                   entryType: 'TimelineTimelineItem',

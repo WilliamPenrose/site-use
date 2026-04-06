@@ -30,7 +30,10 @@ export function tweetsToIngestItems(tweets: Tweet[]): IngestItem[] {
   });
 }
 
-export function feedItemsToIngestItems(items: FeedItem[]): IngestItem[] {
+export function feedItemsToIngestItems(
+  items: FeedItem[],
+  context?: Record<string, unknown>,
+): IngestItem[] {
   return items.map((item) => {
     const meta = item.siteMeta as Record<string, unknown>;
     const mentions = extractMentions(item.text);
@@ -50,6 +53,9 @@ export function feedItemsToIngestItems(items: FeedItem[]): IngestItem[] {
     }
     if (typeof meta.following === 'boolean') {
       metrics.push({ metric: 'following', numValue: meta.following ? 1 : 0 });
+    }
+    if (typeof context?.tab === 'string') {
+      metrics.push({ metric: 'source_tab', strValue: context.tab });
     }
 
     return {

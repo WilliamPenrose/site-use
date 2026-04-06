@@ -28,9 +28,11 @@ export const plugin: SitePlugin = {
       kind: 'collection' as const,
       name: 'feed',
       description:
-        'Collect tweets from Twitter/X timeline. Supports "following" (chronological) ' +
-        'and "for_you" (algorithmic) tabs. Returns structured tweet data with metrics, ' +
-        'media, and thread context.',
+        'Collect tweets from Twitter/X timeline. Supports any tab on the home page: ' +
+        '"for_you" and "following" always work regardless of UI language. ' +
+        'For pinned Lists or Communities, use the tab name as shown on the page ' +
+        '(e.g. "vibe coding"). If the name doesn\'t match, the error lists all ' +
+        'available tabs. Default: "for_you".',
       params: TwitterFeedParamsSchema,
       execute: (primitives: Primitives, params: unknown) =>
         getFeed(primitives, params as Parameters<typeof getFeed>[1]),
@@ -43,7 +45,7 @@ export const plugin: SitePlugin = {
       dumpRaw: true,
       cli: {
         description: 'Collect tweets from the home timeline',
-        help: `Options:\n  --count <n>            Number of tweets (1-100, default: 20)\n  --tab <name>           Feed tab: following | for_you (default: for_you)\n  --debug                Include diagnostic info`,
+        help: `Options:\n  --count <n>            Number of tweets (1-100, default: 20)\n  --tab <name>           Feed tab name (default: for_you). Use exact tab name\n                         for pinned Lists/Communities. "for_you" and "following"\n                         always work regardless of language.\n  --debug                Include diagnostic info`,
       },
     },
     {

@@ -1,6 +1,6 @@
 import type { Tweet, TweetMedia, RawTweetData, RawTweetMedia, FeedMeta, TweetDetailParsed } from './types.js';
 
-const GRAPHQL_TIMELINE_PATTERN = /\/i\/api\/graphql\/.*\/Home.*Timeline/;
+const GRAPHQL_TIMELINE_PATTERN = /\/i\/api\/graphql\/.*\/(Home|HomeLatest|ListLatestTweets|CommunityTweets)Timeline/;
 
 /** Decode common HTML entities found in Twitter GraphQL full_text. */
 const HTML_ENTITIES: Record<string, string> = {
@@ -227,11 +227,42 @@ function processEntries(entries: any[], results: RawTweetData[]): void {
   }
 }
 
-/** Parse GraphQL HomeTimeline response into RawTweetData[]. */
+/**
+ * Recursively search a parsed GraphQL response for the `instructions` array.
+ * Constraint: at least one element must have a `type` field containing "Timeline".
+ * Returns null if not found within maxDepth.
+ */
+export function findInstructions(
+  obj: unknown,
+  maxDepth = 8,
+): Array<Record<string, unknown>> | null {
+  if (maxDepth <= 0 || !obj || typeof obj !== 'object' || Array.isArray(obj)) {
+    return null;
+  }
+
+  for (const [key, val] of Object.entries(obj as Record<string, unknown>)) {
+    if (key === 'instructions' && Array.isArray(val)) {
+      const hasTimelineType = val.some(
+        (item: unknown) =>
+          typeof item === 'object' &&
+          item !== null &&
+          'type' in item &&
+          typeof (item as Record<string, unknown>).type === 'string' &&
+          ((item as Record<string, unknown>).type as string).includes('Timeline'),
+      );
+      if (hasTimelineType) return val as Array<Record<string, unknown>>;
+    }
+    const found = findInstructions(val, maxDepth - 1);
+    if (found) return found;
+  }
+
+  return null;
+}
+
+/** Parse GraphQL timeline response (Home, List, Community) into RawTweetData[]. */
 export function parseGraphQLTimeline(body: string): RawTweetData[] {
   const data = JSON.parse(body);
-  const instructions =
-    data?.data?.home?.home_timeline_urt?.instructions ?? [];
+  const instructions: any[] = findInstructions(data) ?? [];
 
   const results: RawTweetData[] = [];
 
