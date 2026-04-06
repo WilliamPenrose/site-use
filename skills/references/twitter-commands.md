@@ -117,6 +117,12 @@ Then use the Read tool to view the image file.
 site-use stats              # Show storage statistics
 ```
 
+## Field Semantics
+
+| Field | Meaning |
+|-------|---------|
+| `author.following` | The author **follows you** (the logged-in user), not "you follow the author" |
+
 ## Smart Cache
 
 `twitter feed` has smart caching (default 120 min):
