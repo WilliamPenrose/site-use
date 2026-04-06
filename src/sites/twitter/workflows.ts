@@ -92,17 +92,17 @@ async function discoverStableTabs(
   primitives: Primitives,
   fallback: string[],
 ): Promise<string[]> {
-  let prev = fallback;
+  let prev: string[] | null = null;
   for (let i = 0; i < 6; i++) {
     await new Promise(r => setTimeout(r, 1000));
     try {
       const fresh = await discoverTabs(primitives, TAB_SELECTOR, { timeoutMs: 2000 });
       const names = fresh.map(t => t.name);
-      if (names.length === prev.length && names.every((n, j) => n === prev[j])) return names;
+      if (prev !== null && names.length === prev.length && names.every((n, j) => n === prev![j])) return names;
       prev = names;
-    } catch { return prev; }
+    } catch { return prev ?? fallback; }
   }
-  return prev;
+  return prev ?? fallback;
 }
 
 
