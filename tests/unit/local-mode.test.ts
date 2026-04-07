@@ -38,8 +38,8 @@ function makeFeedItem(overrides: Partial<FeedItem> & { id: string }): FeedItem {
   };
 }
 
-// A set of tweets that simulates a mix of following-tab and for_you-tab content.
-// In practice the DB cannot distinguish which tab they came from.
+// A set of tweets split across tabs. FOLLOWING_ITEMS are ingested with tab='following',
+// FOR_YOU_ITEMS with tab='for_you'. item_source_tabs records the assignment.
 const FOLLOWING_ITEMS = [
   makeFeedItem({ id: 'f1', author: { handle: 'alice', name: 'Alice' }, text: 'Following tweet 1', timestamp: '2026-03-25T14:00:00Z', siteMeta: { likes: 10, retweets: 2, replies: 1, views: 100, following: true, surfaceReason: 'original' } }),
   makeFeedItem({ id: 'f2', author: { handle: 'bob', name: 'Bob' }, text: 'Following tweet 2', timestamp: '2026-03-25T13:00:00Z', siteMeta: { likes: 10, retweets: 2, replies: 1, views: 100, following: true, surfaceReason: 'original' } }),
@@ -523,7 +523,9 @@ describe('local mode: CLI integration', () => {
     dbPath = path.join(tmpDir, 'data', 'knowledge.db');
     fs.mkdirSync(path.join(tmpDir, 'data'), { recursive: true });
     const store = createStore(dbPath);
-    await store.ingest(feedItemsToIngestItems(ALL_ITEMS));
+    // Ingest each group under its own source tab so item_source_tabs is populated
+    await store.ingest(feedItemsToIngestItems(FOLLOWING_ITEMS, { tab: 'following' }));
+    await store.ingest(feedItemsToIngestItems(FOR_YOU_ITEMS, { tab: 'for_you' }));
     store.close();
   });
 
@@ -553,14 +555,14 @@ describe('local mode: CLI integration', () => {
 
   it('--local returns cached tweets as JSON FeedResult', () => {
     const output = run(['--local']);
-    // Default tab is "for_you" → all tweets (no filter)
+    // Default tab is "for_you" → only items tagged for_you
     // Output is a FeedResult object, always JSON
     const result = JSON.parse(output);
     expect(result).toHaveProperty('items');
     expect(result).toHaveProperty('meta');
     const texts = result.items.map((i: { text: string }) => i.text);
-    expect(texts.some((t: string) => t.includes('Following tweet 1'))).toBe(true);
     expect(texts.some((t: string) => t.includes('For you tweet 1'))).toBe(true);
+    expect(texts.some((t: string) => t.includes('Following tweet 1'))).toBe(false);
   });
 
   it('--local outputs valid FeedResult with items array', () => {
@@ -568,7 +570,8 @@ describe('local mode: CLI integration', () => {
     const result = JSON.parse(output);
     expect(result).toHaveProperty('items');
     expect(Array.isArray(result.items)).toBe(true);
-    expect(result.items.length).toBe(6);
+    // Only the 3 FOR_YOU_ITEMS are tagged for_you
+    expect(result.items.length).toBe(3);
     // Each item has expected FeedItem fields
     for (const item of result.items) {
       expect(item).toHaveProperty('id');
@@ -586,9 +589,9 @@ describe('local mode: CLI integration', () => {
   it('--local --count 2 returns the 2 most recent tweets', () => {
     const output = run(['--local', '--count', '2', '--tab', 'for_you']);
     const result = JSON.parse(output);
-    // Most recent: fy1 (14:30), f1 (14:00)
+    // Most recent for_you items: fy1 (14:30), fy2 (13:30)
     const ids = result.items.map((i: { id: string }) => i.id);
-    expect(ids).toEqual(['fy1', 'f1']);
+    expect(ids).toEqual(['fy1', 'fy2']);
   });
 
   it('--local items include siteMeta with metrics', () => {
@@ -613,17 +616,18 @@ describe('local mode: CLI integration', () => {
     expect(authors).not.toContain('eve');
   });
 
-  it('--local --tab for_you returns all tweets', () => {
+  it('--local --tab for_you returns only for_you tweets', () => {
     const output = run(['--local', '--tab', 'for_you']);
     const result = JSON.parse(output);
-    expect(result.items).toHaveLength(6);
+    // Only the 3 items ingested with tab='for_you'
+    expect(result.items).toHaveLength(3);
   });
 
-  it('--local default tab (for_you) returns all tweets', () => {
-    // Default tab is "for_you", so --local without --tab returns all tweets
+  it('--local default tab (for_you) returns only for_you tweets', () => {
+    // Default tab is "for_you" → filters by item_source_tabs.tab = 'for_you'
     const output = run(['--local']);
     const result = JSON.parse(output);
-    expect(result.items).toHaveLength(6);
+    expect(result.items).toHaveLength(3);
   });
 
   it('--local shows hint message on stderr', () => {
@@ -759,7 +763,9 @@ describe('local mode: smart default CLI integration', () => {
     dbPath = path.join(tmpDir, 'data', 'knowledge.db');
     fs.mkdirSync(path.join(tmpDir, 'data'), { recursive: true });
     const store = createStore(dbPath);
-    await store.ingest(feedItemsToIngestItems(ALL_ITEMS));
+    // Ingest each group under its own source tab so item_source_tabs is populated
+    await store.ingest(feedItemsToIngestItems(FOLLOWING_ITEMS, { tab: 'following' }));
+    await store.ingest(feedItemsToIngestItems(FOR_YOU_ITEMS, { tab: 'for_you' }));
     store.close();
   });
 
@@ -769,7 +775,7 @@ describe('local mode: smart default CLI integration', () => {
 
   const bin = path.resolve('dist/index.js');
 
-  it('--local returns all tweets for default tab (for_you) as FeedResult', () => {
+  it('--local returns for_you tweets for default tab as FeedResult', () => {
     const { execFileSync } = require('node:child_process') as typeof import('node:child_process');
     const output = execFileSync('node', [bin, 'twitter', 'feed', '--local'], {
       env: { ...process.env, SITE_USE_DATA_DIR: tmpDir },
@@ -780,7 +786,8 @@ describe('local mode: smart default CLI integration', () => {
     const result = JSON.parse(output);
     expect(result).toHaveProperty('items');
     expect(Array.isArray(result.items)).toBe(true);
-    expect(result.items.length).toBe(6);
+    // Default tab is for_you → only the 3 FOR_YOU_ITEMS
+    expect(result.items.length).toBe(3);
   });
 
   it('--local stderr shows cached data hint', () => {

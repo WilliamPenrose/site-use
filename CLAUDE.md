@@ -43,7 +43,3 @@ CLI (index.ts, cli/)
 
 When updating skills (`skills/`), bump the version in **both** `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`. Use date format (`YYYY.M.D`). Both files must stay in sync.
 
-## Known Approximations
-
-- **Local mode tab filtering**: Uses two-layer filtering in `twitterLocalQuery` (`src/sites/twitter/local-query.ts`). Layer 1: filter by `source_tab` metric (written on ingest since multi-feed support). Layer 2 fallback for historical data without `source_tab`: `--tab following` falls back to `following` metric (`author.following = true`); `--tab for_you` falls back to returning all cached tweets; other tabs return empty.
-

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import type { KnowledgeStore, SearchParams, SearchResult } from '../../src/storage/index.js';
 import type { FeedItem } from '../../src/registry/types.js';
 import { twitterLocalQuery } from '../../src/sites/twitter/local-query.js';
@@ -83,53 +83,35 @@ describe('twitterLocalQuery', () => {
     expect(result.items[1]).toEqual(fakeFeedItem2);
   });
 
-  it('tries source_tab first, falls back to following metric for tab=following', async () => {
-    const searchSpy = vi.fn()
-      .mockResolvedValueOnce(makeSearchResult([]))  // source_tab='following' → empty
-      .mockResolvedValueOnce(makeSearchResult([fakeFeedItem2]));  // following=1 fallback
+  it('passes sourceTab filter for tab=following (single-layer, no fallback)', async () => {
+    const searchSpy = vi.fn().mockResolvedValue(makeSearchResult([fakeFeedItem2]));
     const store = makeStore(searchSpy);
 
     const result = await twitterLocalQuery(store, { tab: 'following' });
 
-    expect(searchSpy).toHaveBeenCalledTimes(2);
-    // First call: source_tab filter
-    expect(searchSpy.mock.calls[0][0].metricFilters).toEqual([
-      { metric: 'source_tab', op: '=', strValue: 'following' },
-    ]);
-    // Second call: following metric fallback
-    expect(searchSpy.mock.calls[1][0].metricFilters).toEqual([
-      { metric: 'following', op: '=', numValue: 1 },
-    ]);
+    expect(searchSpy).toHaveBeenCalledTimes(1);
+    expect(searchSpy.mock.calls[0][0].sourceTab).toBe('following');
     expect(result.items).toHaveLength(1);
   });
 
-  it('tries source_tab first for tab=for_you, falls back to all cached data', async () => {
-    const searchSpy = vi.fn()
-      .mockResolvedValueOnce(makeSearchResult([]))  // source_tab='for_you' → empty
-      .mockResolvedValueOnce(makeSearchResult([fakeFeedItem, fakeFeedItem2]));  // all cached fallback
+  it('passes sourceTab filter for tab=for_you (single-layer, no fallback)', async () => {
+    const searchSpy = vi.fn().mockResolvedValue(makeSearchResult([fakeFeedItem, fakeFeedItem2]));
     const store = makeStore(searchSpy);
 
     const result = await twitterLocalQuery(store, { tab: 'for_you' });
 
-    expect(searchSpy).toHaveBeenCalledTimes(2);
-    // First call: source_tab filter
-    expect(searchSpy.mock.calls[0][0].metricFilters).toEqual([
-      { metric: 'source_tab', op: '=', strValue: 'for_you' },
-    ]);
-    // Second call: no metricFilters (all cached)
-    expect(searchSpy.mock.calls[1][0].metricFilters).toBeUndefined();
+    expect(searchSpy).toHaveBeenCalledTimes(1);
+    expect(searchSpy.mock.calls[0][0].sourceTab).toBe('for_you');
     expect(result.items).toHaveLength(2);
   });
 
-  it('defaults to source_tab=for_you when tab is absent', async () => {
+  it('defaults to sourceTab=for_you when tab is absent', async () => {
     const searchSpy = vi.fn(async (_params: SearchParams) => makeSearchResult([fakeFeedItem]));
     const store = makeStore(searchSpy);
 
     await twitterLocalQuery(store, {});
 
-    expect(searchSpy.mock.calls[0][0].metricFilters).toEqual([
-      { metric: 'source_tab', op: '=', strValue: 'for_you' },
-    ]);
+    expect(searchSpy.mock.calls[0][0].sourceTab).toBe('for_you');
   });
 
   it('uses count param as max_results (defaults to 20)', async () => {

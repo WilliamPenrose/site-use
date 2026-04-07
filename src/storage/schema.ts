@@ -67,6 +67,17 @@ export function initializeDatabase(dbPath: string): DatabaseSync {
   `);
   db.exec('CREATE INDEX IF NOT EXISTS idx_hashtags_tag ON item_hashtags(tag)');
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS item_source_tabs (
+      site    TEXT NOT NULL,
+      item_id TEXT NOT NULL,
+      tab     TEXT NOT NULL,
+      PRIMARY KEY (site, item_id, tab),
+      FOREIGN KEY (site, item_id) REFERENCES items(site, id)
+    )
+  `);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_source_tabs_lookup ON item_source_tabs(site, tab)');
+
   // FTS5 with trigram tokenizer — supports CJK (no whitespace delimiters)
   // and Latin text. Trigram requires queries >= 3 chars; shorter queries
   // must use LIKE fallback in query.ts.

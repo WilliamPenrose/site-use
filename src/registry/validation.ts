@@ -44,6 +44,7 @@ const SitePluginSchema = z.object({
         defaultMaxAge: z.number(),
         variantKey: z.string().optional(),
         defaultVariant: z.string().optional(),
+        canonicalizeVariant: z.function().optional(),
       }).optional(),
       localQuery: z.function().optional(),
       dumpRaw: z.boolean().optional(),
