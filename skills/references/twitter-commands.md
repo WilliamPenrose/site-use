@@ -21,17 +21,22 @@ Collect tweets from the home timeline. Results are auto-stored in the local know
 ```
 site-use twitter feed [options]
   --count <n>          Number of tweets, 1-100 (default: 20)
-  --tab <name>         following | for_you (default: for_you)
+  --tab <name>         Feed tab (default: for_you). Supports for_you,
+                       following, or the exact name of any pinned List
+                       or Community (case-insensitive).
   --local              Force local cache query (no browser)
   --fetch              Force fetch from browser (skip freshness check)
   --max-age <minutes>  Max cache age before auto-fetching (default: 120)
   --fields <list>      Comma-separated: author,text,url,timestamp,links,mentions,media
+  --dump-raw [dir]     Dump raw GraphQL responses to a directory
+                       (default: ~/.site-use/dump/{site}/). See "Raw dumps" tip.
   --quiet, -q          Suppress JSON output, show one-line summary only
   --debug              Include diagnostic trace
 ```
 
 - **`for_you`** — algorithmic feed, personalized recommendations
 - **`following`** — chronological, only accounts the user follows
+- **`<list-or-community-name>`** — any List or Community the user has pinned to their nav. Use the exact display name, e.g. `--tab "RAG and AI Agent Developers"`. Discover available tabs by running `feed` once and checking `meta.extra.availableTabs` in the output.
 
 Just run `twitter feed` directly — the framework auto-checks login. If the user isn't logged in, you'll get a `SessionExpired` error with a clear hint.
 
@@ -45,6 +50,8 @@ site-use twitter search [options]
   --tab <name>         top | latest (default: top)
   --count <n>          Number of tweets, 1-100 (default: 20)
   --fields <list>      Comma-separated: author,text,url,timestamp,links,mentions,media
+  --dump-raw [dir]     Dump raw GraphQL responses to a directory
+                       (default: ~/.site-use/dump/{site}/). See "Raw dumps" tip.
   --quiet, -q          Suppress JSON output, show one-line summary only
   --debug              Include diagnostic trace
 ```
@@ -58,6 +65,8 @@ site-use twitter tweet_detail [options]
   --url <url>          Tweet URL (required)
   --count <n>          Max replies, 1-100 (default: 20)
   --fields <list>      Comma-separated: author,text,url,timestamp,links,mentions,media
+  --dump-raw [dir]     Dump raw GraphQL responses to a directory
+                       (default: ~/.site-use/dump/{site}/). See "Raw dumps" tip.
   --quiet, -q          Suppress JSON output, show one-line summary only
   --debug              Include diagnostic trace
 ```
@@ -71,6 +80,32 @@ site-use twitter check-login
 ```
 
 No options. Returns `{ loggedIn: boolean }`. Reserve for when the user explicitly asks about login status — `twitter feed` auto-checks login already.
+
+### twitter profile
+
+View a user profile and your follow relationship to them.
+
+```
+site-use twitter profile [options]
+  --handle <user>      Twitter handle (with or without @)
+  --url <url>          Profile URL (alternative to --handle)
+  --debug              Include diagnostic trace
+```
+
+Returns `{ user, relationship }`. The `user` object includes `followersCount`, `followingCount`, `tweetsCount`, `bio`, `verified`, `createdAt`, `location`, `website`. The `relationship` object includes `youFollowThem`, `theyFollowYou`, `blocking`, `muting`.
+
+Use this to verify follower counts and bios when filtering candidate accounts (e.g. "find builders with 1k–15k followers"), or to check whether you already follow someone before deciding to engage.
+
+### twitter follow / unfollow
+
+Follow or unfollow a user. **State-changing** — use only when the user explicitly asks.
+
+```
+site-use twitter follow   --handle <user>
+site-use twitter unfollow --handle <user>
+```
+
+Both accept `--handle` or `--url`. Returns the resulting relationship state. Idempotent: re-following someone you already follow is a no-op.
 
 ### search (local knowledge base)
 
@@ -148,6 +183,7 @@ When the user doesn't specify a time range, default to the last 24 hours.
 - **Use `--debug` when troubleshooting.** Adds diagnostic trace. On errors, trace is always included regardless of `--debug`.
 - **Short search queries are slow.** Full-text search needs 3+ characters. Shorter queries fall back to a full table scan.
 - **Combine filters for precision.** `search "AI" --min-likes 500 --start-date "yesterday"` is more useful than a broad search.
+- **Raw dumps for fields the parser doesn't expose.** The raw GraphQL responses contain richer data than the structured output (e.g. user `followers_count`, full profile bio, full media metadata). Pass `--dump-raw <fresh-dir>` to `feed` / `search` / `tweet_detail`, then walk the JSON for the field you need. Use a fresh directory each time — the default location only keeps the 2-3 most recent responses.
 
 ## Examples
 
