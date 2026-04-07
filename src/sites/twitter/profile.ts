@@ -6,6 +6,7 @@ import { SiteUseError } from '../../errors.js';
 import { NOOP_TRACE, type Trace } from '../../trace.js';
 
 const PROFILE_TIMEOUT_MS = 10_000;
+const PROFILE_POLL_INTERVAL_MS = 500;
 
 export async function getProfile(
   primitives: Primitives,
@@ -37,7 +38,7 @@ export async function getProfile(
       if (!captured) {
         const deadline = Date.now() + PROFILE_TIMEOUT_MS;
         while (!captured && Date.now() < deadline) {
-          await new Promise(r => setTimeout(r, 500));
+          await new Promise(r => setTimeout(r, PROFILE_POLL_INTERVAL_MS));
           await checkProfileError(primitives, handle, 'profile');
         }
       }

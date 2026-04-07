@@ -497,6 +497,9 @@ export function parseTweetDetail(body: string): TweetDetailParsed {
 export function extractUserProfile(result: Record<string, any>): UserProfile {
   const core = result.core;
   const legacy = result.legacy;
+  if (!core || !legacy) {
+    throw new SiteUseError('ParseError', 'Unexpected user result shape: missing core or legacy', { retryable: false });
+  }
   const avatar = result.avatar as { image_url?: string } | undefined;
 
   const websiteEntity = legacy?.entities?.url?.urls?.[0];
