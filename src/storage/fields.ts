@@ -42,5 +42,14 @@ export function applyFieldsFilter(
       }
       return filtered as unknown as SearchResultItem;
     })
-    .filter(item => Object.keys(item).length > ALWAYS_KEEP.size);
+    .filter((item) => {
+      // Drop items where no requested field survived projection.
+      // We can't compare against ALWAYS_KEEP.size because not every item carries
+      // every always-keep key (e.g. feed items lack `site`). Instead, count keys
+      // that are not in ALWAYS_KEEP — at least one must remain.
+      for (const key of Object.keys(item)) {
+        if (!ALWAYS_KEEP.has(key)) return true;
+      }
+      return false;
+    });
 }
