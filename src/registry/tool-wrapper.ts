@@ -13,6 +13,7 @@ const IngestItemSchema = z.object({
   })).optional(),
   mentions: z.array(z.string()).optional(),
   hashtags: z.array(z.string()).optional(),
+  sourceTabs: z.array(z.string()).optional(),
 });
 
 export interface ToolResult {
