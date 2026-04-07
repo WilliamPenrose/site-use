@@ -236,3 +236,58 @@ export const TwitterFollowActionParamsSchema = z.object({
   d => d.handle || d.url,
   { message: 'Either --handle or --url is required' },
 );
+
+// --- UserProfile ---
+
+export const UserProfileSchema = z.object({
+  userId: z.string(),
+  handle: z.string(),
+  displayName: z.string(),
+  bio: z.string(),
+  website: z.string().optional(),
+  location: z.string().optional(),
+  avatarUrl: z.string().optional(),
+  followersCount: z.number(),
+  followingCount: z.number(),
+  tweetsCount: z.number(),
+  likesCount: z.number(),
+  verified: z.boolean(),
+  createdAt: z.string(),
+  bannerUrl: z.string().optional(),
+});
+
+export type UserProfile = z.infer<typeof UserProfileSchema>;
+
+// --- Relationship ---
+
+export const RelationshipSchema = z.object({
+  youFollowThem: z.boolean(),
+  theyFollowYou: z.boolean(),
+  blocking: z.boolean(),
+  muting: z.boolean(),
+});
+
+export type Relationship = z.infer<typeof RelationshipSchema>;
+
+// --- ProfileResult ---
+
+export const ProfileResultSchema = z.object({
+  user: UserProfileSchema,
+  relationship: RelationshipSchema.nullable(),
+});
+
+export type ProfileResult = z.infer<typeof ProfileResultSchema>;
+
+// --- TwitterProfileParams ---
+
+export const TwitterProfileParamsSchema = z.object({
+  handle: z.string().min(1).optional()
+    .describe('Twitter handle (with or without @)'),
+  url: z.string().optional()
+    .describe('Profile URL as alternative to handle (e.g. https://x.com/elonmusk)'),
+  debug: z.boolean().default(false)
+    .describe('Include diagnostic info'),
+}).refine(
+  d => d.handle || d.url,
+  { message: 'Either --handle or --url is required' },
+);

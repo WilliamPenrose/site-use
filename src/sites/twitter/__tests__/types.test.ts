@@ -6,6 +6,10 @@ import {
   FeedResultSchema,
   RawTweetDataSchema,
   TweetDetailParamsSchema,
+  UserProfileSchema,
+  RelationshipSchema,
+  ProfileResultSchema,
+  TwitterProfileParamsSchema,
 } from '../types.js';
 
 describe('TweetAuthorSchema', () => {
@@ -202,5 +206,88 @@ describe('TweetDetailParamsSchema', () => {
       count: 50,
     });
     expect(result.count).toBe(50);
+  });
+});
+
+describe('UserProfileSchema', () => {
+  it('validates a complete user profile', () => {
+    const result = UserProfileSchema.safeParse({
+      userId: '1590927428',
+      handle: 'hwwaanng',
+      displayName: 'Hwang',
+      bio: 'AI Startup, Design/Vibe/Shape',
+      website: 'https://hwang.fun',
+      location: 'Shanghai',
+      avatarUrl: 'https://pbs.twimg.com/profile_images/1361512556930600969/LBwP2_YZ.jpg',
+      followersCount: 20458,
+      followingCount: 3785,
+      tweetsCount: 8120,
+      likesCount: 23244,
+      verified: true,
+      createdAt: 'Sat Jul 13 12:35:29 +0000 2013',
+      bannerUrl: 'https://pbs.twimg.com/profile_banners/1590927428/1765202554',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('allows optional fields to be undefined', () => {
+    const result = UserProfileSchema.safeParse({
+      userId: '123',
+      handle: 'test',
+      displayName: 'Test',
+      bio: '',
+      followersCount: 0,
+      followingCount: 0,
+      tweetsCount: 0,
+      likesCount: 0,
+      verified: false,
+      createdAt: 'Mon Jan 01 00:00:00 +0000 2024',
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('ProfileResultSchema', () => {
+  it('validates profile with relationship', () => {
+    const result = ProfileResultSchema.safeParse({
+      user: {
+        userId: '123', handle: 'test', displayName: 'Test', bio: '',
+        followersCount: 0, followingCount: 0, tweetsCount: 0, likesCount: 0,
+        verified: false, createdAt: 'Mon Jan 01 00:00:00 +0000 2024',
+      },
+      relationship: {
+        youFollowThem: true, theyFollowYou: false, blocking: false, muting: false,
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('validates profile with null relationship (self-profile)', () => {
+    const result = ProfileResultSchema.safeParse({
+      user: {
+        userId: '123', handle: 'test', displayName: 'Test', bio: '',
+        followersCount: 0, followingCount: 0, tweetsCount: 0, likesCount: 0,
+        verified: false, createdAt: 'Mon Jan 01 00:00:00 +0000 2024',
+      },
+      relationship: null,
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('TwitterProfileParamsSchema', () => {
+  it('accepts handle', () => {
+    const result = TwitterProfileParamsSchema.safeParse({ handle: 'elonmusk' });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts url', () => {
+    const result = TwitterProfileParamsSchema.safeParse({ url: 'https://x.com/elonmusk' });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects when neither handle nor url provided', () => {
+    const result = TwitterProfileParamsSchema.safeParse({});
+    expect(result.success).toBe(false);
   });
 });
