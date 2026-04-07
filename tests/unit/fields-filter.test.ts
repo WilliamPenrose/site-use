@@ -68,6 +68,15 @@ describe('applyFieldsFilter', () => {
     expect(result).toHaveLength(0);
   });
 
+  it('keeps items missing `site` when a requested field is present (feed items)', () => {
+    // Feed items (e.g. from `twitter feed`) lack the `site` field that storage rows have.
+    // Regression test for issue #12: --fields url returned empty items[].
+    const items = [{ id: '1', url: 'https://x.com/a/status/1' } as unknown as ReturnType<typeof makeItem>];
+    const result = applyFieldsFilter(items, ['url']);
+    expect(result).toHaveLength(1);
+    expect(result[0].url).toContain('x.com');
+  });
+
   it('strips unknown fields like rawJson (whitelist mode)', () => {
     const items = [makeItem({ rawJson: '{"huge":"blob"}' })];
     const result = applyFieldsFilter(items, ['author', 'text']);
