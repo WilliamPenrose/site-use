@@ -15,17 +15,6 @@ export interface DiscoverOptions {
 export interface EnsureTabResult {
   action: 'already_there' | 'transitioned';
   availableTabs: string[];
-  /**
-   * If the matched tab corresponds to a well-known alias, this is the
-   * locale-independent canonical key (e.g. `following`) — *not* the DOM
-   * textContent (which would be `フォロー中` on Japanese Twitter). When
-   * matching falls outside the well-known set, this is undefined and the
-   * caller should use the user-supplied input or `matched.name` directly.
-   *
-   * Lets sites converge cross-locale fetches of the same well-known tab
-   * onto a single storage / cache key.
-   */
-  wellKnownKey?: string;
 }
 
 export class TabNotFoundError extends StateTransitionFailed {
@@ -185,19 +174,5 @@ export async function ensureTab(
   const result = await ensure({ role: 'tab', name: namePattern, selected: true });
   const availableTabs = tabs.map(t => t.name);
 
-  // Reverse-lookup the well-known key from the matched DOM index. This lets
-  // callers store a locale-independent canonical key for tabs like for_you /
-  // following — `matched.name` would be the localized DOM text (e.g. フォロー中
-  // on Japanese Twitter), which would split storage across locales.
-  let wellKnownKey: string | undefined;
-  if (wellKnown) {
-    for (const [key, idx] of Object.entries(wellKnown)) {
-      if (idx === matched.index) {
-        wellKnownKey = key;
-        break;
-      }
-    }
-  }
-
-  return { action: result.action, availableTabs, wellKnownKey };
+  return { action: result.action, availableTabs };
 }

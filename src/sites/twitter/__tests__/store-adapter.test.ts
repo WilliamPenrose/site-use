@@ -166,23 +166,6 @@ describe('feedItemsToIngestItems', () => {
     expect(feedItemsToIngestItems([FEED_ITEM], { tab: 'for_you' })[0].sourceTabs).toEqual(['for_you']);
   });
 
-  it('prefers per-item siteMeta.sourceTabCanonical over context.tab (locale convergence)', () => {
-    // Simulates Japanese-locale Twitter: user typed --tab フォロー中 (or
-    // --tab following), the workflow stamped the well-known canonical key
-    // onto each item via siteMeta.
-    const localizedItem: FeedItem = {
-      ...FEED_ITEM,
-      siteMeta: { ...FEED_ITEM.siteMeta, sourceTabCanonical: 'following' },
-    };
-    const [item] = feedItemsToIngestItems([localizedItem], { tab: 'フォロー中' });
-    expect(item.sourceTabs).toEqual(['following']);
-  });
-
-  it('falls back to context.tab when siteMeta has no canonical key (custom List)', () => {
-    const [item] = feedItemsToIngestItems([FEED_ITEM], { tab: 'Vibe Coding' });
-    expect(item.sourceTabs).toEqual(['vibe_coding']);
-  });
-
   it('omits sourceTabs when context is missing, has no tab, or empty string', () => {
     const [withoutContext] = feedItemsToIngestItems([FEED_ITEM]);
     expect(withoutContext.sourceTabs).toBeUndefined();
