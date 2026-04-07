@@ -30,6 +30,7 @@ function fakePlugin(overrides: Partial<SitePlugin> = {}): SitePlugin {
     domains: ['fake.com'],
     auth: { check: async () => ({ loggedIn: true }) },
     workflows: [{
+      kind: 'collection' as const,
       name: 'feed',
       description: 'Collect feed',
       execute: async () => ({ items: [], meta: { coveredUsers: [], timeRange: { from: '', to: '' } } }),
@@ -68,12 +69,14 @@ describe('Plugin Contract', () => {
     const plugin = fakePlugin({
       workflows: [
         {
+          kind: 'collection' as const,
           name: 'feed',
           description: 'Collect feed',
           execute: async () => ({ items: [], meta: { coveredUsers: [], timeRange: { from: '', to: '' } } }),
           params: z.object({ count: z.number().default(10) }),
         },
         {
+          kind: 'query' as const,
           name: 'trending',
           description: 'Get trending',
           params: z.object({}),
@@ -131,6 +134,7 @@ describe('Plugin Contract', () => {
     const plugin = fakePlugin({
       storeAdapter: { toIngestItems: storeAdapterSpy },
       workflows: [{
+        kind: 'collection' as const,
         name: 'feed',
         description: 'Collect feed',
         execute: async () => ({
@@ -155,6 +159,7 @@ describe('Plugin Contract', () => {
   it('does not call storeAdapter when not declared via CLI handler', async () => {
     const plugin = fakePlugin({
       workflows: [{
+        kind: 'collection' as const,
         name: 'feed',
         description: 'Collect feed',
         execute: async () => ({
