@@ -26,6 +26,7 @@ export interface IngestItem {
   metrics?: MetricEntry[];
   mentions?: string[];
   hashtags?: string[];
+  sourceTabs?: string[];
 }
 
 export interface IngestResult {
@@ -43,6 +44,7 @@ export interface SearchParams {
   max_results?: number;
   hashtag?: string;
   mention?: string;
+  sourceTab?: string;
   metricFilters?: MetricFilter[];
   fields?: SearchField[];
 }
