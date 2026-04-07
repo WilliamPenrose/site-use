@@ -54,10 +54,6 @@ export function feedItemsToIngestItems(
     if (typeof meta.following === 'boolean') {
       metrics.push({ metric: 'following', numValue: meta.following ? 1 : 0 });
     }
-    if (typeof context?.tab === 'string') {
-      metrics.push({ metric: 'source_tab', strValue: context.tab });
-    }
-
     return {
       site: 'twitter',
       id: item.id,
@@ -69,6 +65,7 @@ export function feedItemsToIngestItems(
       mentions: uniqueMentions,
       hashtags: extractHashtags(item.text),
       metrics,
+      sourceTabs: typeof context?.tab === 'string' ? [context.tab] : undefined,
     };
   });
 }

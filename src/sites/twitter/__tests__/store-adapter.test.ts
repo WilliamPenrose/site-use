@@ -151,4 +151,20 @@ describe('feedItemsToIngestItems', () => {
     const count = item.mentions!.filter(m => m === 'GoogleDeepMind').length;
     expect(count).toBe(1);
   });
+
+  it('returns sourceTabs when context.tab is provided', () => {
+    const [item] = feedItemsToIngestItems([FEED_ITEM], { tab: 'vibe coding' });
+    expect(item.sourceTabs).toEqual(['vibe coding']);
+    // And does NOT smuggle source_tab through metrics anymore
+    const sourceTabMetric = item.metrics?.find(m => m.metric === 'source_tab');
+    expect(sourceTabMetric).toBeUndefined();
+  });
+
+  it('omits sourceTabs when context is missing or has no tab', () => {
+    const [withoutContext] = feedItemsToIngestItems([FEED_ITEM]);
+    expect(withoutContext.sourceTabs).toBeUndefined();
+
+    const [emptyContext] = feedItemsToIngestItems([FEED_ITEM], {});
+    expect(emptyContext.sourceTabs).toBeUndefined();
+  });
 });
