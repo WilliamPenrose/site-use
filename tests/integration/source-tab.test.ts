@@ -75,4 +75,45 @@ describe('source_tab multi-membership', () => {
     const result = await store.search({ site: 'twitter', sourceTab: 'for_you' });
     expect(result.items).toHaveLength(0);
   });
+
+  it('ingest with empty sourceTabs array writes nothing to item_source_tabs', async () => {
+    registerDisplaySchema('twitter', twitterDisplaySchema);
+    store = createStore(':memory:');
+    await store.ingest([makeItem('empty', [])]);
+
+    const result = await store.search({ site: 'twitter', sourceTab: 'for_you' });
+    expect(result.items).toHaveLength(0);
+  });
+
+  it('combines sourceTab with hashtag filter using AND semantics', async () => {
+    registerDisplaySchema('twitter', twitterDisplaySchema);
+    store = createStore(':memory:');
+
+    // Item 1: #AI from for_you
+    await store.ingest([{
+      ...makeItem('1', ['for_you']),
+      text: 'tweet about #AI',
+      hashtags: ['ai'],
+    }]);
+    // Item 2: #AI from vibe coding (the only match)
+    await store.ingest([{
+      ...makeItem('2', ['vibe coding']),
+      text: 'another #AI tweet',
+      hashtags: ['ai'],
+    }]);
+    // Item 3: #ML from vibe coding (matches sourceTab but not hashtag)
+    await store.ingest([{
+      ...makeItem('3', ['vibe coding']),
+      text: 'tweet about #ML',
+      hashtags: ['ml'],
+    }]);
+
+    const result = await store.search({
+      site: 'twitter',
+      sourceTab: 'vibe coding',
+      hashtag: 'ai',
+    });
+
+    expect(result.items.map(i => i.id)).toEqual(['2']);
+  });
 });
