@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { twitterLocalQuery } from '../local-query.js';
 import type { KnowledgeStore } from '../../../storage/index.js';
 
-function createMockStore(items: Array<{ rawJson: string; metrics?: Array<{ metric: string; numValue?: number; strValue?: string }> }>): KnowledgeStore {
+function createMockStore(items: Array<{ rawJson: string }>): KnowledgeStore {
   return {
     search: vi.fn().mockResolvedValue({ items }),
   } as unknown as KnowledgeStore;
@@ -18,64 +18,47 @@ function makeFeedItemJson(overrides: Record<string, unknown> = {}): string {
 }
 
 describe('twitterLocalQuery', () => {
-  it('filters by source_tab when available', async () => {
-    const store = createMockStore([
-      { rawJson: makeFeedItemJson({ id: '1' }), metrics: [{ metric: 'source_tab', strValue: 'vibe coding' }] },
-      { rawJson: makeFeedItemJson({ id: '2' }), metrics: [{ metric: 'source_tab', strValue: 'for_you' }] },
-    ]);
-
-    const result = await twitterLocalQuery(store, { tab: 'vibe coding' });
-    expect(store.search).toHaveBeenCalledWith(expect.objectContaining({
-      metricFilters: expect.arrayContaining([
-        { metric: 'source_tab', op: '=', strValue: 'vibe coding' },
-      ]),
-    }));
-  });
-
-  it('falls back to author.following for tab=following when source_tab returns empty', async () => {
-    const store = {
-      search: vi.fn()
-        .mockResolvedValueOnce({ items: [] })
-        .mockResolvedValueOnce({ items: [{ rawJson: makeFeedItemJson() }] }),
-    } as unknown as KnowledgeStore;
-
-    const result = await twitterLocalQuery(store, { tab: 'following' });
-    expect(store.search).toHaveBeenCalledTimes(2);
-    expect(result.items).toHaveLength(1);
-  });
-
-  it('returns all cached data for for_you tab (default behavior)', async () => {
+  it('passes the requested tab through as sourceTab filter', async () => {
     const store = createMockStore([
       { rawJson: makeFeedItemJson({ id: '1' }) },
-      { rawJson: makeFeedItemJson({ id: '2' }) },
     ]);
-
-    const result = await twitterLocalQuery(store, { tab: 'for_you' });
+    await twitterLocalQuery(store, { tab: 'vibe coding' });
     expect(store.search).toHaveBeenCalledWith(expect.objectContaining({
-      metricFilters: expect.arrayContaining([
-        { metric: 'source_tab', op: '=', strValue: 'for_you' },
-      ]),
+      site: 'twitter',
+      sourceTab: 'vibe coding',
     }));
   });
 
-  it('falls back to all cached data for for_you when source_tab returns empty', async () => {
-    const store = {
-      search: vi.fn()
-        .mockResolvedValueOnce({ items: [] })  // source_tab='for_you' → empty (pre-upgrade data)
-        .mockResolvedValueOnce({ items: [
-          { rawJson: makeFeedItemJson({ id: '1' }) },
-          { rawJson: makeFeedItemJson({ id: '2' }) },
-        ] }),  // fallback: all cached
-    } as unknown as KnowledgeStore;
-
-    const result = await twitterLocalQuery(store, { tab: 'for_you' });
-    expect(store.search).toHaveBeenCalledTimes(2);
-    expect(result.items).toHaveLength(2);
+  it('defaults to for_you when tab is omitted', async () => {
+    const store = createMockStore([]);
+    await twitterLocalQuery(store, {});
+    expect(store.search).toHaveBeenCalledWith(expect.objectContaining({
+      sourceTab: 'for_you',
+    }));
   });
 
-  it('returns empty for non-well-known tab with no source_tab data', async () => {
+  it('returns empty result for an unknown tab without throwing (no Layer 2 fallback)', async () => {
     const store = createMockStore([]);
-    const result = await twitterLocalQuery(store, { tab: 'vibe coding' });
-    expect(result.items).toHaveLength(0);
+    const result = await twitterLocalQuery(store, { tab: 'nonexistent_tab' });
+    expect(result.items).toEqual([]);
+    expect(store.search).toHaveBeenCalledTimes(1);  // No fallback call
+  });
+
+  it('parses rawJson into FeedItems', async () => {
+    const store = createMockStore([
+      { rawJson: makeFeedItemJson({ id: '7', author: { handle: 'alice' } }) },
+    ]);
+    const result = await twitterLocalQuery(store, { tab: 'for_you' });
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].id).toBe('7');
+    expect(result.items[0].author.handle).toBe('alice');
+  });
+
+  it('respects count parameter via max_results', async () => {
+    const store = createMockStore([]);
+    await twitterLocalQuery(store, { tab: 'for_you', count: 50 });
+    expect(store.search).toHaveBeenCalledWith(expect.objectContaining({
+      max_results: 50,
+    }));
   });
 });
