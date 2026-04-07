@@ -85,6 +85,28 @@ describe('source_tab multi-membership', () => {
     expect(result.items).toHaveLength(0);
   });
 
+  it('clean removes related rows from item_source_tabs', async () => {
+    registerDisplaySchema('twitter', twitterDisplaySchema);
+    store = createStore(':memory:');
+
+    // Two items both tagged with vibe coding
+    await store.ingest([
+      makeItem('keep', ['vibe coding']),
+      makeItem('drop', ['vibe coding']),
+    ]);
+
+    // Sanity: both visible via sourceTab query
+    const before = await store.search({ site: 'twitter', sourceTab: 'vibe coding' });
+    expect(before.items.map(i => i.id).sort()).toEqual(['drop', 'keep']);
+
+    // Delete all items by author 'alice'; verify item_source_tabs rows are gone
+    // (no FK constraint failure, and the query returns nothing)
+    await store.deleteItems({ site: 'twitter', author: 'alice' });
+
+    const after = await store.search({ site: 'twitter', sourceTab: 'vibe coding' });
+    expect(after.items).toHaveLength(0);
+  });
+
   it('combines sourceTab with hashtag filter using AND semantics', async () => {
     registerDisplaySchema('twitter', twitterDisplaySchema);
     store = createStore(':memory:');
