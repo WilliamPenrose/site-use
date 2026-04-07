@@ -110,6 +110,13 @@ export interface EnsureTimelineResult {
   navAction: 'already_there' | 'transitioned';
   tabAction: 'already_there' | 'transitioned';
   availableTabs: string[];
+  /**
+   * Locale-independent canonical key for the matched tab when it is one
+   * of the well-known timeline tabs (`for_you` / `following`). Undefined
+   * for custom Lists / Communities — those callers should keep using the
+   * canonicalized user input.
+   */
+  wellKnownKey?: string;
   reloaded: boolean;
   waits: WaitRecord[];
 }
@@ -138,15 +145,18 @@ export async function ensureTimeline(
   let navAction: 'already_there' | 'transitioned' = 'already_there';
   let tabAction: 'already_there' | 'transitioned' = 'already_there';
   let availableTabs: string[] = [];
+  let wellKnownKey: string | undefined;
 
   async function switchTab(s?: SpanHandle) {
     await reRegisterInterceptor();
     const tabResult = await ensureTabNav(primitives, tab, TAB_SELECTOR, WELL_KNOWN_TABS);
     tabAction = tabResult.action;
     availableTabs = tabResult.availableTabs;
+    wellKnownKey = tabResult.wellKnownKey;
     if (s) {
       s.set('tabAction', tabAction);
       s.set('tab', tab);
+      if (wellKnownKey) s.set('wellKnownKey', wellKnownKey);
     }
   }
 
@@ -169,7 +179,7 @@ export async function ensureTimeline(
     },
   }, span);
 
-  return { navAction, tabAction, availableTabs, ...result };
+  return { navAction, tabAction, availableTabs, wellKnownKey, ...result };
 }
 
 export interface EnsureTweetDetailResult {
@@ -431,7 +441,18 @@ export async function getFeed(
         .slice(0, count);
 
       const meta = buildFeedMeta(tweets);
-      const items = tweets.map(tweetToFeedItem);
+      // Stamp the locale-independent canonical key onto each item's siteMeta
+      // when the matched tab is well-known. The store-adapter prefers this
+      // over the raw user input, so a Japanese user typing `--tab フォロー中`
+      // and an English user typing `--tab following` collapse to the same
+      // storage key.
+      const items = tweets.map(t => {
+        const item = tweetToFeedItem(t);
+        if (timelineResult.wellKnownKey) {
+          item.siteMeta = { ...item.siteMeta, sourceTabCanonical: timelineResult.wellKnownKey };
+        }
+        return item;
+      });
 
       rootSpan.set('rawBeforeFilter', collector.length);
       rootSpan.set('itemsReturned', items.length);

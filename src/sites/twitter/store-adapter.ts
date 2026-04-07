@@ -38,12 +38,29 @@ export function feedItemsToIngestItems(
       mentions: uniqueMentions,
       hashtags: extractHashtags(item.text),
       metrics,
-      sourceTabs:
-        typeof context?.tab === 'string' && context.tab.length > 0
-          ? [canonicalizeTab(context.tab)]
-          : undefined,
+      // Prefer the per-item canonical key stamped by the workflow when the
+      // matched tab is well-known (e.g. for_you / following) — this collapses
+      // localized DOM names like フォロー中 to the same storage key as the
+      // English alias. Fall back to canonicalizing the user-supplied tab when
+      // the workflow didn't stamp anything (custom Lists / Communities).
+      sourceTabs: pickSourceTabs(meta, context),
     };
   });
+}
+
+function pickSourceTabs(
+  meta: Record<string, unknown>,
+  context?: Record<string, unknown>,
+): string[] | undefined {
+  const stamped = meta.sourceTabCanonical;
+  if (typeof stamped === 'string' && stamped.length > 0) {
+    return [stamped];
+  }
+  const ctxTab = context?.tab;
+  if (typeof ctxTab === 'string' && ctxTab.length > 0) {
+    return [canonicalizeTab(ctxTab)];
+  }
+  return undefined;
 }
 
 function extractMetricsFromSiteMeta(meta: Record<string, unknown>): MetricEntry[] {
