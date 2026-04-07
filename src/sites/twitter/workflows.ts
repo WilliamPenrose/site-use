@@ -122,8 +122,14 @@ export async function ensureTimeline(
   let availableTabs: string[] = [];
 
   async function switchTab(s?: SpanHandle) {
-    await reRegisterInterceptor();
+    // Order matters for race safety:
+    // 1. Click tab first (triggers target tab's GraphQL request R2)
+    // 2. Re-register interceptor after click (old handler removed, new handler
+    //    with fresh generation only accepts R2+ responses)
+    // This ensures navigate(home)'s HomeTimeline response (R1) is handled by the
+    // old handler and discarded when we clear, while R2 is caught by the new handler.
     const tabResult = await ensureTabNav(primitives, tab, TAB_SELECTOR, WELL_KNOWN_TABS);
+    await reRegisterInterceptor();
     tabAction = tabResult.action;
     availableTabs = tabResult.availableTabs;
     if (s) {
@@ -373,29 +379,39 @@ export async function getFeed(
     const collector = createDataCollector<RawTweetData>();
     let dumpIndex = 0;
 
-    const handler = (response: { url: string; status: number; body: string }) => {
-      try {
-        if (dumpRaw) {
-          fs.mkdirSync(dumpRaw, { recursive: true });
-          const outPath = path.join(dumpRaw, `graphql-${dumpIndex++}.json`);
-          fs.writeFileSync(outPath, response.body);
-        }
-        const parsed = parseGraphQLTimeline(response.body);
-        collector.push(...parsed);
-        graphqlCount++;
-        rootSpan.set('graphqlResponses', graphqlCount);
-      } catch {
-        graphqlFailures++;
-        rootSpan.set('graphqlFailures', graphqlFailures);
-      }
-    };
+    // Generation counter: incremented on each re-register. Handlers capture
+    // the generation at creation time and silently discard responses that
+    // arrive after the generation has advanced (in-flight race protection).
+    let generation = 0;
 
-    let cleanup = await primitives.interceptRequest(GRAPHQL_TIMELINE_PATTERN, handler);
+    function makeHandler() {
+      const gen = generation;
+      return (response: { url: string; status: number; body: string }) => {
+        if (gen !== generation) return; // stale response from previous phase
+        try {
+          if (dumpRaw) {
+            fs.mkdirSync(dumpRaw, { recursive: true });
+            const outPath = path.join(dumpRaw, `graphql-${dumpIndex++}.json`);
+            fs.writeFileSync(outPath, response.body);
+          }
+          const parsed = parseGraphQLTimeline(response.body);
+          collector.push(...parsed);
+          graphqlCount++;
+          rootSpan.set('graphqlResponses', graphqlCount);
+        } catch {
+          graphqlFailures++;
+          rootSpan.set('graphqlFailures', graphqlFailures);
+        }
+      };
+    }
+
+    let cleanup = await primitives.interceptRequest(GRAPHQL_TIMELINE_PATTERN, makeHandler());
 
     const reRegisterInterceptor = async () => {
       cleanup();
+      generation++;
       collector.clear();
-      cleanup = await primitives.interceptRequest(GRAPHQL_TIMELINE_PATTERN, handler);
+      cleanup = await primitives.interceptRequest(GRAPHQL_TIMELINE_PATTERN, makeHandler());
     };
 
     try {

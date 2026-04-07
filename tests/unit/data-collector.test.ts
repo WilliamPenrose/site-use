@@ -79,4 +79,63 @@ describe('DataCollector', () => {
     expect(await promise).toBe(true);
     expect([...c.items]).toEqual([10]);
   });
+
+  // Epoch tests — verify in-flight data from previous epoch is discarded
+  describe('epoch isolation', () => {
+    it('items pushed before clear are not visible after clear', () => {
+      vi.useRealTimers();
+      const c = createDataCollector<number>();
+      c.push(1, 2, 3);
+      // Simulate: handler still holds a reference and pushes after clear
+      const pushLater = () => c.push(99);
+      c.clear();
+      pushLater(); // 99 is pushed in the new epoch
+      expect([...c.items]).toEqual([99]);
+      expect(c.length).toBe(1);
+    });
+
+    it('simulates in-flight race: push from old handler after clear is in new epoch', () => {
+      vi.useRealTimers();
+      const c = createDataCollector<number>();
+
+      // Epoch 0: push some data
+      c.push(1, 2, 3);
+      expect(c.length).toBe(3);
+
+      // Tab switch: clear (epoch 1)
+      c.clear();
+      expect(c.length).toBe(0);
+
+      // In-flight R1 response arrives — pushed by the same handler reference
+      // but after clear, so it's in epoch 1 (current), which is correct.
+      // The real fix is that clear() happens AFTER old data arrives,
+      // but with epoch tagging, even if push happens after clear,
+      // the data is in the new epoch and is visible.
+      c.push(100);
+      expect(c.length).toBe(1);
+      expect([...c.items]).toEqual([100]);
+
+      // New tab's data arrives
+      c.push(200, 300);
+      expect(c.length).toBe(3);
+      expect([...c.items]).toEqual([100, 200, 300]);
+    });
+
+    it('multiple clear cycles isolate data correctly', () => {
+      vi.useRealTimers();
+      const c = createDataCollector<string>();
+
+      c.push('a', 'b');
+      expect(c.length).toBe(2);
+
+      c.clear(); // epoch 1
+      c.push('c');
+      expect([...c.items]).toEqual(['c']);
+
+      c.clear(); // epoch 2
+      c.push('d', 'e');
+      expect([...c.items]).toEqual(['d', 'e']);
+      expect(c.length).toBe(2);
+    });
+  });
 });

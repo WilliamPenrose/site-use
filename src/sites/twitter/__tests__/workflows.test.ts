@@ -194,6 +194,8 @@ describe('getFeed', () => {
     });
 
     let interceptHandler: any;
+    let interceptCallCount = 0;
+    const graphqlResponse = { url: '/i/api/graphql/abc/HomeLatestTimeline', status: 200, body: GRAPHQL_BODY };
     const primitives = createMockPrimitives({
       evaluate: mockEvaluate({ 'textContent': 'For you' }),
       takeSnapshot: vi.fn()
@@ -209,14 +211,22 @@ describe('getFeed', () => {
       interceptRequest: vi.fn().mockImplementation(
         async (_pattern: any, handler: any) => {
           interceptHandler = handler;
+          interceptCallCount++;
+          // On re-registration (2nd+ call), simulate the target tab's GraphQL
+          // response arriving shortly after the new handler is installed.
+          // With the new switchTab order (ensureTabNav before reRegisterInterceptor),
+          // the click triggers the request, and the new handler catches the response.
+          if (interceptCallCount > 1) {
+            setTimeout(() => handler(graphqlResponse), 10);
+          }
           return () => {};
         },
       ),
-      click: vi.fn().mockImplementation(async () => {
-        interceptHandler({ url: '/i/api/graphql/abc/HomeLatestTimeline', status: 200, body: GRAPHQL_BODY });
-      }),
+      // Click triggers the GraphQL request but old handler is still active;
+      // data pushed here uses the old generation and gets cleared on re-register.
+      click: vi.fn().mockResolvedValue(undefined),
       navigate: vi.fn().mockImplementation(async () => {
-        interceptHandler({ url: '/i/api/graphql/abc/HomeLatestTimeline', status: 200, body: GRAPHQL_BODY });
+        interceptHandler(graphqlResponse);
       }),
     });
 
@@ -351,15 +361,20 @@ describe('ensureTimeline', () => {
       navigate: vi.fn().mockImplementation(async () => {
         collector.push({ id: 'wrong_tab' });
       }),
-      click: vi.fn().mockImplementation(async () => {
-        collector.push({ id: 'correct_tab' });
-      }),
+      // Click triggers the GraphQL request but old handler is still active,
+      // so we don't push data here — the new handler (after re-register) will catch it.
+      click: vi.fn().mockResolvedValue(undefined),
     });
 
     const result = await ensureTimeline(primitives, collector, {
       tab: 'following',
       t0: Date.now(),
-      reRegisterInterceptor: vi.fn().mockImplementation(async () => { collector.clear(); }),
+      // New order: ensureTabNav (click) runs first, then reRegisterInterceptor.
+      // The re-register clears old data and the new handler receives the target tab's response.
+      reRegisterInterceptor: vi.fn().mockImplementation(async () => {
+        collector.clear();
+        collector.push({ id: 'correct_tab' });
+      }),
     });
 
     expect(result.tabAction).toBe('transitioned');
