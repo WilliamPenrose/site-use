@@ -69,7 +69,8 @@ export function generateCliCommands(
         if (!shouldExposeCli(wf.expose)) continue;
 
         const isAction = wf.kind === 'action';
-        const hasCacheSupport = !isAction && !!((wf as CollectionWorkflow).localQuery && (wf as CollectionWorkflow).cache);
+        const isQuery = wf.kind === 'query';
+        const hasCacheSupport = wf.kind === 'collection' && !!((wf as CollectionWorkflow).localQuery && (wf as CollectionWorkflow).cache);
 
         const wrappedWf = wrapToolHandler({
           siteName: plugin.name,
@@ -82,7 +83,7 @@ export function generateCliCommands(
             : undefined,
           handler: async (params, runtime, trace) => {
             const result = await wf.execute(runtime.primitives, params, trace);
-            if (!isAction && (wf as CollectionWorkflow).cache) {
+            if (wf.kind === 'collection' && (wf as CollectionWorkflow).cache) {
               const cacheConfig = (wf as CollectionWorkflow).cache!;
               const cfg = getConfig();
               const tsPath = path.join(cfg.dataDir, 'fetch-timestamps.json');
@@ -109,7 +110,7 @@ export function generateCliCommands(
               return;
             }
 
-            if (isAction) {
+            if (isAction || isQuery) {
               const params = parseCliArgs(args, wf.params);
               const result = unwrapToolResult(await wrappedWf(params));
               if (result === null) return;
@@ -263,7 +264,7 @@ function buildWorkflowHelp(
     lines.push('');
   }
 
-  if (wf.kind !== 'action') {
+  if (wf.kind === 'collection') {
     if (wf.dumpRaw) {
       lines.push('Dump options:');
       lines.push('  --dump-raw [dir]       Dump raw responses to directory (default: ~/.site-use/dump/{site}/)');

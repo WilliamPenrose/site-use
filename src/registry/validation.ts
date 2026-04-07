@@ -62,6 +62,16 @@ const SitePluginSchema = z.object({
       expose: z.array(z.enum(['mcp', 'cli'])).optional(),
       cli: z.unknown().optional(),
     }),
+    // Query workflow
+    z.object({
+      kind: z.literal('query'),
+      name: z.string().min(1),
+      description: z.string().min(1),
+      params: z.unknown(),
+      execute: z.function(),
+      expose: z.array(z.enum(['mcp', 'cli'])).optional(),
+      cli: z.unknown().optional(),
+    }),
   ])).optional(),
 });
 
