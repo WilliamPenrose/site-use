@@ -1,0 +1,184 @@
+{
+  "data": {
+    "user": {
+      "result": {
+        "__typename": "User",
+        "affiliates_highlighted_label": {},
+        "avatar": {
+          "image_url": "https://pbs.twimg.com/profile_images/1361512556930600969/LBwP2_YZ_normal.jpg"
+        },
+        "business_account": {},
+        "core": {
+          "created_at": "Sat Jul 13 12:35:29 +0000 2013",
+          "name": "Hwang",
+          "screen_name": "hwwaanng"
+        },
+        "creator_subscriptions_count": 0,
+        "dm_permissions": {
+          "can_dm": true
+        },
+        "follow_request_sent": false,
+        "grok_translated_bio_with_availability": {
+          "is_available": false
+        },
+        "has_graduated_access": true,
+        "has_hidden_subscriptions_on_profile": false,
+        "highlights_info": {
+          "can_highlight_tweets": true,
+          "highlighted_tweets": "13"
+        },
+        "id": "VXNlcjoxNTkwOTI3NDI4",
+        "is_blue_verified": true,
+        "is_profile_translatable": true,
+        "legacy": {
+          "default_profile": true,
+          "default_profile_image": false,
+          "description": "AI Startup, Design/Vibe/Shape \nmacOS 💻 ► https://t.co/fwF45lp4Bl / https://t.co/tbgUgsMKNk\niOS 📱 ► https://t.co/2bC853dFNn / https://t.co/Qc7AGBZy3C / https://t.co/62zcx3joc3\nearly @AFFiNEOfficial",
+          "entities": {
+            "description": {
+              "urls": [
+                {
+                  "display_url": "bridge.surf",
+                  "expanded_url": "http://bridge.surf",
+                  "indices": [
+                    41,
+                    64
+                  ],
+                  "url": "https://t.co/fwF45lp4Bl"
+                },
+                {
+                  "display_url": "harness.today",
+                  "expanded_url": "http://harness.today",
+                  "indices": [
+                    67,
+                    90
+                  ],
+                  "url": "https://t.co/tbgUgsMKNk"
+                },
+                {
+                  "display_url": "handstime.app",
+                  "expanded_url": "http://handstime.app",
+                  "indices": [
+                    99,
+                    122
+                  ],
+                  "url": "https://t.co/2bC853dFNn"
+                },
+                {
+                  "display_url": "lofidot.com",
+                  "expanded_url": "http://lofidot.com",
+                  "indices": [
+                    125,
+                    148
+                  ],
+                  "url": "https://t.co/Qc7AGBZy3C"
+                },
+                {
+                  "display_url": "slabox.app",
+                  "expanded_url": "http://slabox.app",
+                  "indices": [
+                    151,
+                    174
+                  ],
+                  "url": "https://t.co/62zcx3joc3"
+                }
+              ]
+            },
+            "url": {
+              "urls": [
+                {
+                  "display_url": "hwang.fun",
+                  "expanded_url": "https://hwang.fun",
+                  "indices": [
+                    0,
+                    23
+                  ],
+                  "url": "https://t.co/J6eYfmHqS0"
+                }
+              ]
+            }
+          },
+          "fast_followers_count": 0,
+          "favourites_count": 23244,
+          "follow_request_sent": false,
+          "followers_count": 20458,
+          "friends_count": 3785,
+          "has_custom_timelines": true,
+          "is_translator": false,
+          "listed_count": 236,
+          "media_count": 2145,
+          "normal_followers_count": 20458,
+          "notifications": false,
+          "pinned_tweet_ids_str": [
+            "2040064208461762993"
+          ],
+          "possibly_sensitive": false,
+          "profile_banner_url": "https://pbs.twimg.com/profile_banners/1590927428/1765202554",
+          "profile_interstitial_type": "",
+          "statuses_count": 8120,
+          "translator_type": "none",
+          "url": "https://t.co/J6eYfmHqS0",
+          "want_retweets": false,
+          "withheld_in_countries": []
+        },
+        "legacy_extended_profile": {},
+        "location": {
+          "location": "Shanghai"
+        },
+        "media_permissions": {
+          "can_media_tag": true
+        },
+        "parody_commentary_fan_label": "None",
+        "premium_gifting_eligible": false,
+        "privacy": {
+          "protected": false
+        },
+        "professional": {
+          "category": [],
+          "professional_type": "Creator",
+          "rest_id": "1461147563080314882"
+        },
+        "profile_bio": {
+          "description": "AI Startup, Design/Vibe/Shape \nmacOS 💻 ► https://t.co/fwF45lp4Bl / https://t.co/tbgUgsMKNk\niOS 📱 ► https://t.co/2bC853dFNn / https://t.co/Qc7AGBZy3C / https://t.co/62zcx3joc3\nearly @AFFiNEOfficial"
+        },
+        "profile_description_language": "en",
+        "profile_image_shape": "Circle",
+        "profile_sort_enabled": true,
+        "relationship_perspectives": {
+          "blocked_by": false,
+          "blocking": false,
+          "followed_by": false,
+          "following": false,
+          "muting": false
+        },
+        "rest_id": "1590927428",
+        "super_follow_eligible": false,
+        "super_followed_by": false,
+        "super_following": false,
+        "user_seed_tweet_count": 0,
+        "verification": {
+          "verified": false
+        },
+        "verification_info": {
+          "is_identity_verified": false,
+          "reason": {
+            "description": {
+              "entities": [
+                {
+                  "from_index": 17,
+                  "ref": {
+                    "url": "https://help.twitter.com/managing-your-account/about-twitter-verified-accounts",
+                    "url_type": "ExternalUrl"
+                  },
+                  "to_index": 23
+                }
+              ],
+              "text": "このアカウントは認証されています。詳細はこちら"
+            },
+            "verified_since_msec": "1686319684684"
+          }
+        }
+      }
+    }
+  }
+}
