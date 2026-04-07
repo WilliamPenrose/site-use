@@ -152,19 +152,28 @@ describe('feedItemsToIngestItems', () => {
     expect(count).toBe(1);
   });
 
-  it('returns sourceTabs when context.tab is provided', () => {
-    const [item] = feedItemsToIngestItems([FEED_ITEM], { tab: 'vibe coding' });
-    expect(item.sourceTabs).toEqual(['vibe coding']);
+  it('returns canonicalized sourceTabs when context.tab is provided', () => {
+    const [item] = feedItemsToIngestItems([FEED_ITEM], { tab: 'Vibe Coding' });
+    expect(item.sourceTabs).toEqual(['vibe_coding']);
     // And does NOT smuggle source_tab through metrics anymore
     const sourceTabMetric = item.metrics?.find(m => m.metric === 'source_tab');
     expect(sourceTabMetric).toBeUndefined();
   });
 
-  it('omits sourceTabs when context is missing or has no tab', () => {
+  it('canonicalizes well-known tab aliases', () => {
+    expect(feedItemsToIngestItems([FEED_ITEM], { tab: 'Following' })[0].sourceTabs).toEqual(['following']);
+    expect(feedItemsToIngestItems([FEED_ITEM], { tab: 'For You' })[0].sourceTabs).toEqual(['for_you']);
+    expect(feedItemsToIngestItems([FEED_ITEM], { tab: 'for_you' })[0].sourceTabs).toEqual(['for_you']);
+  });
+
+  it('omits sourceTabs when context is missing, has no tab, or empty string', () => {
     const [withoutContext] = feedItemsToIngestItems([FEED_ITEM]);
     expect(withoutContext.sourceTabs).toBeUndefined();
 
     const [emptyContext] = feedItemsToIngestItems([FEED_ITEM], {});
     expect(emptyContext.sourceTabs).toBeUndefined();
+
+    const [emptyTab] = feedItemsToIngestItems([FEED_ITEM], { tab: '' });
+    expect(emptyTab.sourceTabs).toBeUndefined();
   });
 });

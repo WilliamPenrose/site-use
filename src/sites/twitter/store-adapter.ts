@@ -1,6 +1,7 @@
 // src/sites/twitter/store-adapter.ts
 import type { FeedItem } from '../../registry/types.js';
 import type { IngestItem, MetricEntry } from '../../storage/types.js';
+import { canonicalizeTab } from './canonicalize.js';
 
 export function feedItemsToIngestItems(
   items: FeedItem[],
@@ -37,7 +38,10 @@ export function feedItemsToIngestItems(
       mentions: uniqueMentions,
       hashtags: extractHashtags(item.text),
       metrics,
-      sourceTabs: typeof context?.tab === 'string' ? [context.tab] : undefined,
+      sourceTabs:
+        typeof context?.tab === 'string' && context.tab.length > 0
+          ? [canonicalizeTab(context.tab)]
+          : undefined,
     };
   });
 }

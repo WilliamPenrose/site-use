@@ -80,6 +80,14 @@ export interface CacheConfig {
   defaultMaxAge: number;
   variantKey?: string;
   defaultVariant?: string;
+  /**
+   * Optional normalizer applied to the variant value before it is used
+   * as a cache / freshness key. Lets sites collapse equivalent user
+   * inputs (e.g. case/whitespace variants of the same tab) into a
+   * single canonical key so the smart cache and `lastCollected` stats
+   * don't split across spurious duplicates.
+   */
+  canonicalizeVariant?: (raw: string) => string;
 }
 
 export interface AuthCapability {

@@ -18,14 +18,22 @@ function makeFeedItemJson(overrides: Record<string, unknown> = {}): string {
 }
 
 describe('twitterLocalQuery', () => {
-  it('passes the requested tab through as sourceTab filter', async () => {
+  it('canonicalizes the requested tab before passing as sourceTab filter', async () => {
     const store = createMockStore([
       { rawJson: makeFeedItemJson({ id: '1' }) },
     ]);
-    await twitterLocalQuery(store, { tab: 'vibe coding' });
+    await twitterLocalQuery(store, { tab: 'Vibe Coding' });
     expect(store.search).toHaveBeenCalledWith(expect.objectContaining({
       site: 'twitter',
-      sourceTab: 'vibe coding',
+      sourceTab: 'vibe_coding',
+    }));
+  });
+
+  it('canonicalizes well-known tab aliases (Following → following)', async () => {
+    const store = createMockStore([]);
+    await twitterLocalQuery(store, { tab: 'Following' });
+    expect(store.search).toHaveBeenCalledWith(expect.objectContaining({
+      sourceTab: 'following',
     }));
   });
 
