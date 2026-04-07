@@ -1,4 +1,5 @@
-import type { Tweet, TweetMedia, RawTweetData, RawTweetMedia, FeedMeta, TweetDetailParsed } from './types.js';
+import type { Tweet, TweetMedia, RawTweetData, RawTweetMedia, FeedMeta, TweetDetailParsed, UserProfile, ProfileResult } from './types.js';
+import { SiteUseError } from '../../errors.js';
 
 const GRAPHQL_TIMELINE_PATTERN = /\/i\/api\/graphql\/.*\/(Home|HomeLatest|ListLatestTweets|CommunityTweets)Timeline/;
 
@@ -409,6 +410,8 @@ export function extractFromTweetResult(
 
 const GRAPHQL_SEARCH_PATTERN = /\/i\/api\/graphql\/.*\/SearchTimeline/;
 
+export const GRAPHQL_PROFILE_PATTERN = /\/i\/api\/graphql\/.*\/UserByScreenName/;
+
 /** Parse GraphQL SearchTimeline response into RawTweetData[]. */
 export function parseGraphQLSearch(body: string): RawTweetData[] {
   let data: any;
@@ -485,6 +488,64 @@ export function parseTweetDetail(body: string): TweetDetailParsed {
   }
 
   return { anchor, replies, hasCursor };
+}
+
+/**
+ * Extract UserProfile from a GraphQL user result object.
+ * Shared by parseProfileResponse (#5) and parseFollowListResponse (#6).
+ */
+export function extractUserProfile(result: Record<string, any>): UserProfile {
+  const core = result.core;
+  const legacy = result.legacy;
+  if (!core || !legacy) {
+    throw new SiteUseError('ParseError', 'Unexpected user result shape: missing core or legacy', { retryable: false });
+  }
+  const avatar = result.avatar as { image_url?: string } | undefined;
+
+  const websiteEntity = legacy?.entities?.url?.urls?.[0];
+  const rawAvatar = avatar?.image_url;
+
+  return {
+    userId: result.rest_id,
+    handle: core.screen_name,
+    displayName: core.name,
+    bio: legacy.description ?? '',
+    website: websiteEntity?.expanded_url,
+    location: result.location?.location || undefined,
+    avatarUrl: rawAvatar?.replace(/_normal\./, '.'),
+    followersCount: legacy.followers_count,
+    followingCount: legacy.friends_count,
+    tweetsCount: legacy.statuses_count,
+    likesCount: legacy.favourites_count,
+    verified: result.is_blue_verified ?? false,
+    createdAt: core.created_at,
+    bannerUrl: legacy.profile_banner_url,
+  };
+}
+
+/**
+ * Parse a UserByScreenName GraphQL response into ProfileResult.
+ * @param selfHandle — if provided and matches the target, relationship returns null.
+ */
+export function parseProfileResponse(body: string, selfHandle?: string): ProfileResult {
+  const json = JSON.parse(body);
+  const result = json?.data?.user?.result;
+  if (!result) throw new SiteUseError('ParseError', 'No user data in response', { retryable: false });
+
+  const user = extractUserProfile(result);
+  const rel = result.relationship_perspectives;
+
+  const isSelf = selfHandle && user.handle.toLowerCase() === selfHandle.toLowerCase();
+
+  return {
+    user,
+    relationship: isSelf ? null : {
+      youFollowThem: rel?.following ?? false,
+      theyFollowYou: rel?.followed_by ?? false,
+      blocking: rel?.blocking ?? false,
+      muting: rel?.muting ?? false,
+    },
+  };
 }
 
 export { GRAPHQL_TIMELINE_PATTERN, GRAPHQL_TWEET_DETAIL_PATTERN, GRAPHQL_SEARCH_PATTERN };

@@ -32,6 +32,17 @@ function actionWorkflow(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function queryWorkflow(overrides: Record<string, unknown> = {}) {
+  return {
+    kind: 'query' as const,
+    name: 'profile',
+    description: 'View profile',
+    params: {},
+    execute: () => Promise.resolve({}),
+    ...overrides,
+  };
+}
+
 describe('validatePlugins', () => {
   it('accepts plugin with collection workflow', () => {
     expect(() => validatePlugins([
@@ -72,6 +83,18 @@ describe('validatePlugins', () => {
   it('accepts action workflow without cache (action does not need cache)', () => {
     expect(() => validatePlugins([
       makePlugin({ workflows: [actionWorkflow()] }),
+    ])).not.toThrow();
+  });
+
+  it('accepts plugin with query workflow', () => {
+    expect(() => validatePlugins([
+      makePlugin({ workflows: [queryWorkflow()] }),
+    ])).not.toThrow();
+  });
+
+  it('accepts plugin with all three workflow types', () => {
+    expect(() => validatePlugins([
+      makePlugin({ workflows: [collectionWorkflow(), actionWorkflow(), queryWorkflow()] }),
     ])).not.toThrow();
   });
 });

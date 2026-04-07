@@ -9,8 +9,11 @@ import {
   parseTweetDetail,
   processFullText,
   findInstructions,
+  extractUserProfile,
+  parseProfileResponse,
+  GRAPHQL_PROFILE_PATTERN,
 } from '../extractors.js';
-import type { RawTweetData } from '../types.js';
+import type { RawTweetData, UserProfile, ProfileResult } from '../types.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -1031,5 +1034,93 @@ describe('parseTweetDetail', () => {
     expect(result.anchor).toBeNull();
     expect(result.replies).toEqual([]);
     expect(result.hasCursor).toBe(false);
+  });
+});
+
+describe('GRAPHQL_PROFILE_PATTERN', () => {
+  it('matches UserByScreenName URL', () => {
+    const url = '/i/api/graphql/IGgvgiOx4QZndDHuD3x9TQ/UserByScreenName?variables=...';
+    expect(GRAPHQL_PROFILE_PATTERN.test(url)).toBe(true);
+  });
+
+  it('does not match timeline URL', () => {
+    const url = '/i/api/graphql/abc123/HomeTimeline?variables=...';
+    expect(GRAPHQL_PROFILE_PATTERN.test(url)).toBe(false);
+  });
+});
+
+describe('extractUserProfile', () => {
+  it('extracts all fields from a GraphQL user result object', () => {
+    const goldenPath = path.join(__dirname, 'fixtures/golden/profile-sample.json');
+    const raw = JSON.parse(fs.readFileSync(goldenPath, 'utf-8'));
+    const result = raw.data.user.result;
+
+    const profile: UserProfile = extractUserProfile(result);
+
+    expect(profile.userId).toBe('1590927428');
+    expect(profile.handle).toBe('hwwaanng');
+    expect(profile.displayName).toBe('Hwang');
+    expect(profile.bio).toContain('AI Startup');
+    expect(profile.website).toBe('https://hwang.fun');
+    expect(profile.location).toBe('Shanghai');
+    expect(profile.avatarUrl).toBe('https://pbs.twimg.com/profile_images/1361512556930600969/LBwP2_YZ.jpg');
+    expect(profile.followersCount).toBe(20458);
+    expect(profile.followingCount).toBe(3785);
+    expect(profile.tweetsCount).toBe(8120);
+    expect(profile.likesCount).toBe(23244);
+    expect(profile.verified).toBe(true);
+    expect(profile.createdAt).toBe('Sat Jul 13 12:35:29 +0000 2013');
+    expect(profile.bannerUrl).toContain('profile_banners');
+  });
+
+  it('handles missing optional fields gracefully', () => {
+    const minimal = {
+      rest_id: '999',
+      core: { screen_name: 'minimal', name: 'Min', created_at: 'Mon Jan 01 00:00:00 +0000 2024' },
+      legacy: {
+        description: '',
+        followers_count: 0,
+        friends_count: 0,
+        statuses_count: 0,
+        favourites_count: 0,
+      },
+    };
+    const profile = extractUserProfile(minimal);
+    expect(profile.avatarUrl).toBeUndefined();
+    expect(profile.website).toBeUndefined();
+    expect(profile.location).toBeUndefined();
+    expect(profile.bannerUrl).toBeUndefined();
+    expect(profile.verified).toBe(false);
+    expect(profile.handle).toBe('minimal');
+  });
+});
+
+describe('parseProfileResponse', () => {
+  const goldenPath = path.join(__dirname, 'fixtures/golden/profile-sample.json');
+  const goldenBody = fs.readFileSync(goldenPath, 'utf-8');
+
+  it('parses full profile with relationship', () => {
+    const result: ProfileResult = parseProfileResponse(goldenBody);
+
+    expect(result.user.handle).toBe('hwwaanng');
+    expect(result.relationship).not.toBeNull();
+    expect(result.relationship!.youFollowThem).toBe(false);
+    expect(result.relationship!.theyFollowYou).toBe(false);
+    expect(result.relationship!.blocking).toBe(false);
+    expect(result.relationship!.muting).toBe(false);
+  });
+
+  it('returns null relationship for self-profile', () => {
+    const result = parseProfileResponse(goldenBody, 'hwwaanng');
+    expect(result.relationship).toBeNull();
+  });
+
+  it('self-profile detection is case-insensitive', () => {
+    const result = parseProfileResponse(goldenBody, 'HWWAANNG');
+    expect(result.relationship).toBeNull();
+  });
+
+  it('throws on empty response', () => {
+    expect(() => parseProfileResponse('{}')).toThrow('No user data');
   });
 });

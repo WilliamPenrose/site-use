@@ -128,7 +128,11 @@ export interface ActionWorkflow extends WorkflowBase {
   dailyLimitKey?: string;
 }
 
-export type WorkflowDeclaration = CollectionWorkflow | ActionWorkflow;
+export interface QueryWorkflow extends WorkflowBase {
+  kind: 'query';
+}
+
+export type WorkflowDeclaration = CollectionWorkflow | ActionWorkflow | QueryWorkflow;
 
 // ── Store adapter ──────────────────────────────────────────────
 

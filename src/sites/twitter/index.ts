@@ -4,7 +4,8 @@ import type { Trace } from '../../trace.js';
 import { twitterDetect, isLoggedIn } from './site.js';
 import { checkLogin, getFeed, getTweetDetail, getSearch, follow, unfollow } from './workflows.js';
 import { feedItemsToIngestItems } from './store-adapter.js';
-import { TwitterFeedParamsSchema, TweetDetailParamsSchema, TwitterSearchParamsSchema, TwitterFollowActionParamsSchema } from './types.js';
+import { TwitterFeedParamsSchema, TweetDetailParamsSchema, TwitterSearchParamsSchema, TwitterFollowActionParamsSchema, TwitterProfileParamsSchema } from './types.js';
+import { getProfile } from './profile.js';
 import { twitterLocalQuery } from './local-query.js';
 import { twitterDisplaySchema } from './display.js';
 import { canonicalizeTab } from './canonicalize.js';
@@ -114,6 +115,22 @@ export const plugin: SitePlugin = {
       expose: ['cli'],
       cli: {
         description: 'Unfollow a Twitter user',
+        help: `Options:\n  --handle <user>        Twitter handle (required, with or without @)\n  --url <url>            Profile URL (alternative to --handle)\n  --debug                Include diagnostic info`,
+      },
+    },
+    {
+      kind: 'query' as const,
+      name: 'profile',
+      description:
+        'View a Twitter/X user profile and follow relationship. ' +
+        'Read-only — no side effects. Shows display name, bio, ' +
+        'follower/following counts, and mutual follow status.',
+      params: TwitterProfileParamsSchema,
+      execute: (primitives: Primitives, params: unknown, trace?: Trace) =>
+        getProfile(primitives, params as Parameters<typeof getProfile>[1], trace),
+      expose: ['cli'],
+      cli: {
+        description: 'View a user profile and follow relationship',
         help: `Options:\n  --handle <user>        Twitter handle (required, with or without @)\n  --url <url>            Profile URL (alternative to --handle)\n  --debug                Include diagnostic info`,
       },
     },
