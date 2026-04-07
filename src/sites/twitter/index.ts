@@ -7,6 +7,7 @@ import { feedItemsToIngestItems } from './store-adapter.js';
 import { TwitterFeedParamsSchema, TweetDetailParamsSchema, TwitterSearchParamsSchema, TwitterFollowActionParamsSchema } from './types.js';
 import { twitterLocalQuery } from './local-query.js';
 import { twitterDisplaySchema } from './display.js';
+import { canonicalizeTab } from './canonicalize.js';
 
 export const plugin: SitePlugin = {
   apiVersion: 1,
@@ -40,6 +41,7 @@ export const plugin: SitePlugin = {
         defaultMaxAge: 120,
         variantKey: 'tab',
         defaultVariant: 'for_you',
+        canonicalizeVariant: canonicalizeTab,
       },
       localQuery: twitterLocalQuery,
       dumpRaw: true,

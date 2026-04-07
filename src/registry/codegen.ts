@@ -86,9 +86,12 @@ export function generateCliCommands(
               const cacheConfig = (wf as CollectionWorkflow).cache!;
               const cfg = getConfig();
               const tsPath = path.join(cfg.dataDir, 'fetch-timestamps.json');
-              const variant = cacheConfig.variantKey
+              const rawVariant = cacheConfig.variantKey
                 ? ((params as Record<string, unknown>)[cacheConfig.variantKey] as string | undefined) ?? cacheConfig.defaultVariant ?? 'default'
                 : cacheConfig.defaultVariant ?? 'default';
+              const variant = cacheConfig.canonicalizeVariant
+                ? cacheConfig.canonicalizeVariant(rawVariant)
+                : rawVariant;
               setLastFetchTime(tsPath, plugin.name, variant);
             }
             return result;
@@ -142,9 +145,12 @@ export function generateCliCommands(
             }
 
             const variantKey = wf.cache?.variantKey;
-            const variant = variantKey
+            const rawVariant = variantKey
               ? ((params as Record<string, unknown>)[variantKey] as string | undefined) ?? wf.cache!.defaultVariant ?? 'default'
               : wf.cache?.defaultVariant ?? 'default';
+            const variant = wf.cache?.canonicalizeVariant
+              ? wf.cache.canonicalizeVariant(rawVariant)
+              : rawVariant;
 
             // ── Data fetch ────────────────────────────────────
             let data: unknown;

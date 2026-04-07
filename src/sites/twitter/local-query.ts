@@ -1,5 +1,6 @@
 import type { KnowledgeStore } from '../../storage/index.js';
 import type { FeedItem, FeedResult } from '../../registry/types.js';
+import { canonicalizeTab } from './canonicalize.js';
 
 export async function twitterLocalQuery(
   store: KnowledgeStore,
@@ -11,7 +12,7 @@ export async function twitterLocalQuery(
   const result = await store.search({
     site: 'twitter',
     max_results: maxResults,
-    sourceTab: tab ?? 'for_you',
+    sourceTab: canonicalizeTab(tab ?? 'for_you'),
   });
 
   const items: FeedItem[] = result.items.map(row =>
