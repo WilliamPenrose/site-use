@@ -121,6 +121,7 @@ export function deleteItems(
       db.prepare(`DELETE FROM item_metrics WHERE site = ? AND item_id IN (${placeholders})`).run(site, ...ids);
       db.prepare(`DELETE FROM item_mentions WHERE site = ? AND item_id IN (${placeholders})`).run(site, ...ids);
       db.prepare(`DELETE FROM item_hashtags WHERE site = ? AND item_id IN (${placeholders})`).run(site, ...ids);
+      db.prepare(`DELETE FROM item_source_tabs WHERE site = ? AND item_id IN (${placeholders})`).run(site, ...ids);
 
       // For standalone FTS5 tables, delete by rowid
       for (const row of batch) {

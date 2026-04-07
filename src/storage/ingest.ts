@@ -25,6 +25,10 @@ export function ingest(db: DatabaseSync, items: IngestItem[]): IngestResult {
     INSERT OR IGNORE INTO item_hashtags (site, item_id, tag) VALUES (?, ?, ?)
   `);
 
+  const insertSourceTab = db.prepare(`
+    INSERT OR IGNORE INTO item_source_tabs (site, item_id, tab) VALUES (?, ?, ?)
+  `);
+
   const insertFts = db.prepare(`
     INSERT INTO items_fts (text, id, site) VALUES (?, ?, ?)
   `);
@@ -68,6 +72,13 @@ export function ingest(db: DatabaseSync, items: IngestItem[]): IngestResult {
         }
       } else {
         duplicates++;
+      }
+
+      // Source tabs — always attempted, even on duplicate items.
+      // PK (site, item_id, tab) + INSERT OR IGNORE makes this idempotent.
+      // This allows the same item to be linked to additional tabs across re-ingests.
+      for (const tab of item.sourceTabs ?? []) {
+        insertSourceTab.run(item.site, item.id, tab);
       }
     }
     commitTx.run();

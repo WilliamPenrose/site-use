@@ -71,6 +71,11 @@ export function search(db: DatabaseSync, params: SearchParams): SearchResult {
     conditions.push('LOWER(mn.handle) = ?');
     values.push(params.mention.toLowerCase().replace(/^@/, ''));
   }
+  if (params.sourceTab) {
+    joins.push('JOIN item_source_tabs st ON st.site = i.site AND st.item_id = i.id');
+    conditions.push('st.tab = ?');
+    values.push(params.sourceTab);
+  }
 
   // Generic metric filters — each filter adds a JOIN to item_metrics
   if (params.metricFilters) {

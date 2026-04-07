@@ -166,7 +166,7 @@ export interface FeedResult {
 export const TwitterFeedParamsSchema = z.object({
   count: z.number().min(1).max(100).default(20)
     .describe('Number of tweets to collect'),
-  tab: z.string().default('for_you')
+  tab: z.string().min(1).default('for_you')
     .describe('Feed tab name. "for_you" and "following" always work regardless of UI language. For pinned Lists/Communities, use the tab name as shown on the page.'),
   debug: z.boolean().default(false)
     .describe('Include diagnostic info (tab action, reload fallback, GraphQL counts, timing)'),
