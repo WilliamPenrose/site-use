@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { normalizeHandle, handleFromUrl, resolveHandle, checkLoginRedirect, checkProfileError } from '../navigate.js';
+import { normalizeHandle, handleFromUrl, resolveHandle, checkLoginRedirect, checkProfileError, getSelfHandle } from '../navigate.js';
 import type { Primitives } from '../../../primitives/types.js';
 import { NOOP_SPAN } from '../../../trace.js';
 
@@ -129,5 +129,23 @@ describe('checkProfileError', () => {
     } catch (e: any) {
       expect(e.context.step).toContain('navigate:');
     }
+  });
+});
+
+describe('getSelfHandle', () => {
+  function mockPrimitives(evaluateReturn: string | null): Primitives {
+    return {
+      evaluate: vi.fn().mockResolvedValue(evaluateReturn),
+    } as unknown as Primitives;
+  }
+
+  it('extracts handle from AppTabBar_Profile_Link href', async () => {
+    const handle = await getSelfHandle(mockPrimitives('halo80238964'));
+    expect(handle).toBe('halo80238964');
+  });
+
+  it('returns null when element not found', async () => {
+    const handle = await getSelfHandle(mockPrimitives(null));
+    expect(handle).toBeNull();
   });
 });

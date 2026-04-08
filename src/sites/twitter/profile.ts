@@ -1,6 +1,6 @@
 import type { Primitives } from '../../primitives/types.js';
 import type { ProfileResult } from './types.js';
-import { resolveHandle, checkLoginRedirect, checkProfileError } from './navigate.js';
+import { resolveHandle, checkLoginRedirect, checkProfileError, getSelfHandle } from './navigate.js';
 import { parseProfileResponse, GRAPHQL_PROFILE_PATTERN } from './extractors.js';
 import { SiteUseError } from '../../errors.js';
 import { NOOP_TRACE, type Trace } from '../../trace.js';
@@ -51,10 +51,7 @@ export async function getProfile(
       }
 
       // Detect self-profile: get logged-in user handle from DOM
-      const selfHandle = await primitives.evaluate<string | null>(`(() => {
-        const el = document.querySelector('[data-testid="AppTabBar_Profile_Link"]');
-        return el ? el.getAttribute('href')?.replace('/', '') ?? null : null;
-      })()`);
+      const selfHandle = await getSelfHandle(primitives);
 
       const result = parseProfileResponse(captured, selfHandle ?? undefined);
       rootSpan.set('userId', result.user.userId);
