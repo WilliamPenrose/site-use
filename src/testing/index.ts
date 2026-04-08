@@ -17,6 +17,7 @@ export function createMockPrimitives(overrides: Partial<Primitives> = {}): Primi
     evaluate: vi.fn(async () => undefined as never),
     screenshot: vi.fn(async () => ''),
     interceptRequest: vi.fn(async () => () => {}),
+    interceptRequestWithControl: vi.fn(async () => ({ cleanup: () => {}, reset: () => {} })),
     getRawPage: vi.fn(async () => ({}) as never),
     ...overrides,
   };

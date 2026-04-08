@@ -16,6 +16,7 @@ import type {
   SnapshotNode,
   ScrollOptions,
   InterceptHandler,
+  InterceptControl,
 } from './types.js';
 import { RateLimitDetector } from './rate-limit-detect.js';
 
@@ -644,6 +645,58 @@ export class PuppeteerBackend implements Primitives {
 
     return () => {
       page.off('response', listener);
+    };
+  }
+
+  async interceptRequestWithControl(
+    urlPattern: string | RegExp,
+    handler: InterceptHandler,
+  ): Promise<InterceptControl> {
+    const page = await this.getPage();
+    let validRequests = new Set<object>();
+
+    const matches = (url: string) =>
+      typeof urlPattern === 'string'
+        ? url.includes(urlPattern)
+        : urlPattern.test(url);
+
+    const requestListener = (request: any) => {
+      if (matches(request.url())) validRequests.add(request);
+    };
+
+    const responseListener = async (response: any) => {
+      if (!matches(response.url())) return;
+
+      try {
+        const body = await response.text();
+        // Check AFTER await: request must still be valid when body resolves.
+        // reset() replaces validRequests with a new empty Set, so any request
+        // tracked before reset is no longer present — covering both in-flight
+        // callbacks (Path X) and late-arriving response events (Path Y).
+        // Relies on Puppeteer returning the same HTTPRequest object reference
+        // from response.request() as was emitted in the 'request' event.
+        const req = response.request();
+        if (!validRequests.has(req)) return;
+        validRequests.delete(req);
+        handler({
+          url: response.url(),
+          status: response.status(),
+          body,
+        });
+      } catch {
+        // Response body may be unavailable (e.g., already consumed or redirect)
+      }
+    };
+
+    page.on('request', requestListener);
+    page.on('response', responseListener);
+
+    return {
+      cleanup: () => {
+        page.off('request', requestListener);
+        page.off('response', responseListener);
+      },
+      reset: () => { validRequests = new Set(); },
     };
   }
 

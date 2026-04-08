@@ -21,6 +21,7 @@ function createMockPrimitives(overrides: Partial<Primitives> = {}): Primitives {
     evaluate: vi.fn().mockResolvedValue(undefined),
     screenshot: vi.fn().mockResolvedValue('base64png'),
     interceptRequest: vi.fn().mockResolvedValue(() => {}),
+    interceptRequestWithControl: vi.fn().mockResolvedValue({ cleanup: () => {}, reset: () => {} }),
     getRawPage: vi.fn().mockResolvedValue({}),
     ...overrides,
   };
@@ -121,7 +122,7 @@ describe('getFeed', () => {
       },
     });
 
-    let interceptHandler: any;
+    let activeHandler: any;
     const primitives = createMockPrimitives({
       evaluate: mockEvaluate({ 'textContent': 'For you' }),
       takeSnapshot: vi.fn().mockResolvedValue(
@@ -129,14 +130,17 @@ describe('getFeed', () => {
           { uid: '10', role: 'tab', name: 'For you', selected: true },
         ]),
       ),
-      interceptRequest: vi.fn().mockImplementation(
+      interceptRequestWithControl: vi.fn().mockImplementation(
         async (_pattern: any, handler: any) => {
-          interceptHandler = handler;
-          return () => {};
+          activeHandler = handler;
+          return {
+            cleanup: vi.fn(),
+            reset: vi.fn(),
+          };
         },
       ),
       navigate: vi.fn().mockImplementation(async () => {
-        interceptHandler({
+        activeHandler({
           url: '/i/api/graphql/abc/HomeLatestTimeline',
           status: 200,
           body: GRAPHQL_BODY,
@@ -193,7 +197,8 @@ describe('getFeed', () => {
       },
     });
 
-    let interceptHandler: any;
+    let activeHandler: any;
+    const graphqlResponse = { url: '/i/api/graphql/abc/HomeLatestTimeline', status: 200, body: GRAPHQL_BODY };
     const primitives = createMockPrimitives({
       evaluate: mockEvaluate({ 'textContent': 'For you' }),
       takeSnapshot: vi.fn()
@@ -206,17 +211,22 @@ describe('getFeed', () => {
         .mockResolvedValue(buildSnapshot([
           { uid: '10', role: 'tab', name: 'For you', selected: true },
         ])),
-      interceptRequest: vi.fn().mockImplementation(
+      interceptRequestWithControl: vi.fn().mockImplementation(
         async (_pattern: any, handler: any) => {
-          interceptHandler = handler;
-          return () => {};
+          activeHandler = handler;
+          return {
+            cleanup: vi.fn(),
+            reset: vi.fn(),
+          };
         },
       ),
+      // Click triggers the target tab's GraphQL request.
+      // Simulate R2 response arriving shortly after the click.
       click: vi.fn().mockImplementation(async () => {
-        interceptHandler({ url: '/i/api/graphql/abc/HomeLatestTimeline', status: 200, body: GRAPHQL_BODY });
+        setTimeout(() => activeHandler(graphqlResponse), 10);
       }),
       navigate: vi.fn().mockImplementation(async () => {
-        interceptHandler({ url: '/i/api/graphql/abc/HomeLatestTimeline', status: 200, body: GRAPHQL_BODY });
+        activeHandler(graphqlResponse);
       }),
     });
 
@@ -249,7 +259,7 @@ describe('getFeed', () => {
       },
     });
 
-    let interceptHandler: any;
+    let activeHandler: any;
     const primitives = createMockPrimitives({
       evaluate: mockEvaluate({ 'textContent': 'For you' }),
       takeSnapshot: vi.fn().mockResolvedValue(
@@ -257,14 +267,17 @@ describe('getFeed', () => {
           { uid: '10', role: 'tab', name: 'For you', selected: true },
         ]),
       ),
-      interceptRequest: vi.fn().mockImplementation(
+      interceptRequestWithControl: vi.fn().mockImplementation(
         async (_pattern: any, handler: any) => {
-          interceptHandler = handler;
-          return () => {};
+          activeHandler = handler;
+          return {
+            cleanup: vi.fn(),
+            reset: vi.fn(),
+          };
         },
       ),
       navigate: vi.fn().mockImplementation(async () => {
-        interceptHandler({
+        activeHandler({
           url: '/i/api/graphql/abc/HomeLatestTimeline',
           status: 200,
           body: GRAPHQL_BODY,
@@ -351,15 +364,19 @@ describe('ensureTimeline', () => {
       navigate: vi.fn().mockImplementation(async () => {
         collector.push({ id: 'wrong_tab' });
       }),
+      // Click triggers the target tab's GraphQL request.
+      // Simulate R2 response arriving shortly after the click.
       click: vi.fn().mockImplementation(async () => {
-        collector.push({ id: 'correct_tab' });
+        setTimeout(() => collector.push({ id: 'correct_tab' }), 10);
       }),
     });
 
     const result = await ensureTimeline(primitives, collector, {
       tab: 'following',
       t0: Date.now(),
-      reRegisterInterceptor: vi.fn().mockImplementation(async () => { collector.clear(); }),
+      reRegisterInterceptor: vi.fn().mockImplementation(async () => {
+        collector.clear();
+      }),
     });
 
     expect(result.tabAction).toBe('transitioned');

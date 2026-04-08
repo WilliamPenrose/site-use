@@ -55,6 +55,7 @@ export function createThrottledPrimitives(
       inner.evaluate<T>(expression),
     interceptRequest: (pattern, handler) =>
       inner.interceptRequest(pattern, handler),
+    interceptRequestWithControl: (pattern, handler) => inner.interceptRequestWithControl(pattern, handler),
 
     // Exempt — lightweight keyboard events, no page navigation or network
     pressKey: (key) => inner.pressKey(key),

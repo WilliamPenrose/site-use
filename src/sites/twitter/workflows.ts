@@ -390,12 +390,23 @@ export async function getFeed(
       }
     };
 
-    let cleanup = await primitives.interceptRequest(GRAPHQL_TIMELINE_PATTERN, handler);
+    // Single listener with request-level tracking. reset() invalidates all
+    // in-flight requests so stale responses (e.g. navigate(home)'s HomeTimeline)
+    // are silently discarded after a tab switch. Fixes issue #18.
+    const intercept = await primitives.interceptRequestWithControl(
+      GRAPHQL_TIMELINE_PATTERN, handler,
+    );
 
     const reRegisterInterceptor = async () => {
-      cleanup();
+      // navigate(home) loads the default tab (for_you). When that IS the target,
+      // the navigate data is correct — clearing + resetting would discard it
+      // with no new request to replenish. For any other tab, we must clear stale
+      // data and reset request tracking so only R2 (the target tab's response)
+      // is accepted.
+      const normalizedTab = tab.normalize('NFC').toLowerCase().replace(/_/g, ' ').trim().replace(/ /g, '_');
+      if (WELL_KNOWN_TABS[normalizedTab] === 0) return;
       collector.clear();
-      cleanup = await primitives.interceptRequest(GRAPHQL_TIMELINE_PATTERN, handler);
+      intercept.reset();
     };
 
     try {
@@ -431,7 +442,7 @@ export async function getFeed(
         },
       };
     } finally {
-      cleanup();
+      intercept.cleanup();
     }
   });
 }
