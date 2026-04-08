@@ -653,26 +653,29 @@ export class PuppeteerBackend implements Primitives {
     handler: InterceptHandler,
   ): Promise<InterceptControl> {
     const page = await this.getPage();
-    let activeHandler = handler;
+    let validRequests = new Set<object>();
 
-    const listener = async (response: any) => {
-      const url: string = response.url();
-      const matches =
-        typeof urlPattern === 'string'
-          ? url.includes(urlPattern)
-          : urlPattern.test(url);
+    const matches = (url: string) =>
+      typeof urlPattern === 'string'
+        ? url.includes(urlPattern)
+        : urlPattern.test(url);
 
-      if (!matches) return;
+    const requestListener = (request: any) => {
+      if (matches(request.url())) validRequests.add(request);
+    };
 
-      // Capture handler reference BEFORE the async response.text() call.
-      // This ensures in-flight responses use the handler that was active
-      // when the response event fired, not when the body resolved.
-      const h = activeHandler;
+    const responseListener = async (response: any) => {
+      if (!matches(response.url())) return;
 
       try {
         const body = await response.text();
-        h({
-          url,
+        // Check AFTER await: request must still be valid when body resolves.
+        // reset() replaces validRequests with a new empty Set, so any request
+        // tracked before reset is no longer present — covering both in-flight
+        // callbacks (Path X) and late-arriving response events (Path Y).
+        if (!validRequests.has(response.request())) return;
+        handler({
+          url: response.url(),
           status: response.status(),
           body,
         });
@@ -681,11 +684,15 @@ export class PuppeteerBackend implements Primitives {
       }
     };
 
-    page.on('response', listener);
+    page.on('request', requestListener);
+    page.on('response', responseListener);
 
     return {
-      cleanup: () => { page.off('response', listener); },
-      swapHandler: (newHandler: InterceptHandler) => { activeHandler = newHandler; },
+      cleanup: () => {
+        page.off('request', requestListener);
+        page.off('response', responseListener);
+      },
+      reset: () => { validRequests = new Set(); },
     };
   }
 

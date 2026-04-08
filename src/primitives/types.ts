@@ -39,15 +39,15 @@ export type InterceptHandler = (response: {
 }) => void;
 
 export interface InterceptControl {
-  /** Remove the listener. */
+  /** Remove both request and response listeners. */
   cleanup: () => void;
   /**
-   * Replace the active handler. The new handler takes effect for all future
-   * response callbacks, including in-flight ones that haven't resolved yet.
-   * The handler reference is captured BEFORE `await response.text()`, so
-   * swapping is safe against async race conditions.
+   * Invalidate all in-flight and pending requests.
+   * Future requests are tracked in a fresh Set.
+   * Responses from requests initiated before reset() are silently discarded,
+   * even if the response event fires or body resolves after reset().
    */
-  swapHandler: (newHandler: InterceptHandler) => void;
+  reset: () => void;
 }
 
 // --- Throttle config ---
@@ -105,6 +105,11 @@ export interface Primitives {
    * Intercept network responses matching URL pattern.
    * site-use extension (not in devtools-mcp). Used for GraphQL/API data extraction.
    * Handler is called for each matching response. Returns cleanup function.
+   *
+   * Use this for straight-line flows: register → navigate → collect → cleanup.
+   * If the workflow needs to invalidate in-flight requests mid-lifecycle
+   * (e.g. navigate loads wrong data, then interaction loads correct data),
+   * use interceptRequestWithControl instead.
    */
   interceptRequest(
     urlPattern: string | RegExp,
@@ -112,13 +117,15 @@ export interface Primitives {
   ): Promise<() => void>;
 
   /**
-   * Like interceptRequest but returns an InterceptControl object that allows
-   * swapping the handler without re-registering the listener.
+   * Like interceptRequest but returns an InterceptControl with reset().
+   * Tracks requests via a Set — reset() replaces it with a fresh empty Set,
+   * invalidating all in-flight and pending requests. Response validity is
+   * checked AFTER await response.text(), covering both in-flight callbacks
+   * and late-arriving response events.
    *
-   * The handler reference is captured BEFORE the async `response.text()` call,
-   * so in-flight responses use the handler that was active when the response
-   * event fired, not when the body resolved. This prevents stale data from
-   * leaking in after a handler swap.
+   * Use this when the workflow switches data sources mid-lifecycle (e.g.
+   * getFeed: navigate(home) triggers R1, then tab click triggers R2 —
+   * reset() discards R1 responses so only R2 data enters the collector).
    */
   interceptRequestWithControl(
     urlPattern: string | RegExp,

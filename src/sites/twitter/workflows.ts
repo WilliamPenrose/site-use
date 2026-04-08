@@ -372,42 +372,40 @@ export async function getFeed(
 
     const collector = createDataCollector<RawTweetData>();
     let dumpIndex = 0;
-    let generation = 0;
 
-    function makeHandler() {
-      const gen = generation;
-      return (response: { url: string; status: number; body: string }) => {
-        if (gen !== generation) return; // stale: handler was swapped
-        try {
-          if (dumpRaw) {
-            fs.mkdirSync(dumpRaw, { recursive: true });
-            const outPath = path.join(dumpRaw, `graphql-${dumpIndex++}.json`);
-            fs.writeFileSync(outPath, response.body);
-          }
-          const parsed = parseGraphQLTimeline(response.body);
-          collector.push(...parsed);
-          graphqlCount++;
-          rootSpan.set('graphqlResponses', graphqlCount);
-        } catch {
-          graphqlFailures++;
-          rootSpan.set('graphqlFailures', graphqlFailures);
+    const handler = (response: { url: string; status: number; body: string }) => {
+      try {
+        if (dumpRaw) {
+          fs.mkdirSync(dumpRaw, { recursive: true });
+          const outPath = path.join(dumpRaw, `graphql-${dumpIndex++}.json`);
+          fs.writeFileSync(outPath, response.body);
         }
-      };
-    }
+        const parsed = parseGraphQLTimeline(response.body);
+        collector.push(...parsed);
+        graphqlCount++;
+        rootSpan.set('graphqlResponses', graphqlCount);
+      } catch {
+        graphqlFailures++;
+        rootSpan.set('graphqlFailures', graphqlFailures);
+      }
+    };
 
-    // Single listener, never re-registered. Handler is swapped via swapHandler().
-    // The listener captures the handler reference BEFORE await response.text(),
-    // so in-flight responses use the handler active at event time, not resolve time.
-    // This prevents stale navigate(home) responses from leaking into the collector
-    // after a tab switch (issue #18).
+    // Single listener with request-level tracking. reset() invalidates all
+    // in-flight requests so stale responses (e.g. navigate(home)'s HomeTimeline)
+    // are silently discarded after a tab switch. Fixes issue #18.
     const intercept = await primitives.interceptRequestWithControl(
-      GRAPHQL_TIMELINE_PATTERN, makeHandler(),
+      GRAPHQL_TIMELINE_PATTERN, handler,
     );
 
     const reRegisterInterceptor = async () => {
-      generation++;
+      // navigate(home) loads the default tab (for_you). When that IS the target,
+      // the navigate data is correct — clearing + resetting would discard it
+      // with no new request to replenish. For any other tab, we must clear stale
+      // data and reset request tracking so only R2 (the target tab's response)
+      // is accepted.
+      if (WELL_KNOWN_TABS[tab] === 0) return;
       collector.clear();
-      intercept.swapHandler(makeHandler());
+      intercept.reset();
     };
 
     try {

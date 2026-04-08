@@ -21,7 +21,7 @@ function createMockPrimitives(overrides: Partial<Primitives> = {}): Primitives {
     evaluate: vi.fn().mockResolvedValue(undefined),
     screenshot: vi.fn().mockResolvedValue('base64png'),
     interceptRequest: vi.fn().mockResolvedValue(() => {}),
-    interceptRequestWithControl: vi.fn().mockResolvedValue({ cleanup: () => {}, swapHandler: () => {} }),
+    interceptRequestWithControl: vi.fn().mockResolvedValue({ cleanup: () => {}, reset: () => {} }),
     getRawPage: vi.fn().mockResolvedValue({}),
     ...overrides,
   };
@@ -135,9 +135,7 @@ describe('getFeed', () => {
           activeHandler = handler;
           return {
             cleanup: vi.fn(),
-            swapHandler: vi.fn().mockImplementation((newHandler: any) => {
-              activeHandler = newHandler;
-            }),
+            reset: vi.fn(),
           };
         },
       ),
@@ -218,19 +216,15 @@ describe('getFeed', () => {
           activeHandler = handler;
           return {
             cleanup: vi.fn(),
-            // swapHandler is called by reRegisterInterceptor after tab switch.
-            // Simulate the target tab's GraphQL response arriving shortly after
-            // the new handler is installed.
-            swapHandler: vi.fn().mockImplementation((newHandler: any) => {
-              activeHandler = newHandler;
-              setTimeout(() => newHandler(graphqlResponse), 10);
-            }),
+            reset: vi.fn(),
           };
         },
       ),
-      // Click triggers the GraphQL request but old handler is still active;
-      // data pushed here uses the old generation and gets cleared on re-register.
-      click: vi.fn().mockResolvedValue(undefined),
+      // Click triggers the target tab's GraphQL request.
+      // Simulate R2 response arriving shortly after the click.
+      click: vi.fn().mockImplementation(async () => {
+        setTimeout(() => activeHandler(graphqlResponse), 10);
+      }),
       navigate: vi.fn().mockImplementation(async () => {
         activeHandler(graphqlResponse);
       }),
@@ -278,9 +272,7 @@ describe('getFeed', () => {
           activeHandler = handler;
           return {
             cleanup: vi.fn(),
-            swapHandler: vi.fn().mockImplementation((newHandler: any) => {
-              activeHandler = newHandler;
-            }),
+            reset: vi.fn(),
           };
         },
       ),
@@ -372,19 +364,18 @@ describe('ensureTimeline', () => {
       navigate: vi.fn().mockImplementation(async () => {
         collector.push({ id: 'wrong_tab' });
       }),
-      // Click triggers the GraphQL request but old handler is still active,
-      // so we don't push data here — the new handler (after re-register) will catch it.
-      click: vi.fn().mockResolvedValue(undefined),
+      // Click triggers the target tab's GraphQL request.
+      // Simulate R2 response arriving shortly after the click.
+      click: vi.fn().mockImplementation(async () => {
+        setTimeout(() => collector.push({ id: 'correct_tab' }), 10);
+      }),
     });
 
     const result = await ensureTimeline(primitives, collector, {
       tab: 'following',
       t0: Date.now(),
-      // New order: ensureTabNav (click) runs first, then reRegisterInterceptor.
-      // The re-register clears old data and the new handler receives the target tab's response.
       reRegisterInterceptor: vi.fn().mockImplementation(async () => {
         collector.clear();
-        collector.push({ id: 'correct_tab' });
       }),
     });
 
