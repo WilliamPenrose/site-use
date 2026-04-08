@@ -16,6 +16,7 @@ import type {
   SnapshotNode,
   ScrollOptions,
   InterceptHandler,
+  InterceptControl,
 } from './types.js';
 import { RateLimitDetector } from './rate-limit-detect.js';
 
@@ -644,6 +645,47 @@ export class PuppeteerBackend implements Primitives {
 
     return () => {
       page.off('response', listener);
+    };
+  }
+
+  async interceptRequestWithControl(
+    urlPattern: string | RegExp,
+    handler: InterceptHandler,
+  ): Promise<InterceptControl> {
+    const page = await this.getPage();
+    let activeHandler = handler;
+
+    const listener = async (response: any) => {
+      const url: string = response.url();
+      const matches =
+        typeof urlPattern === 'string'
+          ? url.includes(urlPattern)
+          : urlPattern.test(url);
+
+      if (!matches) return;
+
+      // Capture handler reference BEFORE the async response.text() call.
+      // This ensures in-flight responses use the handler that was active
+      // when the response event fired, not when the body resolved.
+      const h = activeHandler;
+
+      try {
+        const body = await response.text();
+        h({
+          url,
+          status: response.status(),
+          body,
+        });
+      } catch {
+        // Response body may be unavailable (e.g., already consumed or redirect)
+      }
+    };
+
+    page.on('response', listener);
+
+    return {
+      cleanup: () => { page.off('response', listener); },
+      swapHandler: (newHandler: InterceptHandler) => { activeHandler = newHandler; },
     };
   }
 

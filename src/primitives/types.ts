@@ -38,6 +38,18 @@ export type InterceptHandler = (response: {
   body: string;
 }) => void;
 
+export interface InterceptControl {
+  /** Remove the listener. */
+  cleanup: () => void;
+  /**
+   * Replace the active handler. The new handler takes effect for all future
+   * response callbacks, including in-flight ones that haven't resolved yet.
+   * The handler reference is captured BEFORE `await response.text()`, so
+   * swapping is safe against async race conditions.
+   */
+  swapHandler: (newHandler: InterceptHandler) => void;
+}
+
 // --- Throttle config ---
 
 export interface ThrottleConfig {
@@ -98,6 +110,20 @@ export interface Primitives {
     urlPattern: string | RegExp,
     handler: InterceptHandler,
   ): Promise<() => void>;
+
+  /**
+   * Like interceptRequest but returns an InterceptControl object that allows
+   * swapping the handler without re-registering the listener.
+   *
+   * The handler reference is captured BEFORE the async `response.text()` call,
+   * so in-flight responses use the handler that was active when the response
+   * event fired, not when the body resolved. This prevents stale data from
+   * leaking in after a handler swap.
+   */
+  interceptRequestWithControl(
+    urlPattern: string | RegExp,
+    handler: InterceptHandler,
+  ): Promise<InterceptControl>;
 
   /**
    * Escape hatch: get raw Puppeteer Page for operations Primitives can't cover.

@@ -21,6 +21,7 @@ function createMockPrimitives(overrides: Partial<Primitives> = {}): Primitives {
     evaluate: vi.fn().mockResolvedValue(undefined),
     screenshot: vi.fn().mockResolvedValue('base64png'),
     interceptRequest: vi.fn().mockResolvedValue(() => {}),
+    interceptRequestWithControl: vi.fn().mockResolvedValue({ cleanup: () => {}, swapHandler: () => {} }),
     getRawPage: vi.fn().mockResolvedValue({}),
     ...overrides,
   };
@@ -121,7 +122,7 @@ describe('getFeed', () => {
       },
     });
 
-    let interceptHandler: any;
+    let activeHandler: any;
     const primitives = createMockPrimitives({
       evaluate: mockEvaluate({ 'textContent': 'For you' }),
       takeSnapshot: vi.fn().mockResolvedValue(
@@ -129,14 +130,19 @@ describe('getFeed', () => {
           { uid: '10', role: 'tab', name: 'For you', selected: true },
         ]),
       ),
-      interceptRequest: vi.fn().mockImplementation(
+      interceptRequestWithControl: vi.fn().mockImplementation(
         async (_pattern: any, handler: any) => {
-          interceptHandler = handler;
-          return () => {};
+          activeHandler = handler;
+          return {
+            cleanup: vi.fn(),
+            swapHandler: vi.fn().mockImplementation((newHandler: any) => {
+              activeHandler = newHandler;
+            }),
+          };
         },
       ),
       navigate: vi.fn().mockImplementation(async () => {
-        interceptHandler({
+        activeHandler({
           url: '/i/api/graphql/abc/HomeLatestTimeline',
           status: 200,
           body: GRAPHQL_BODY,
@@ -193,8 +199,7 @@ describe('getFeed', () => {
       },
     });
 
-    let interceptHandler: any;
-    let interceptCallCount = 0;
+    let activeHandler: any;
     const graphqlResponse = { url: '/i/api/graphql/abc/HomeLatestTimeline', status: 200, body: GRAPHQL_BODY };
     const primitives = createMockPrimitives({
       evaluate: mockEvaluate({ 'textContent': 'For you' }),
@@ -208,25 +213,26 @@ describe('getFeed', () => {
         .mockResolvedValue(buildSnapshot([
           { uid: '10', role: 'tab', name: 'For you', selected: true },
         ])),
-      interceptRequest: vi.fn().mockImplementation(
+      interceptRequestWithControl: vi.fn().mockImplementation(
         async (_pattern: any, handler: any) => {
-          interceptHandler = handler;
-          interceptCallCount++;
-          // On re-registration (2nd+ call), simulate the target tab's GraphQL
-          // response arriving shortly after the new handler is installed.
-          // With the new switchTab order (ensureTabNav before reRegisterInterceptor),
-          // the click triggers the request, and the new handler catches the response.
-          if (interceptCallCount > 1) {
-            setTimeout(() => handler(graphqlResponse), 10);
-          }
-          return () => {};
+          activeHandler = handler;
+          return {
+            cleanup: vi.fn(),
+            // swapHandler is called by reRegisterInterceptor after tab switch.
+            // Simulate the target tab's GraphQL response arriving shortly after
+            // the new handler is installed.
+            swapHandler: vi.fn().mockImplementation((newHandler: any) => {
+              activeHandler = newHandler;
+              setTimeout(() => newHandler(graphqlResponse), 10);
+            }),
+          };
         },
       ),
       // Click triggers the GraphQL request but old handler is still active;
       // data pushed here uses the old generation and gets cleared on re-register.
       click: vi.fn().mockResolvedValue(undefined),
       navigate: vi.fn().mockImplementation(async () => {
-        interceptHandler(graphqlResponse);
+        activeHandler(graphqlResponse);
       }),
     });
 
@@ -259,7 +265,7 @@ describe('getFeed', () => {
       },
     });
 
-    let interceptHandler: any;
+    let activeHandler: any;
     const primitives = createMockPrimitives({
       evaluate: mockEvaluate({ 'textContent': 'For you' }),
       takeSnapshot: vi.fn().mockResolvedValue(
@@ -267,14 +273,19 @@ describe('getFeed', () => {
           { uid: '10', role: 'tab', name: 'For you', selected: true },
         ]),
       ),
-      interceptRequest: vi.fn().mockImplementation(
+      interceptRequestWithControl: vi.fn().mockImplementation(
         async (_pattern: any, handler: any) => {
-          interceptHandler = handler;
-          return () => {};
+          activeHandler = handler;
+          return {
+            cleanup: vi.fn(),
+            swapHandler: vi.fn().mockImplementation((newHandler: any) => {
+              activeHandler = newHandler;
+            }),
+          };
         },
       ),
       navigate: vi.fn().mockImplementation(async () => {
-        interceptHandler({
+        activeHandler({
           url: '/i/api/graphql/abc/HomeLatestTimeline',
           status: 200,
           body: GRAPHQL_BODY,

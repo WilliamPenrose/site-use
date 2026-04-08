@@ -122,14 +122,8 @@ export async function ensureTimeline(
   let availableTabs: string[] = [];
 
   async function switchTab(s?: SpanHandle) {
-    // Order matters for race safety:
-    // 1. Click tab first (triggers target tab's GraphQL request R2)
-    // 2. Re-register interceptor after click (old handler removed, new handler
-    //    with fresh generation only accepts R2+ responses)
-    // This ensures navigate(home)'s HomeTimeline response (R1) is handled by the
-    // old handler and discarded when we clear, while R2 is caught by the new handler.
-    const tabResult = await ensureTabNav(primitives, tab, TAB_SELECTOR, WELL_KNOWN_TABS);
     await reRegisterInterceptor();
+    const tabResult = await ensureTabNav(primitives, tab, TAB_SELECTOR, WELL_KNOWN_TABS);
     tabAction = tabResult.action;
     availableTabs = tabResult.availableTabs;
     if (s) {
@@ -378,16 +372,12 @@ export async function getFeed(
 
     const collector = createDataCollector<RawTweetData>();
     let dumpIndex = 0;
-
-    // Generation counter: incremented on each re-register. Handlers capture
-    // the generation at creation time and silently discard responses that
-    // arrive after the generation has advanced (in-flight race protection).
     let generation = 0;
 
     function makeHandler() {
       const gen = generation;
       return (response: { url: string; status: number; body: string }) => {
-        if (gen !== generation) return; // stale response from previous phase
+        if (gen !== generation) return; // stale: handler was swapped
         try {
           if (dumpRaw) {
             fs.mkdirSync(dumpRaw, { recursive: true });
@@ -405,13 +395,19 @@ export async function getFeed(
       };
     }
 
-    let cleanup = await primitives.interceptRequest(GRAPHQL_TIMELINE_PATTERN, makeHandler());
+    // Single listener, never re-registered. Handler is swapped via swapHandler().
+    // The listener captures the handler reference BEFORE await response.text(),
+    // so in-flight responses use the handler active at event time, not resolve time.
+    // This prevents stale navigate(home) responses from leaking into the collector
+    // after a tab switch (issue #18).
+    const intercept = await primitives.interceptRequestWithControl(
+      GRAPHQL_TIMELINE_PATTERN, makeHandler(),
+    );
 
     const reRegisterInterceptor = async () => {
-      cleanup();
       generation++;
       collector.clear();
-      cleanup = await primitives.interceptRequest(GRAPHQL_TIMELINE_PATTERN, makeHandler());
+      intercept.swapHandler(makeHandler());
     };
 
     try {
@@ -447,7 +443,7 @@ export async function getFeed(
         },
       };
     } finally {
-      cleanup();
+      intercept.cleanup();
     }
   });
 }

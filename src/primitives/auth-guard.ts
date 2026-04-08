@@ -83,6 +83,8 @@ export function createAuthGuardedPrimitives(
     screenshot: () => inner.screenshot(),
     interceptRequest: (pattern, handler) =>
       inner.interceptRequest(pattern, handler),
+    interceptRequestWithControl: (pattern, handler) =>
+      inner.interceptRequestWithControl(pattern, handler),
     getRawPage: () => inner.getRawPage(),
   };
 }
