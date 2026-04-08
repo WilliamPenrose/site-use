@@ -46,6 +46,7 @@ If the user already has a Memory profile but the browser isn't running, just run
 | **BrowserDisconnected** | Run `site-use browser launch`, then retry |
 | **BrowserNotRunning** | Run `site-use browser launch` first |
 | **ElementNotFound** | Page may still be loading. Wait a few seconds, retry |
+| **Unknown command / option** | The installed CLI is older than this skill. Tell the user: "Your site-use CLI is missing a command this skill needs. Run `npm install -g site-use@latest` to upgrade, then retry." |
 
 ### Rate limiting deserves extra care
 
