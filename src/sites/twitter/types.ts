@@ -278,6 +278,19 @@ export const ProfileResultSchema = z.object({
 
 export type ProfileResult = z.infer<typeof ProfileResultSchema>;
 
+// --- FollowListResult ---
+
+export const FollowListResultSchema = z.object({
+  users: z.array(UserProfileSchema),
+  meta: z.object({
+    totalReturned: z.number(),
+    hasMore: z.boolean(),
+    owner: z.string().describe('Whose following/followers list this is'),
+  }),
+});
+
+export type FollowListResult = z.infer<typeof FollowListResultSchema>;
+
 // --- TwitterProfileParams ---
 
 export const TwitterProfileParamsSchema = z.object({
@@ -285,9 +298,18 @@ export const TwitterProfileParamsSchema = z.object({
     .describe('Twitter handle (with or without @)'),
   url: z.string().optional()
     .describe('Profile URL as alternative to handle (e.g. https://x.com/elonmusk)'),
+  following: z.boolean().default(false)
+    .describe('List accounts this user follows'),
+  followers: z.boolean().default(false)
+    .describe('List accounts that follow this user'),
+  count: z.number().min(1).max(500).default(20)
+    .describe('Number of users to return (only with --following or --followers)'),
   debug: z.boolean().default(false)
     .describe('Include diagnostic info'),
 }).refine(
-  d => d.handle || d.url,
-  { message: 'Either --handle or --url is required' },
+  d => !(d.following && d.followers),
+  { message: '--following and --followers are mutually exclusive' },
+).refine(
+  d => d.following || d.followers || d.handle || d.url,
+  { message: 'Either --handle/--url is required, or use --following/--followers to query self' },
 );

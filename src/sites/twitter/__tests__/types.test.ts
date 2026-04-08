@@ -10,6 +10,7 @@ import {
   RelationshipSchema,
   ProfileResultSchema,
   TwitterProfileParamsSchema,
+  FollowListResultSchema,
 } from '../types.js';
 
 describe('TweetAuthorSchema', () => {
@@ -289,5 +290,69 @@ describe('TwitterProfileParamsSchema', () => {
   it('rejects when neither handle nor url provided', () => {
     const result = TwitterProfileParamsSchema.safeParse({});
     expect(result.success).toBe(false);
+  });
+});
+
+describe('FollowListResultSchema', () => {
+  it('validates a follow list result with users', () => {
+    const result = FollowListResultSchema.safeParse({
+      users: [{
+        userId: '123', handle: 'test', displayName: 'Test', bio: '',
+        followersCount: 100, followingCount: 50, tweetsCount: 10, likesCount: 5,
+        verified: false, createdAt: 'Mon Jan 01 00:00:00 +0000 2024',
+      }],
+      meta: { totalReturned: 1, hasMore: false, owner: 'myhandle' },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('validates empty follow list', () => {
+    const result = FollowListResultSchema.safeParse({
+      users: [],
+      meta: { totalReturned: 0, hasMore: false, owner: 'myhandle' },
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('TwitterProfileParamsSchema — follow list mode', () => {
+  it('accepts --following without handle (query self)', () => {
+    const result = TwitterProfileParamsSchema.safeParse({ following: true });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts --followers without handle (query self)', () => {
+    const result = TwitterProfileParamsSchema.safeParse({ followers: true });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts --following with handle', () => {
+    const result = TwitterProfileParamsSchema.safeParse({ handle: 'test', following: true });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts --following with count', () => {
+    const result = TwitterProfileParamsSchema.safeParse({ handle: 'test', following: true, count: 50 });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects --following and --followers together', () => {
+    const result = TwitterProfileParamsSchema.safeParse({ handle: 'test', following: true, followers: true });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects count > 500', () => {
+    const result = TwitterProfileParamsSchema.safeParse({ handle: 'test', following: true, count: 501 });
+    expect(result.success).toBe(false);
+  });
+
+  it('still requires handle/url when no --following/--followers', () => {
+    const result = TwitterProfileParamsSchema.safeParse({});
+    expect(result.success).toBe(false);
+  });
+
+  it('still accepts basic profile mode (handle only)', () => {
+    const result = TwitterProfileParamsSchema.safeParse({ handle: 'test' });
+    expect(result.success).toBe(true);
   });
 });
