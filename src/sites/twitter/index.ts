@@ -123,15 +123,15 @@ export const plugin: SitePlugin = {
       name: 'profile',
       description:
         'View a Twitter/X user profile and follow relationship. ' +
-        'Read-only — no side effects. Shows display name, bio, ' +
-        'follower/following counts, and mutual follow status.',
+        'Use --following to list who they follow, --followers to list who follows them. ' +
+        'Read-only — no side effects.',
       params: TwitterProfileParamsSchema,
       execute: (primitives: Primitives, params: unknown, trace?: Trace) =>
         getProfile(primitives, params as Parameters<typeof getProfile>[1], trace),
       expose: ['cli'],
       cli: {
-        description: 'View a user profile and follow relationship',
-        help: `Options:\n  --handle <user>        Twitter handle (required, with or without @)\n  --url <url>            Profile URL (alternative to --handle)\n  --debug                Include diagnostic info`,
+        description: 'View a user profile, following, or followers',
+        help: `Options:\n  --handle <user>        Twitter handle (with or without @)\n  --url <url>            Profile URL (alternative to --handle)\n  --following            List accounts this user follows\n  --followers            List accounts that follow this user\n  --count <n>            Number of users (1-500, default: 20, only with --following/--followers)\n  --debug                Include diagnostic info\n\nExamples:\n  twitter profile --handle elonmusk\n  twitter profile --handle elonmusk --following\n  twitter profile --following                    (query self)`,
       },
     },
   ],
