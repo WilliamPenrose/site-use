@@ -125,8 +125,9 @@ export async function getFollowList(
           collector.push(...users);
           graphqlCount++;
           rootSpan.set('graphqlResponses', graphqlCount);
-        } catch {
+        } catch (e) {
           // Parse failures are non-fatal — may be non-user responses on the same pattern
+          console.error(`[site-use] follow-list interceptor: parse skipped — ${e instanceof Error ? e.message : e}`);
         }
       },
     );

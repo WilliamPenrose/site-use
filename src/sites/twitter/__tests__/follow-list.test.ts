@@ -67,6 +67,7 @@ describe('collectFollowList', () => {
   });
 
   it('stops after 1 stale round (MAX_STALE_ROUNDS = 1)', async () => {
+    vi.useFakeTimers();
     const collector = createDataCollector<UserProfile>();
     collector.push(fakeUser);
     const primitives = createMockPrimitives({
@@ -75,11 +76,18 @@ describe('collectFollowList', () => {
     });
 
     const { collectFollowList } = await import('../follow-list.js');
-    const result = await collectFollowList(primitives, collector, { count: 10 });
+    const promise = collectFollowList(primitives, collector, { count: 10 });
+    try {
+      // Advance past the 3-5s random scroll wait so waitUntil times out
+      await vi.advanceTimersByTimeAsync(6000);
+      const result = await promise;
 
-    // Should stop after exactly 1 stale round, not 3 like feed
-    expect(result.scrollRounds).toBe(1);
-    expect(collector.length).toBe(1);
+      // Should stop after exactly 1 stale round, not 3 like feed
+      expect(result.scrollRounds).toBe(1);
+      expect(collector.length).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
