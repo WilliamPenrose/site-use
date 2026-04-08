@@ -1,10 +1,13 @@
 /**
- * Proves that Scheme H (capture-before-await + swapHandler + generation)
- * has a Path Y vulnerability, and Scheme I (request Set tracking) fixes it.
+ * Proves the Path Y race condition vulnerability and its fix.
+ * See: https://github.com/WilliamPenrose/site-use/issues/18
  *
- * Path Y: R1's response EVENT fires AFTER swapHandler/reset.
+ * Path Y: R1's response EVENT fires AFTER reset/swapHandler.
  * This happens when navigate()'s HomeTimeline XHR response headers arrive
  * after the `load` event (waitUntil: 'load' does not wait for XHR).
+ *
+ * "Scheme H" = prior fix (capture-before-await + swapHandler + generation)
+ * "Scheme I" = current fix (request Set tracking + post-await validity check)
  */
 import { describe, it, expect } from 'vitest';
 import { EventEmitter } from 'node:events';

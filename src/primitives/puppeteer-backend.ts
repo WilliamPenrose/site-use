@@ -673,7 +673,11 @@ export class PuppeteerBackend implements Primitives {
         // reset() replaces validRequests with a new empty Set, so any request
         // tracked before reset is no longer present — covering both in-flight
         // callbacks (Path X) and late-arriving response events (Path Y).
-        if (!validRequests.has(response.request())) return;
+        // Relies on Puppeteer returning the same HTTPRequest object reference
+        // from response.request() as was emitted in the 'request' event.
+        const req = response.request();
+        if (!validRequests.has(req)) return;
+        validRequests.delete(req);
         handler({
           url: response.url(),
           status: response.status(),

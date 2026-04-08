@@ -403,7 +403,8 @@ export async function getFeed(
       // with no new request to replenish. For any other tab, we must clear stale
       // data and reset request tracking so only R2 (the target tab's response)
       // is accepted.
-      if (WELL_KNOWN_TABS[tab] === 0) return;
+      const normalizedTab = tab.normalize('NFC').toLowerCase().replace(/_/g, ' ').trim().replace(/ /g, '_');
+      if (WELL_KNOWN_TABS[normalizedTab] === 0) return;
       collector.clear();
       intercept.reset();
     };
