@@ -8,14 +8,16 @@ import { createDataCollector } from '../../ops/data-collector.js';
 import { NOOP_TRACE, NOOP_SPAN, type Trace, type SpanHandle } from '../../trace.js';
 
 // Conservative parameters for follow-list scrolling (see spec: account safety)
-const SCROLL_WAIT_MS_MIN = 3000;
-const SCROLL_WAIT_MS_MAX = 5000;
+const DATA_WAIT_MS_MIN = 3000;
+const DATA_WAIT_MS_MAX = 5000;
+const SCROLL_STEP_DELAY_MS = 300;
+const SCROLLS_PER_ROUND = 3;
 const MAX_STALE_ROUNDS = 1;
 const FOLLOW_LIST_TIMEOUT_MS = 10_000;
 const POLL_INTERVAL_MS = 500;
 
-function randomScrollWait(): number {
-  return SCROLL_WAIT_MS_MIN + Math.random() * (SCROLL_WAIT_MS_MAX - SCROLL_WAIT_MS_MIN);
+function randomDataWait(): number {
+  return DATA_WAIT_MS_MIN + Math.random() * (DATA_WAIT_MS_MAX - DATA_WAIT_MS_MIN);
 }
 
 export interface CollectFollowListResult {
@@ -26,9 +28,12 @@ export interface CollectFollowListResult {
  * Scroll the follow list page and collect users until count is reached
  * or no more data arrives.
  *
- * More conservative than feed's collectData:
- * - Scroll wait: 3-5s random (vs feed's 2s)
- * - MAX_STALE_ROUNDS: 1 (vs feed's 3) — first stale round stops immediately
+ * Known limitation: Twitter's Following/Followers pages currently only return
+ * ~70 users in the initial GraphQL response and do not trigger additional
+ * pagination requests on scroll. The scroll here serves as a probe — if Twitter
+ * re-enables pagination in the future, this will pick it up automatically.
+ *
+ * Conservative params: 3-5s random wait, MAX_STALE_ROUNDS=1 (first stale = stop).
  */
 export async function collectFollowList(
   primitives: Primitives,
@@ -54,9 +59,15 @@ export async function collectFollowList(
     const prevTotal = collector.length;
 
     await span.span(`scroll_${round}`, async (s) => {
-      await primitives.scroll({ direction: 'down' });
+      for (let i = 0; i < SCROLLS_PER_ROUND; i++) {
+        await primitives.scroll({ direction: 'down' });
+        if (collector.length > prevTotal) break;
+        if (i < SCROLLS_PER_ROUND - 1) {
+          await new Promise(r => setTimeout(r, SCROLL_STEP_DELAY_MS));
+        }
+      }
 
-      const waitMs = randomScrollWait();
+      const waitMs = randomDataWait();
       const satisfied = await collector.waitUntil(() => collector.length > prevTotal, waitMs);
 
       s.set('satisfied', satisfied);
@@ -69,7 +80,7 @@ export async function collectFollowList(
         console.error(`[site-use] scroll ${round}: collected ${collector.length}/${count} users`);
       } else {
         staleRounds++;
-        console.error(`[site-use] scroll ${round}: no new data — stopping (safety-first)`);
+        console.error(`[site-use] scroll ${round}: no more data from server`);
       }
     });
   }
@@ -194,6 +205,13 @@ export async function getFollowList(
       const users = [...collector.items].slice(0, count);
       rootSpan.set('totalCollected', collector.length);
       rootSpan.set('returned', users.length);
+
+      if (users.length < count && !hasMore) {
+        console.error(
+          `[site-use] returned ${users.length}/${count} users — ` +
+          `Twitter returned ${collector.length} in initial response, no further pagination available`,
+        );
+      }
 
       return {
         users,

@@ -189,7 +189,7 @@ describe('getProfile — follow list dispatch', () => {
     });
 
     const { getProfile } = await import('../profile.js');
-    const result = await getProfile(primitives, { handle: 'halo80238964', following: true }) as FollowListResult;
+    const result = await getProfile(primitives, { handle: 'halo80238964', following: true, count: 5 }) as FollowListResult;
 
     // Should return FollowListResult, not ProfileResult
     expect(result.users.length).toBeGreaterThan(0);
@@ -214,7 +214,7 @@ describe('getProfile — follow list dispatch', () => {
     });
 
     const { getProfile } = await import('../profile.js');
-    const result = await getProfile(primitives, { handle: 'test', followers: true }) as FollowListResult;
+    const result = await getProfile(primitives, { handle: 'test', followers: true, count: 5 }) as FollowListResult;
 
     expect(result.users).toBeDefined();
   });

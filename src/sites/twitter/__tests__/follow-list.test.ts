@@ -78,8 +78,8 @@ describe('collectFollowList', () => {
     const { collectFollowList } = await import('../follow-list.js');
     const promise = collectFollowList(primitives, collector, { count: 10 });
     try {
-      // Advance past the 3-5s random scroll wait so waitUntil times out
-      await vi.advanceTimersByTimeAsync(6000);
+      // Advance past scroll step delays (2 × 300ms) + data wait (3-5s)
+      await vi.advanceTimersByTimeAsync(10_000);
       const result = await promise;
 
       // Should stop after exactly 1 stale round, not 3 like feed
@@ -110,7 +110,7 @@ describe('getFollowList', () => {
     });
 
     const { getFollowList } = await import('../follow-list.js');
-    const result = await getFollowList(primitives, { handle: 'halo80238964', direction: 'following' });
+    const result = await getFollowList(primitives, { handle: 'halo80238964', direction: 'following', count: 5 });
 
     expect(result.users.length).toBe(5);
     expect(result.users[0].handle).toBe('Oracle');
@@ -137,7 +137,7 @@ describe('getFollowList', () => {
     });
 
     const { getFollowList } = await import('../follow-list.js');
-    await getFollowList(primitives, { handle: 'test', direction: 'followers' });
+    await getFollowList(primitives, { handle: 'test', direction: 'followers', count: 5 });
 
     expect(primitives.navigate).toHaveBeenCalledWith('https://x.com/test/followers');
   });
@@ -161,7 +161,7 @@ describe('getFollowList', () => {
     });
 
     const { getFollowList } = await import('../follow-list.js');
-    const result = await getFollowList(primitives, { direction: 'following' });
+    const result = await getFollowList(primitives, { direction: 'following', count: 5 });
 
     expect(result.meta.owner).toBe('myhandle');
     expect(primitives.navigate).toHaveBeenCalledWith('https://x.com/myhandle/following');
