@@ -548,5 +548,32 @@ export function parseProfileResponse(body: string, selfHandle?: string): Profile
   };
 }
 
-export { GRAPHQL_TIMELINE_PATTERN, GRAPHQL_TWEET_DETAIL_PATTERN, GRAPHQL_SEARCH_PATTERN };
+const GRAPHQL_FOLLOW_LIST_PATTERN = /\/i\/api\/graphql\/.*\/(Following|Followers)/;
+
+/**
+ * Parse a Following or Followers GraphQL response into UserProfile[].
+ * Response structure: data.user.result.timeline.timeline.instructions → TimelineAddEntries → entries[]
+ */
+export function parseFollowListResponse(body: string): UserProfile[] {
+  const json = JSON.parse(body);
+  const instructions = json?.data?.user?.result?.timeline?.timeline?.instructions;
+  if (!instructions) throw new SiteUseError('ParseError', 'No timeline data in response', { retryable: false });
+
+  const addEntries = instructions.find(
+    (i: { type: string }) => i.type === 'TimelineAddEntries'
+  );
+  if (!addEntries?.entries) return [];
+
+  const users: UserProfile[] = [];
+  for (const entry of addEntries.entries) {
+    const content = entry.content;
+    if (content?.entryType !== 'TimelineTimelineItem') continue;
+    const result = content.itemContent?.user_results?.result;
+    if (!result) continue;
+    users.push(extractUserProfile(result));
+  }
+  return users;
+}
+
+export { GRAPHQL_TIMELINE_PATTERN, GRAPHQL_TWEET_DETAIL_PATTERN, GRAPHQL_SEARCH_PATTERN, GRAPHQL_FOLLOW_LIST_PATTERN };
 
