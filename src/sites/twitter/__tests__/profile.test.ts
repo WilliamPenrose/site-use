@@ -179,8 +179,8 @@ describe('getProfile — follow list dispatch', () => {
           interceptHandler({ url: '/i/api/graphql/abc/Following', status: 200, body: goldenFollowingBody });
         }
       }),
-      interceptRequest: vi.fn().mockImplementation(async (_pattern: RegExp, handler: any) => {
-        interceptHandler = handler;
+      interceptRequest: vi.fn().mockImplementation(async (pattern: RegExp, handler: any) => {
+        if (pattern.source.includes('Following|Followers')) interceptHandler = handler;
         return () => {};
       }),
       evaluate: vi.fn()
@@ -204,8 +204,8 @@ describe('getProfile — follow list dispatch', () => {
           interceptHandler({ url: '/i/api/graphql/abc/Followers', status: 200, body: goldenFollowingBody });
         }
       }),
-      interceptRequest: vi.fn().mockImplementation(async (_pattern: RegExp, handler: any) => {
-        interceptHandler = handler;
+      interceptRequest: vi.fn().mockImplementation(async (pattern: RegExp, handler: any) => {
+        if (pattern.source.includes('Following|Followers')) interceptHandler = handler;
         return () => {};
       }),
       evaluate: vi.fn()

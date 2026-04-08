@@ -92,8 +92,8 @@ describe('getFollowList', () => {
           interceptHandler({ url: '/i/api/graphql/abc/Following', status: 200, body: goldenBody });
         }
       }),
-      interceptRequest: vi.fn().mockImplementation(async (_pattern: RegExp, handler: any) => {
-        interceptHandler = handler;
+      interceptRequest: vi.fn().mockImplementation(async (pattern: RegExp, handler: any) => {
+        if (pattern.source.includes('Following|Followers')) interceptHandler = handler;
         return () => { interceptHandler = null; };
       }),
       evaluate: vi.fn()
@@ -119,8 +119,8 @@ describe('getFollowList', () => {
           interceptHandler({ url: '/i/api/graphql/abc/Followers', status: 200, body: goldenBody });
         }
       }),
-      interceptRequest: vi.fn().mockImplementation(async (_pattern: RegExp, handler: any) => {
-        interceptHandler = handler;
+      interceptRequest: vi.fn().mockImplementation(async (pattern: RegExp, handler: any) => {
+        if (pattern.source.includes('Following|Followers')) interceptHandler = handler;
         return () => {};
       }),
       evaluate: vi.fn()
@@ -142,8 +142,8 @@ describe('getFollowList', () => {
           interceptHandler({ url: '/i/api/graphql/abc/Following', status: 200, body: goldenBody });
         }
       }),
-      interceptRequest: vi.fn().mockImplementation(async (_pattern: RegExp, handler: any) => {
-        interceptHandler = handler;
+      interceptRequest: vi.fn().mockImplementation(async (pattern: RegExp, handler: any) => {
+        if (pattern.source.includes('Following|Followers')) interceptHandler = handler;
         return () => {};
       }),
       evaluate: vi.fn()
@@ -222,8 +222,8 @@ describe('getFollowList', () => {
           interceptHandler({ url: '/i/api/graphql/abc/Following', status: 200, body: goldenBody });
         }
       }),
-      interceptRequest: vi.fn().mockImplementation(async (_pattern: RegExp, handler: any) => {
-        interceptHandler = handler;
+      interceptRequest: vi.fn().mockImplementation(async (pattern: RegExp, handler: any) => {
+        if (pattern.source.includes('Following|Followers')) interceptHandler = handler;
         return () => {};
       }),
       evaluate: vi.fn()
@@ -236,5 +236,63 @@ describe('getFollowList', () => {
 
     expect(result.users.length).toBe(2);
     expect(result.meta.totalReturned).toBe(2);
+  });
+
+  it('reports hasMore: true when initial response exceeds count', async () => {
+    let followListHandler: any = null;
+    const primitives = createMockPrimitives({
+      navigate: vi.fn().mockImplementation(async () => {
+        if (followListHandler) {
+          followListHandler({ url: '/i/api/graphql/abc/Following', status: 200, body: goldenBody });
+        }
+      }),
+      interceptRequest: vi.fn().mockImplementation(async (pattern: RegExp, handler: any) => {
+        if (pattern.source.includes('Following|Followers')) followListHandler = handler;
+        return () => {};
+      }),
+      evaluate: vi.fn()
+        .mockResolvedValueOnce('https://x.com/test/following')
+        .mockResolvedValueOnce(null),
+    });
+
+    const { getFollowList } = await import('../follow-list.js');
+    // Golden fixture has 5 users, requesting 2 → initial response (5) > count (2)
+    const result = await getFollowList(primitives, { handle: 'test', direction: 'following', count: 2 });
+
+    expect(result.users.length).toBe(2);
+    expect(result.meta.hasMore).toBe(true);
+  });
+
+  it('throws ProtectedAccount for protected user', async () => {
+    const protectedProfileBody = JSON.stringify({
+      data: {
+        user: {
+          result: {
+            privacy: { protected: true },
+            rest_id: '999',
+            core: { screen_name: 'secret', name: 'Secret', created_at: '' },
+            legacy: {},
+          },
+        },
+      },
+    });
+
+    const primitives = createMockPrimitives({
+      navigate: vi.fn().mockResolvedValue(undefined),
+      interceptRequest: vi.fn().mockImplementation(async (pattern: RegExp, handler: any) => {
+        if (pattern.source.includes('UserByScreenName')) {
+          // Profile pattern — fire protected response shortly after registration
+          setTimeout(() => handler({ url: '/i/api/graphql/abc/UserByScreenName', status: 200, body: protectedProfileBody }), 100);
+        }
+        return () => {};
+      }),
+      evaluate: vi.fn()
+        .mockResolvedValueOnce('https://x.com/secret/following')
+        .mockResolvedValue(null),
+    });
+
+    const { getFollowList } = await import('../follow-list.js');
+    await expect(getFollowList(primitives, { handle: 'secret', direction: 'following' }))
+      .rejects.toThrow('protected account');
   });
 });

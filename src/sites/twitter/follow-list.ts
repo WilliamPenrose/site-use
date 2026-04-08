@@ -2,7 +2,7 @@ import type { Primitives } from '../../primitives/types.js';
 import type { DataCollector } from '../../ops/data-collector.js';
 import type { UserProfile, FollowListResult } from './types.js';
 import { resolveHandle, checkLoginRedirect, checkProfileError, getSelfHandle } from './navigate.js';
-import { parseFollowListResponse, GRAPHQL_FOLLOW_LIST_PATTERN } from './extractors.js';
+import { parseFollowListResponse, GRAPHQL_FOLLOW_LIST_PATTERN, GRAPHQL_PROFILE_PATTERN } from './extractors.js';
 import { SiteUseError } from '../../errors.js';
 import { createDataCollector } from '../../ops/data-collector.js';
 import { NOOP_TRACE, NOOP_SPAN, type Trace, type SpanHandle } from '../../trace.js';
@@ -114,8 +114,10 @@ export async function getFollowList(
 
     const collector = createDataCollector<UserProfile>();
     let graphqlCount = 0;
+    let isProtected = false;
 
-    const cleanup = await primitives.interceptRequest(
+    // Intercept follow-list GraphQL responses
+    const cleanupFollowList = await primitives.interceptRequest(
       GRAPHQL_FOLLOW_LIST_PATTERN,
       (response) => {
         try {
@@ -125,6 +127,25 @@ export async function getFollowList(
           rootSpan.set('graphqlResponses', graphqlCount);
         } catch {
           // Parse failures are non-fatal — may be non-user responses on the same pattern
+        }
+      },
+    );
+
+    // Intercept UserByScreenName to detect protected accounts
+    // Twitter sends this on /following and /followers pages but does NOT send
+    // Following/Followers GraphQL for protected accounts you don't follow.
+    const cleanupProfile = await primitives.interceptRequest(
+      GRAPHQL_PROFILE_PATTERN,
+      (response) => {
+        try {
+          const json = JSON.parse(response.body);
+          const result = json?.data?.user?.result;
+          if (result?.privacy?.protected === true) {
+            isProtected = true;
+            rootSpan.set('protected', true);
+          }
+        } catch {
+          // Non-fatal
         }
       },
     );
@@ -141,6 +162,14 @@ export async function getFollowList(
         while (collector.length === 0 && Date.now() < deadline) {
           await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
           await checkProfileError(primitives, handle, direction);
+
+          // Protected account: no follow-list GraphQL will ever arrive
+          if (isProtected) {
+            throw new SiteUseError('ProtectedAccount',
+              `@${handle} is a protected account — ${direction} list is not visible`,
+              { retryable: false, step: `${direction}: protected account detected` },
+            );
+          }
         }
       }
 
@@ -152,7 +181,7 @@ export async function getFollowList(
       }
 
       // Scroll to collect more if needed
-      let hasMore = false;
+      let hasMore = collector.length > count; // initial response already exceeded count
       if (collector.length < count) {
         const scrollResult = await rootSpan.span('collectFollowList', async (s) => {
           return collectFollowList(primitives, collector, { count }, s);
@@ -174,7 +203,8 @@ export async function getFollowList(
         },
       };
     } finally {
-      cleanup();
+      cleanupFollowList();
+      cleanupProfile();
     }
   });
 }
