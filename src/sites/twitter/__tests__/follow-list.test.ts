@@ -105,8 +105,7 @@ describe('getFollowList', () => {
         return () => { interceptHandler = null; };
       }),
       evaluate: vi.fn()
-        .mockResolvedValueOnce('https://x.com/halo80238964/following')  // checkLoginRedirect
-        .mockResolvedValueOnce(null),                                    // checkProfileError
+        .mockResolvedValueOnce('https://x.com/halo80238964/following'),  // checkLoginRedirect
     });
 
     const { getFollowList } = await import('../follow-list.js');
@@ -132,8 +131,7 @@ describe('getFollowList', () => {
         return () => {};
       }),
       evaluate: vi.fn()
-        .mockResolvedValueOnce('https://x.com/test/followers')
-        .mockResolvedValueOnce(null),
+        .mockResolvedValueOnce('https://x.com/test/followers'),
     });
 
     const { getFollowList } = await import('../follow-list.js');
@@ -156,8 +154,7 @@ describe('getFollowList', () => {
       }),
       evaluate: vi.fn()
         .mockResolvedValueOnce('myhandle')     // getSelfHandle
-        .mockResolvedValueOnce('https://x.com/myhandle/following')  // checkLoginRedirect
-        .mockResolvedValueOnce(null),           // checkProfileError
+        .mockResolvedValueOnce('https://x.com/myhandle/following'),  // checkLoginRedirect
     });
 
     const { getFollowList } = await import('../follow-list.js');
@@ -189,12 +186,21 @@ describe('getFollowList', () => {
       .rejects.toThrow('Not logged in');
   });
 
-  it('throws UserNotFound for nonexistent user', async () => {
+  it('throws UserNotFound for nonexistent user (via GraphQL signal)', async () => {
+    const unavailableProfileBody = JSON.stringify({
+      data: { user: { result: { __typename: 'UserUnavailable' } } },
+    });
+
     const primitives = createMockPrimitives({
-      interceptRequest: vi.fn().mockResolvedValue(() => {}),
+      interceptRequest: vi.fn().mockImplementation(async (pattern: RegExp, handler: any) => {
+        if (pattern.source.includes('UserByScreenName')) {
+          // Profile interceptor detects unavailable user
+          setTimeout(() => handler({ url: '/i/api/graphql/abc/UserByScreenName', status: 200, body: unavailableProfileBody }), 100);
+        }
+        return () => {};
+      }),
       evaluate: vi.fn()
-        .mockResolvedValueOnce('https://x.com/nonexistent/following')
-        .mockResolvedValueOnce('emptyState'),
+        .mockResolvedValueOnce('https://x.com/nonexistent/following'),
     });
 
     const { getFollowList } = await import('../follow-list.js');
@@ -235,8 +241,7 @@ describe('getFollowList', () => {
         return () => {};
       }),
       evaluate: vi.fn()
-        .mockResolvedValueOnce('https://x.com/test/following')
-        .mockResolvedValueOnce(null),
+        .mockResolvedValueOnce('https://x.com/test/following'),
     });
 
     const { getFollowList } = await import('../follow-list.js');
@@ -259,8 +264,7 @@ describe('getFollowList', () => {
         return () => {};
       }),
       evaluate: vi.fn()
-        .mockResolvedValueOnce('https://x.com/test/following')
-        .mockResolvedValueOnce(null),
+        .mockResolvedValueOnce('https://x.com/test/following'),
     });
 
     const { getFollowList } = await import('../follow-list.js');
@@ -295,8 +299,7 @@ describe('getFollowList', () => {
         return () => {};
       }),
       evaluate: vi.fn()
-        .mockResolvedValueOnce('https://x.com/secret/following')
-        .mockResolvedValue(null),
+        .mockResolvedValueOnce('https://x.com/secret/following'),
     });
 
     const { getFollowList } = await import('../follow-list.js');
@@ -328,8 +331,7 @@ describe('getFollowList', () => {
         return () => {};
       }),
       evaluate: vi.fn()
-        .mockResolvedValueOnce('https://x.com/secret/following')
-        .mockResolvedValueOnce(null),
+        .mockResolvedValueOnce('https://x.com/secret/following'),
     });
 
     const { getFollowList } = await import('../follow-list.js');
@@ -338,5 +340,49 @@ describe('getFollowList', () => {
     // Should succeed — not throw ProtectedAccount
     expect(result.users.length).toBe(5);
     expect(result.meta.owner).toBe('secret');
+  });
+
+  it('returns empty result for 0-followers account (not UserNotFound)', async () => {
+    // An account with 0 followers returns a valid follow-list GraphQL response
+    // with an empty entries list. This must NOT be confused with a nonexistent user.
+    const emptyFollowListBody = JSON.stringify({
+      data: {
+        user: {
+          result: {
+            timeline: {
+              timeline: {
+                instructions: [
+                  { type: 'TimelineAddEntries', entries: [
+                    { content: { entryType: 'TimelineTimelineCursor', cursorType: 'Bottom', value: 'abc' } },
+                    { content: { entryType: 'TimelineTimelineCursor', cursorType: 'Top', value: 'xyz' } },
+                  ]},
+                ],
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const primitives = createMockPrimitives({
+      navigate: vi.fn().mockResolvedValue(undefined),
+      interceptRequest: vi.fn().mockImplementation(async (pattern: RegExp, handler: any) => {
+        if (pattern.source.includes('Following|Followers')) {
+          // Follow-list response arrives shortly after navigate — empty list
+          setTimeout(() => handler({ url: '/i/api/graphql/abc/Followers', status: 200, body: emptyFollowListBody }), 100);
+        }
+        return () => {};
+      }),
+      evaluate: vi.fn()
+        .mockResolvedValueOnce('https://x.com/lonely/followers'),
+    });
+
+    const { getFollowList } = await import('../follow-list.js');
+    const result = await getFollowList(primitives, { handle: 'lonely', direction: 'followers' });
+
+    expect(result.users).toEqual([]);
+    expect(result.meta.totalReturned).toBe(0);
+    expect(result.meta.hasMore).toBe(false);
+    expect(result.meta.owner).toBe('lonely');
   });
 });

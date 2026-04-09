@@ -1,7 +1,8 @@
 import type { Primitives } from '../../primitives/types.js';
 import type { DataCollector } from '../../ops/data-collector.js';
 import type { UserProfile, FollowListResult } from './types.js';
-import { resolveHandle, checkLoginRedirect, checkProfileError, getSelfHandle } from './navigate.js';
+import { resolveHandle, checkLoginRedirect, getSelfHandle } from './navigate.js';
+import { UserNotFound } from '../../errors.js';
 import { parseFollowListResponse, GRAPHQL_FOLLOW_LIST_PATTERN, GRAPHQL_PROFILE_PATTERN } from './extractors.js';
 import { SiteUseError } from '../../errors.js';
 import { createDataCollector } from '../../ops/data-collector.js';
@@ -125,7 +126,9 @@ export async function getFollowList(
 
     const collector = createDataCollector<UserProfile>();
     let graphqlCount = 0;
+    let followListResponseReceived = false;  // true when any follow-list GraphQL arrives (even with 0 users)
     let isProtected = false;
+    let isUserNotFound = false;
 
     // Intercept follow-list GraphQL responses
     const cleanupFollowList = await primitives.interceptRequest(
@@ -135,6 +138,7 @@ export async function getFollowList(
           const users = parseFollowListResponse(response.body);
           collector.push(...users);
           graphqlCount++;
+          followListResponseReceived = true;
           rootSpan.set('graphqlResponses', graphqlCount);
         } catch (e) {
           // Parse failures are non-fatal — may be non-user responses on the same pattern
@@ -143,16 +147,20 @@ export async function getFollowList(
       },
     );
 
-    // Intercept UserByScreenName to detect protected accounts
-    // Twitter sends this on /following and /followers pages but does NOT send
-    // Following/Followers GraphQL for protected accounts you don't follow.
+    // Intercept UserByScreenName to detect protected accounts and missing users.
+    // Twitter sends this on /following and /followers pages. For protected accounts
+    // you don't follow, it does NOT send Following/Followers GraphQL at all.
+    // For nonexistent/suspended users, result.__typename === 'UserUnavailable' or result is null.
     const cleanupProfile = await primitives.interceptRequest(
       GRAPHQL_PROFILE_PATTERN,
       (response) => {
         try {
           const json = JSON.parse(response.body);
           const result = json?.data?.user?.result;
-          if (result?.privacy?.protected === true) {
+          if (!result || result.__typename === 'UserUnavailable') {
+            isUserNotFound = true;
+            rootSpan.set('userNotFound', true);
+          } else if (result.privacy?.protected === true) {
             isProtected = true;
             rootSpan.set('protected', true);
           }
@@ -166,17 +174,24 @@ export async function getFollowList(
       const url = `https://x.com/${handle}/${direction}`;
       await primitives.navigate(url);
       await checkLoginRedirect(primitives, rootSpan);
-      // Note: checkProfileError detects emptyState/errorDetail via data-testid on the
-      // main profile page. On /following and /followers subpages, the error DOM may
-      // differ — nonexistent users may fall through to the GraphQL timeout below.
-      await checkProfileError(primitives, handle, direction);
+      // Do NOT call checkProfileError here — its emptyState detection produces
+      // false positives on /following and /followers subpages (empty list ≠ missing user).
+      // Instead we rely on GraphQL signals: UserByScreenName for user existence,
+      // and GRAPHQL_FOLLOW_LIST_PATTERN for list data.
 
-      // Wait for initial GraphQL response
+      // Wait for GraphQL signals
       if (collector.length === 0) {
         const deadline = Date.now() + FOLLOW_LIST_TIMEOUT_MS;
         while (collector.length === 0 && Date.now() < deadline) {
           await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
-          await checkProfileError(primitives, handle, direction);
+
+          // User does not exist or is suspended
+          if (isUserNotFound) {
+            throw new UserNotFound(
+              `User @${handle} does not exist or is suspended`,
+              { step: `${direction}: user not found via UserByScreenName` },
+            );
+          }
 
           // Protected account: no follow-list GraphQL will ever arrive
           if (isProtected) {
@@ -185,7 +200,21 @@ export async function getFollowList(
               { retryable: false, step: `${direction}: protected account detected` },
             );
           }
+
+          // Follow-list response arrived but with 0 users — legitimate empty list
+          if (followListResponseReceived) break;
         }
+      }
+
+      // Empty list is valid (e.g., 0 followers) — return empty result
+      if (collector.length === 0 && followListResponseReceived) {
+        rootSpan.set('totalCollected', 0);
+        rootSpan.set('returned', 0);
+        console.error(`[site-use] @${handle} has an empty ${direction} list`);
+        return {
+          users: [],
+          meta: { totalReturned: 0, hasMore: false, owner: handle },
+        };
       }
 
       if (collector.length === 0) {
