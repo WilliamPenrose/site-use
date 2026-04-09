@@ -11,6 +11,7 @@ export interface MergedNode {
   uid: string;
   axNode: any; // Original CDP AXNode
   backendNodeId: number | null;
+  frameId: string; // frame that owns this node (for scoped child lookup)
   frameUrl: string | undefined; // undefined for main frame
 }
 

@@ -2,7 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { buildSnapshotOutput } from '../../src/primitives/snapshot/output.js';
 import type { MergedNode } from '../../src/primitives/snapshot/types.js';
 
+const DEFAULT_FRAME = 'main';
+
 function mergedNode(uid: string, role: string, name: string, opts?: {
+  frameId?: string;
   frameUrl?: string;
   value?: any;
   properties?: any[];
@@ -19,13 +22,14 @@ function mergedNode(uid: string, role: string, name: string, opts?: {
       childIds: opts?.childIds,
     },
     backendNodeId: null,
+    frameId: opts?.frameId ?? DEFAULT_FRAME,
     frameUrl: opts?.frameUrl,
   };
 }
 
 describe('buildSnapshotOutput', () => {
   it('builds SnapshotNode with role, name, uid', () => {
-    const axIdToUid = new Map([['ax-1', '1']]);
+    const axIdToUid = new Map([['main:ax-1', '1']]);
     const snapshot = buildSnapshotOutput([mergedNode('1', 'button', 'OK')], axIdToUid);
 
     const node = snapshot.idToNode.get('1');
@@ -40,7 +44,7 @@ describe('buildSnapshotOutput', () => {
       mergedNode('1', 'button', 'Main'),
       mergedNode('2', 'button', 'InFrame', { frameUrl: 'https://example.com/form' }),
     ];
-    const axIdToUid = new Map([['ax-1', '1'], ['ax-2', '2']]);
+    const axIdToUid = new Map([['main:ax-1', '1'], ['main:ax-2', '2']]);
     const snapshot = buildSnapshotOutput(nodes, axIdToUid);
 
     expect(snapshot.idToNode.get('1')!.frameUrl).toBeUndefined();
@@ -57,7 +61,7 @@ describe('buildSnapshotOutput', () => {
         { name: 'level', value: { value: 3 } },
       ],
     })];
-    const snapshot = buildSnapshotOutput(nodes, new Map([['ax-1', '1']]));
+    const snapshot = buildSnapshotOutput(nodes, new Map([['main:ax-1', '1']]));
 
     const node = snapshot.idToNode.get('1')!;
     expect(node.disabled).toBe(true);
@@ -69,7 +73,7 @@ describe('buildSnapshotOutput', () => {
 
   it('extracts value for form elements', () => {
     const nodes = [mergedNode('1', 'textbox', 'Email', { value: 'a@b.com' })];
-    const snapshot = buildSnapshotOutput(nodes, new Map([['ax-1', '1']]));
+    const snapshot = buildSnapshotOutput(nodes, new Map([['main:ax-1', '1']]));
 
     expect(snapshot.idToNode.get('1')!.value).toBe('a@b.com');
   });
@@ -80,7 +84,7 @@ describe('buildSnapshotOutput', () => {
       mergedNode('2', 'link', 'Home'),
       mergedNode('3', 'link', 'Profile'),
     ];
-    const axIdToUid = new Map([['ax-1', '1'], ['ax-2', '2'], ['ax-3', '3']]);
+    const axIdToUid = new Map([['main:ax-1', '1'], ['main:ax-2', '2'], ['main:ax-3', '3']]);
     const snapshot = buildSnapshotOutput(nodes, axIdToUid);
 
     expect(snapshot.idToNode.get('1')!.children).toEqual(['2', '3']);
@@ -88,7 +92,7 @@ describe('buildSnapshotOutput', () => {
 
   it('omits children array when no valid children exist', () => {
     const nodes = [mergedNode('1', 'button', 'OK', { childIds: ['ax-gone'] })];
-    const axIdToUid = new Map([['ax-1', '1']]);
+    const axIdToUid = new Map([['main:ax-1', '1']]);
     const snapshot = buildSnapshotOutput(nodes, axIdToUid);
 
     expect(snapshot.idToNode.get('1')!.children).toBeUndefined();
@@ -96,16 +100,17 @@ describe('buildSnapshotOutput', () => {
 
   it('does not cross frame boundaries for children', () => {
     // Parent in main frame has childId pointing to ax-2,
-    // but ax-2 doesn't exist (it's in a different frame with different AX nodeId space)
+    // but ax-2 doesn't exist in the main frame (it's in a different frame)
     const nodes = [
       mergedNode('1', 'navigation', 'Nav', { childIds: ['ax-2'] }),
       // Node from iframe has its own ax nodeId 'bx-1', not 'ax-2'
-      { uid: '2', axNode: { nodeId: 'bx-1', role: { value: 'button' }, name: { value: 'Submit' }, properties: [] }, backendNodeId: null, frameUrl: 'https://example.com/form' } as MergedNode,
+      mergedNode('2', 'button', 'Submit', { frameId: 'iframe-1', frameUrl: 'https://example.com/form' }),
     ];
-    const axIdToUid = new Map([['ax-1', '1'], ['bx-1', '2']]);
+    // Keys are scoped by frameId — main:ax-2 doesn't exist, iframe-1:ax-2 is a different key
+    const axIdToUid = new Map([['main:ax-1', '1'], ['iframe-1:ax-2', '2']]);
     const snapshot = buildSnapshotOutput(nodes, axIdToUid);
 
-    // 'ax-2' not in axIdToUid → children is undefined
+    // main frame's childId 'ax-2' resolves to 'main:ax-2' which is not in the map
     expect(snapshot.idToNode.get('1')!.children).toBeUndefined();
   });
 });

@@ -54,11 +54,11 @@ export function buildSnapshotOutput(
       snapshotNode.value = String(axNode.value.value);
     }
 
-    // Children (resolve AX childIds to assigned uids)
+    // Children (resolve AX childIds to assigned uids, scoped by frameId)
     if (axNode.childIds?.length) {
       const childUids: string[] = [];
       for (const childId of axNode.childIds) {
-        const childUid = axIdToUid.get(childId);
+        const childUid = axIdToUid.get(`${merged.frameId}:${childId}`);
         if (childUid) childUids.push(childUid);
       }
       if (childUids.length > 0) {

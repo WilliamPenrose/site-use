@@ -29,7 +29,9 @@ export function mergeAXData(rawData: RawFrameAX[]): MergeResult {
       if (shouldSkipNode(axNode)) continue;
 
       const uid = String(nextUid++);
-      axIdToUid.set(axNode.nodeId, uid);
+      // Scope by frameId to prevent cross-frame nodeId collisions.
+      // CDP does not guarantee globally unique AX nodeIds across frames.
+      axIdToUid.set(`${frame.frameId}:${axNode.nodeId}`, uid);
 
       if (axNode.backendDOMNodeId != null) {
         uidToBackendNodeId.set(uid, axNode.backendDOMNodeId);
@@ -39,6 +41,7 @@ export function mergeAXData(rawData: RawFrameAX[]): MergeResult {
         uid,
         axNode,
         backendNodeId: axNode.backendDOMNodeId ?? null,
+        frameId: frame.frameId,
         frameUrl: frame.isMainFrame ? undefined : frame.frameUrl,
       });
     }

@@ -105,8 +105,8 @@ describe('mergeAXData', () => {
 
     const result = mergeAXData(data);
 
-    expect(result.axIdToUid.get('a1')).toBe('1');
-    expect(result.axIdToUid.get('a2')).toBe('2');
+    expect(result.axIdToUid.get('main:a1')).toBe('1');
+    expect(result.axIdToUid.get('main:a2')).toBe('2');
   });
 
   it('handles empty frame (no nodes)', () => {
