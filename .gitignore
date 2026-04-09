@@ -18,6 +18,9 @@ chrome-profile/
 .dev/
 .gitmodules
 
+# Local demo tooling workspace (own local playground, not part of the product)
+.demo/
+
 # Claude Code local settings (contains machine-specific paths)
 # Ignore everything in .claude/ except project-level settings.json and skills
 .claude/*
