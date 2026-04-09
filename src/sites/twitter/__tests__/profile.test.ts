@@ -3,10 +3,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Primitives } from '../../../primitives/types.js';
+import type { ProfileResult, FollowListResult } from '../types.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const goldenBody = fs.readFileSync(
   path.join(__dirname, 'fixtures/golden/profile-sample.json'), 'utf-8',
+);
+const goldenFollowingBody = fs.readFileSync(
+  path.join(__dirname, 'fixtures/golden/following-sample.json'), 'utf-8',
 );
 
 function createMockPrimitives(overrides: Partial<Primitives> = {}): Primitives {
@@ -53,7 +57,7 @@ describe('getProfile', () => {
     });
 
     const { getProfile } = await import('../profile.js');
-    const result = await getProfile(primitives, { handle: 'hwwaanng' });
+    const result = await getProfile(primitives, { handle: 'hwwaanng' }) as ProfileResult;
 
     expect(result.user.handle).toBe('hwwaanng');
     expect(result.user.displayName).toBe('Hwang');
@@ -81,7 +85,7 @@ describe('getProfile', () => {
     });
 
     const { getProfile } = await import('../profile.js');
-    const result = await getProfile(primitives, { url: 'https://x.com/hwwaanng' });
+    const result = await getProfile(primitives, { url: 'https://x.com/hwwaanng' }) as ProfileResult;
 
     expect(result.user.handle).toBe('hwwaanng');
     expect(primitives.navigate).toHaveBeenCalledWith('https://x.com/hwwaanng');
@@ -160,8 +164,83 @@ describe('getProfile', () => {
         .mockResolvedValueOnce('hwwaanng'),
     });
     const { getProfile } = await import('../profile.js');
-    const result = await getProfile(primitives, { handle: 'hwwaanng' });
+    const result = await getProfile(primitives, { handle: 'hwwaanng' }) as ProfileResult;
     expect(result.user.handle).toBe('hwwaanng');
     expect(result.relationship).toBeNull();
+  });
+});
+
+describe('getProfile — follow list dispatch', () => {
+  it('dispatches to follow list when --following is set', async () => {
+    let interceptHandler: any = null;
+    const primitives = createMockPrimitives({
+      navigate: vi.fn().mockImplementation(async () => {
+        if (interceptHandler) {
+          interceptHandler({ url: '/i/api/graphql/abc/Following', status: 200, body: goldenFollowingBody });
+        }
+      }),
+      interceptRequest: vi.fn().mockImplementation(async (pattern: RegExp, handler: any) => {
+        if (pattern.source.includes('Following|Followers')) interceptHandler = handler;
+        return () => {};
+      }),
+      evaluate: vi.fn()
+        .mockResolvedValueOnce('https://x.com/halo80238964/following')
+        .mockResolvedValueOnce(null),
+    });
+
+    const { getProfile } = await import('../profile.js');
+    const result = await getProfile(primitives, { handle: 'halo80238964', following: true, count: 5 }) as FollowListResult;
+
+    // Should return FollowListResult, not ProfileResult
+    expect(result.users.length).toBeGreaterThan(0);
+    expect(result.meta.owner).toBe('halo80238964');
+  });
+
+  it('dispatches to follow list when --followers is set', async () => {
+    let interceptHandler: any = null;
+    const primitives = createMockPrimitives({
+      navigate: vi.fn().mockImplementation(async () => {
+        if (interceptHandler) {
+          interceptHandler({ url: '/i/api/graphql/abc/Followers', status: 200, body: goldenFollowingBody });
+        }
+      }),
+      interceptRequest: vi.fn().mockImplementation(async (pattern: RegExp, handler: any) => {
+        if (pattern.source.includes('Following|Followers')) interceptHandler = handler;
+        return () => {};
+      }),
+      evaluate: vi.fn()
+        .mockResolvedValueOnce('https://x.com/test/followers')
+        .mockResolvedValueOnce(null),
+    });
+
+    const { getProfile } = await import('../profile.js');
+    const result = await getProfile(primitives, { handle: 'test', followers: true, count: 5 }) as FollowListResult;
+
+    expect(result.users).toBeDefined();
+  });
+
+  it('still returns ProfileResult when no list flags', async () => {
+    let interceptHandler: any = null;
+    const primitives = createMockPrimitives({
+      navigate: vi.fn().mockImplementation(async () => {
+        if (interceptHandler) {
+          interceptHandler({ url: '/i/api/graphql/abc/UserByScreenName', status: 200, body: goldenBody });
+        }
+      }),
+      interceptRequest: vi.fn().mockImplementation(async (_pattern: RegExp, handler: any) => {
+        interceptHandler = handler;
+        return () => {};
+      }),
+      evaluate: vi.fn()
+        .mockResolvedValueOnce('https://x.com/hwwaanng')
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null),
+    });
+
+    const { getProfile } = await import('../profile.js');
+    const result = await getProfile(primitives, { handle: 'hwwaanng' }) as ProfileResult;
+
+    expect(result.user).toBeDefined();
+    expect(result.relationship).toBeDefined();
   });
 });

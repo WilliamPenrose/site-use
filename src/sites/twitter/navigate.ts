@@ -90,3 +90,14 @@ export async function checkProfileError(primitives: Primitives, handle: string, 
     throw new UserNotFound(`Profile page for @${handle} not found`, { step: `${context}: checking page exists` });
   }
 }
+
+/**
+ * Get the logged-in user's handle from the Twitter sidebar profile link.
+ * Returns null if the element is not found (e.g., not logged in, mobile viewport).
+ */
+export async function getSelfHandle(primitives: Primitives): Promise<string | null> {
+  return primitives.evaluate<string | null>(`(() => {
+    const el = document.querySelector('[data-testid="AppTabBar_Profile_Link"]');
+    return el ? el.getAttribute('href')?.replace('/', '') ?? null : null;
+  })()`);
+}

@@ -1,14 +1,44 @@
 import type { Primitives } from '../../primitives/types.js';
-import type { ProfileResult } from './types.js';
-import { resolveHandle, checkLoginRedirect, checkProfileError } from './navigate.js';
+import type { ProfileResult, FollowListResult } from './types.js';
+import { resolveHandle, checkLoginRedirect, checkProfileError, getSelfHandle } from './navigate.js';
 import { parseProfileResponse, GRAPHQL_PROFILE_PATTERN } from './extractors.js';
 import { SiteUseError } from '../../errors.js';
 import { NOOP_TRACE, type Trace } from '../../trace.js';
+import { getFollowList } from './follow-list.js';
 
 const PROFILE_TIMEOUT_MS = 10_000;
 const PROFILE_POLL_INTERVAL_MS = 500;
 
+/**
+ * Unified profile entry point.
+ * Dispatches to follow-list mode when --following or --followers is set,
+ * otherwise returns basic profile info.
+ */
 export async function getProfile(
+  primitives: Primitives,
+  opts: {
+    handle?: string;
+    url?: string;
+    following?: boolean;
+    followers?: boolean;
+    count?: number;
+    debug?: boolean;
+  },
+  trace: Trace = NOOP_TRACE,
+): Promise<ProfileResult | FollowListResult> {
+  if (opts.following) {
+    return getFollowList(primitives, { ...opts, direction: 'following' }, trace);
+  }
+  if (opts.followers) {
+    return getFollowList(primitives, { ...opts, direction: 'followers' }, trace);
+  }
+  return getProfileInfo(primitives, opts, trace);
+}
+
+/**
+ * Fetch basic profile info (original #5 logic).
+ */
+async function getProfileInfo(
   primitives: Primitives,
   opts: { handle?: string; url?: string; debug?: boolean },
   trace: Trace = NOOP_TRACE,
@@ -34,7 +64,6 @@ export async function getProfile(
       await checkLoginRedirect(primitives, rootSpan);
       await checkProfileError(primitives, handle, 'profile');
 
-      // Wait for GraphQL response if not already captured
       if (!captured) {
         const deadline = Date.now() + PROFILE_TIMEOUT_MS;
         while (!captured && Date.now() < deadline) {
@@ -50,12 +79,7 @@ export async function getProfile(
         );
       }
 
-      // Detect self-profile: get logged-in user handle from DOM
-      const selfHandle = await primitives.evaluate<string | null>(`(() => {
-        const el = document.querySelector('[data-testid="AppTabBar_Profile_Link"]');
-        return el ? el.getAttribute('href')?.replace('/', '') ?? null : null;
-      })()`);
-
+      const selfHandle = await getSelfHandle(primitives);
       const result = parseProfileResponse(captured, selfHandle ?? undefined);
       rootSpan.set('userId', result.user.userId);
       rootSpan.set('isSelf', result.relationship === null);

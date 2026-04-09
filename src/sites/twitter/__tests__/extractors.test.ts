@@ -12,6 +12,8 @@ import {
   extractUserProfile,
   parseProfileResponse,
   GRAPHQL_PROFILE_PATTERN,
+  parseFollowListResponse,
+  GRAPHQL_FOLLOW_LIST_PATTERN,
 } from '../extractors.js';
 import type { RawTweetData, UserProfile, ProfileResult } from '../types.js';
 
@@ -1122,5 +1124,105 @@ describe('parseProfileResponse', () => {
 
   it('throws on empty response', () => {
     expect(() => parseProfileResponse('{}')).toThrow('No user data');
+  });
+});
+
+describe('GRAPHQL_FOLLOW_LIST_PATTERN', () => {
+  it('matches Following URL', () => {
+    const url = '/i/api/graphql/vWCjN9gcTJiXzzMPR5Oxzw/Following?variables=...';
+    expect(GRAPHQL_FOLLOW_LIST_PATTERN.test(url)).toBe(true);
+  });
+
+  it('matches Followers URL', () => {
+    const url = '/i/api/graphql/abc123/Followers?variables=...';
+    expect(GRAPHQL_FOLLOW_LIST_PATTERN.test(url)).toBe(true);
+  });
+
+  it('does not match timeline URL', () => {
+    const url = '/i/api/graphql/abc123/HomeTimeline?variables=...';
+    expect(GRAPHQL_FOLLOW_LIST_PATTERN.test(url)).toBe(false);
+  });
+
+  it('does not match UserByScreenName URL', () => {
+    const url = '/i/api/graphql/abc/UserByScreenName?variables=...';
+    expect(GRAPHQL_FOLLOW_LIST_PATTERN.test(url)).toBe(false);
+  });
+});
+
+describe('parseFollowListResponse', () => {
+  const goldenPath = path.join(__dirname, 'fixtures/golden/following-sample.json');
+  const goldenBody = fs.readFileSync(goldenPath, 'utf-8');
+
+  it('extracts all users from a Following response', () => {
+    const users = parseFollowListResponse(goldenBody);
+    expect(users.length).toBe(5);
+    expect(users[0].handle).toBe('Oracle');
+    expect(users[0].followersCount).toBe(825903);
+    expect(users[0].verified).toBe(false);
+  });
+
+  it('each user has all UserProfile fields', () => {
+    const users = parseFollowListResponse(goldenBody);
+    for (const u of users) {
+      expect(u.userId).toBeDefined();
+      expect(u.handle).toBeDefined();
+      expect(u.displayName).toBeDefined();
+      expect(typeof u.followersCount).toBe('number');
+      expect(typeof u.followingCount).toBe('number');
+      expect(typeof u.tweetsCount).toBe('number');
+      expect(typeof u.verified).toBe('boolean');
+      expect(u.createdAt).toBeDefined();
+    }
+  });
+
+  it('returns empty array when no user entries', () => {
+    const emptyBody = JSON.stringify({
+      data: {
+        user: {
+          result: {
+            timeline: {
+              timeline: {
+                instructions: [
+                  { type: 'TimelineClearCache' },
+                  { type: 'TimelineAddEntries', entries: [
+                    { content: { entryType: 'TimelineTimelineCursor', cursorType: 'Bottom', value: 'abc' } },
+                    { content: { entryType: 'TimelineTimelineCursor', cursorType: 'Top', value: 'xyz' } },
+                  ]},
+                ],
+              },
+            },
+          },
+        },
+      },
+    });
+    const users = parseFollowListResponse(emptyBody);
+    expect(users).toEqual([]);
+  });
+
+  it('throws on missing timeline data', () => {
+    expect(() => parseFollowListResponse('{}')).toThrow('No timeline data');
+  });
+
+  it('skips entries without user_results', () => {
+    const body = JSON.stringify({
+      data: {
+        user: {
+          result: {
+            timeline: {
+              timeline: {
+                instructions: [
+                  { type: 'TimelineAddEntries', entries: [
+                    { content: { entryType: 'TimelineTimelineItem', itemContent: {} } },
+                    { content: { entryType: 'TimelineTimelineCursor', cursorType: 'Bottom', value: 'abc' } },
+                  ]},
+                ],
+              },
+            },
+          },
+        },
+      },
+    });
+    const users = parseFollowListResponse(body);
+    expect(users).toEqual([]);
   });
 });

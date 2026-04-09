@@ -1,0 +1,652 @@
+{
+  "data": {
+    "user": {
+      "result": {
+        "__typename": "User",
+        "timeline": {
+          "timeline": {
+            "instructions": [
+              {
+                "type": "TimelineClearCache"
+              },
+              {
+                "direction": "Top",
+                "type": "TimelineTerminateTimeline"
+              },
+              {
+                "direction": "Bottom",
+                "type": "TimelineTerminateTimeline"
+              },
+              {
+                "entries": [
+                  {
+                    "content": {
+                      "__typename": "TimelineTimelineItem",
+                      "clientEventInfo": {
+                        "component": "FollowingSgs",
+                        "element": "user"
+                      },
+                      "entryType": "TimelineTimelineItem",
+                      "itemContent": {
+                        "__typename": "TimelineUser",
+                        "itemType": "TimelineUser",
+                        "userDisplayType": "User",
+                        "user_results": {
+                          "result": {
+                            "__typename": "User",
+                            "affiliates_highlighted_label": {},
+                            "avatar": {
+                              "image_url": "https://pbs.twimg.com/profile_images/1580919426081251330/z11bDhy-_normal.jpg"
+                            },
+                            "core": {
+                              "created_at": "Sat Mar 03 23:54:26 +0000 2007",
+                              "name": "Oracle",
+                              "screen_name": "Oracle"
+                            },
+                            "dm_permissions": {
+                              "can_dm": true
+                            },
+                            "follow_request_sent": false,
+                            "has_graduated_access": true,
+                            "id": "VXNlcjo4MDkyNzM=",
+                            "is_blue_verified": false,
+                            "legacy": {
+                              "default_profile": false,
+                              "default_profile_image": false,
+                              "description": "With industry-leading cloud and AI, we help people see data in new ways, discover insights, unlock endless possibilities.",
+                              "entities": {
+                                "description": {
+                                  "urls": []
+                                },
+                                "url": {
+                                  "urls": [
+                                    {
+                                      "display_url": "oracle.com",
+                                      "expanded_url": "http://www.oracle.com/",
+                                      "indices": [
+                                        0,
+                                        23
+                                      ],
+                                      "url": "https://t.co/cOXtyl2QhQ"
+                                    }
+                                  ]
+                                }
+                              },
+                              "fast_followers_count": 0,
+                              "favourites_count": 14238,
+                              "follow_request_sent": false,
+                              "followers_count": 825903,
+                              "friends_count": 790,
+                              "has_custom_timelines": true,
+                              "is_translator": false,
+                              "listed_count": 7324,
+                              "media_count": 9446,
+                              "normal_followers_count": 825903,
+                              "notifications": false,
+                              "pinned_tweet_ids_str": [
+                                "2036751510135025972"
+                              ],
+                              "possibly_sensitive": false,
+                              "profile_banner_url": "https://pbs.twimg.com/profile_banners/809273/1763419727",
+                              "profile_interstitial_type": "",
+                              "statuses_count": 25500,
+                              "translator_type": "none",
+                              "url": "https://t.co/cOXtyl2QhQ",
+                              "want_retweets": true,
+                              "withheld_in_countries": []
+                            },
+                            "location": {
+                              "location": "Austin, TX"
+                            },
+                            "media_permissions": {
+                              "can_media_tag": true
+                            },
+                            "parody_commentary_fan_label": "None",
+                            "privacy": {
+                              "protected": false
+                            },
+                            "professional": {
+                              "category": [
+                                {
+                                  "icon_name": "IconBriefcaseStroke",
+                                  "id": 713,
+                                  "name": "科学・テクノロジー"
+                                }
+                              ],
+                              "professional_type": "Business",
+                              "rest_id": "1468994289103302660"
+                            },
+                            "profile_bio": {
+                              "description": "With industry-leading cloud and AI, we help people see data in new ways, discover insights, unlock endless possibilities."
+                            },
+                            "profile_description_language": "en",
+                            "profile_image_shape": "Square",
+                            "relationship_perspectives": {
+                              "blocked_by": false,
+                              "blocking": false,
+                              "followed_by": false,
+                              "following": true,
+                              "muting": false
+                            },
+                            "rest_id": "809273",
+                            "super_follow_eligible": false,
+                            "super_followed_by": false,
+                            "super_following": false,
+                            "verification": {
+                              "verified": false,
+                              "verified_type": "Business"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "entryId": "user-809273",
+                    "sortIndex": "2040792996399546368"
+                  },
+                  {
+                    "content": {
+                      "__typename": "TimelineTimelineItem",
+                      "clientEventInfo": {
+                        "component": "FollowingSgs",
+                        "element": "user"
+                      },
+                      "entryType": "TimelineTimelineItem",
+                      "itemContent": {
+                        "__typename": "TimelineUser",
+                        "itemType": "TimelineUser",
+                        "userDisplayType": "User",
+                        "user_results": {
+                          "result": {
+                            "__typename": "User",
+                            "affiliates_highlighted_label": {},
+                            "avatar": {
+                              "image_url": "https://pbs.twimg.com/profile_images/1697749409851985920/HbrI04tM_normal.jpg"
+                            },
+                            "core": {
+                              "created_at": "Thu Apr 23 21:53:30 +0000 2009",
+                              "name": "SpaceX",
+                              "screen_name": "SpaceX"
+                            },
+                            "dm_permissions": {
+                              "can_dm": false
+                            },
+                            "follow_request_sent": false,
+                            "has_graduated_access": true,
+                            "id": "VXNlcjozNDc0MzI1MQ==",
+                            "is_blue_verified": true,
+                            "legacy": {
+                              "default_profile": false,
+                              "default_profile_image": false,
+                              "description": "SpaceX designs, manufactures and launches the world’s most advanced rockets and spacecraft",
+                              "entities": {
+                                "description": {
+                                  "urls": []
+                                },
+                                "url": {
+                                  "urls": [
+                                    {
+                                      "display_url": "spacex.com",
+                                      "expanded_url": "http://spacex.com",
+                                      "indices": [
+                                        0,
+                                        23
+                                      ],
+                                      "url": "https://t.co/VOJ6qEctND"
+                                    }
+                                  ]
+                                }
+                              },
+                              "fast_followers_count": 0,
+                              "favourites_count": 521,
+                              "follow_request_sent": false,
+                              "followers_count": 41422547,
+                              "friends_count": 127,
+                              "has_custom_timelines": true,
+                              "is_translator": false,
+                              "listed_count": 44402,
+                              "media_count": 4369,
+                              "normal_followers_count": 41422547,
+                              "notifications": false,
+                              "pinned_tweet_ids_str": [
+                                "2035519125284380672"
+                              ],
+                              "possibly_sensitive": false,
+                              "profile_banner_url": "https://pbs.twimg.com/profile_banners/34743251/1681251194",
+                              "profile_interstitial_type": "",
+                              "statuses_count": 11190,
+                              "translator_type": "none",
+                              "url": "https://t.co/VOJ6qEctND",
+                              "want_retweets": true,
+                              "withheld_in_countries": []
+                            },
+                            "location": {
+                              "location": "Earth"
+                            },
+                            "media_permissions": {
+                              "can_media_tag": true
+                            },
+                            "parody_commentary_fan_label": "None",
+                            "privacy": {
+                              "protected": false
+                            },
+                            "professional": {
+                              "category": [],
+                              "professional_type": "Business",
+                              "rest_id": "1681839322029502464"
+                            },
+                            "profile_bio": {
+                              "description": "SpaceX designs, manufactures and launches the world’s most advanced rockets and spacecraft"
+                            },
+                            "profile_description_language": "en",
+                            "profile_image_shape": "Square",
+                            "relationship_perspectives": {
+                              "blocked_by": false,
+                              "blocking": false,
+                              "followed_by": false,
+                              "following": true,
+                              "muting": false
+                            },
+                            "rest_id": "34743251",
+                            "super_follow_eligible": false,
+                            "super_followed_by": false,
+                            "super_following": false,
+                            "verification": {
+                              "verified": false,
+                              "verified_type": "Business"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "entryId": "user-34743251",
+                    "sortIndex": "2040792996399546367"
+                  },
+                  {
+                    "content": {
+                      "__typename": "TimelineTimelineItem",
+                      "clientEventInfo": {
+                        "component": "FollowingSgs",
+                        "element": "user"
+                      },
+                      "entryType": "TimelineTimelineItem",
+                      "itemContent": {
+                        "__typename": "TimelineUser",
+                        "itemType": "TimelineUser",
+                        "userDisplayType": "User",
+                        "user_results": {
+                          "result": {
+                            "__typename": "User",
+                            "affiliates_highlighted_label": {
+                              "label": {
+                                "badge": {
+                                  "url": "https://pbs.twimg.com/profile_images/1955359038532653056/OSHY3ewP_bigger.jpg"
+                                },
+                                "description": "X",
+                                "url": {
+                                  "url": "https://twitter.com/X",
+                                  "urlType": "DeepLink"
+                                },
+                                "userLabelDisplayType": "Badge",
+                                "userLabelType": "BusinessLabel"
+                              }
+                            },
+                            "avatar": {
+                              "image_url": "https://pbs.twimg.com/profile_images/2035314704307081216/71U1ftM3_normal.jpg"
+                            },
+                            "core": {
+                              "created_at": "Tue Jun 02 20:12:29 +0000 2009",
+                              "name": "Elon Musk",
+                              "screen_name": "elonmusk"
+                            },
+                            "dm_permissions": {
+                              "can_dm": false
+                            },
+                            "follow_request_sent": false,
+                            "has_graduated_access": true,
+                            "id": "VXNlcjo0NDE5NjM5Nw==",
+                            "is_blue_verified": true,
+                            "legacy": {
+                              "default_profile": false,
+                              "default_profile_image": false,
+                              "description": "https://t.co/dDtDyVssfm",
+                              "entities": {
+                                "description": {
+                                  "urls": [
+                                    {
+                                      "display_url": "Terafab.ai",
+                                      "expanded_url": "http://Terafab.ai",
+                                      "indices": [
+                                        0,
+                                        23
+                                      ],
+                                      "url": "https://t.co/dDtDyVssfm"
+                                    }
+                                  ]
+                                }
+                              },
+                              "fast_followers_count": 0,
+                              "favourites_count": 221288,
+                              "follow_request_sent": false,
+                              "followers_count": 237791364,
+                              "friends_count": 1309,
+                              "has_custom_timelines": true,
+                              "is_translator": false,
+                              "listed_count": 167978,
+                              "media_count": 4434,
+                              "normal_followers_count": 237791364,
+                              "notifications": false,
+                              "pinned_tweet_ids_str": [],
+                              "possibly_sensitive": false,
+                              "profile_banner_url": "https://pbs.twimg.com/profile_banners/44196397/1774145451",
+                              "profile_interstitial_type": "",
+                              "statuses_count": 100683,
+                              "translator_type": "none",
+                              "want_retweets": true,
+                              "withheld_in_countries": []
+                            },
+                            "location": {
+                              "location": ""
+                            },
+                            "media_permissions": {
+                              "can_media_tag": false
+                            },
+                            "parody_commentary_fan_label": "None",
+                            "privacy": {
+                              "protected": false
+                            },
+                            "professional": {
+                              "category": [],
+                              "professional_type": "Creator",
+                              "rest_id": "1679729435447275522"
+                            },
+                            "profile_bio": {
+                              "description": "https://t.co/dDtDyVssfm"
+                            },
+                            "profile_image_shape": "Circle",
+                            "relationship_perspectives": {
+                              "blocked_by": false,
+                              "blocking": false,
+                              "followed_by": false,
+                              "following": true,
+                              "muting": false
+                            },
+                            "rest_id": "44196397",
+                            "super_follow_eligible": true,
+                            "super_followed_by": false,
+                            "super_following": false,
+                            "verification": {
+                              "verified": false
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "entryId": "user-44196397",
+                    "sortIndex": "2040792996399546366"
+                  },
+                  {
+                    "content": {
+                      "__typename": "TimelineTimelineItem",
+                      "clientEventInfo": {
+                        "component": "FollowingSgs",
+                        "element": "user"
+                      },
+                      "entryType": "TimelineTimelineItem",
+                      "itemContent": {
+                        "__typename": "TimelineUser",
+                        "itemType": "TimelineUser",
+                        "userDisplayType": "User",
+                        "user_results": {
+                          "result": {
+                            "__typename": "User",
+                            "affiliates_highlighted_label": {},
+                            "avatar": {
+                              "image_url": "https://pbs.twimg.com/profile_images/1767577863090548736/6ZNHda3E_normal.jpg"
+                            },
+                            "core": {
+                              "created_at": "Tue Apr 27 23:59:08 +0000 2010",
+                              "name": "前澤友作",
+                              "screen_name": "yousuck2020"
+                            },
+                            "dm_permissions": {
+                              "can_dm": false
+                            },
+                            "follow_request_sent": false,
+                            "has_graduated_access": true,
+                            "id": "VXNlcjoxMzc4NTc1NDc=",
+                            "is_blue_verified": true,
+                            "legacy": {
+                              "default_profile": true,
+                              "default_profile_image": false,
+                              "description": "株式会社カブ＆ピースの社長です。 @kabuand_jp",
+                              "entities": {
+                                "description": {
+                                  "urls": []
+                                },
+                                "url": {
+                                  "urls": [
+                                    {
+                                      "display_url": "kabuand.com",
+                                      "expanded_url": "https://kabuand.com/",
+                                      "indices": [
+                                        0,
+                                        23
+                                      ],
+                                      "url": "https://t.co/d3Ay1WPOVa"
+                                    }
+                                  ]
+                                }
+                              },
+                              "fast_followers_count": 0,
+                              "favourites_count": 692,
+                              "follow_request_sent": false,
+                              "followers_count": 9304209,
+                              "friends_count": 63418,
+                              "has_custom_timelines": true,
+                              "is_translator": false,
+                              "listed_count": 7535,
+                              "media_count": 1407,
+                              "normal_followers_count": 9304209,
+                              "notifications": false,
+                              "pinned_tweet_ids_str": [
+                                "2020415708211859537"
+                              ],
+                              "possibly_sensitive": false,
+                              "profile_banner_url": "https://pbs.twimg.com/profile_banners/137857547/1710231309",
+                              "profile_interstitial_type": "",
+                              "statuses_count": 8966,
+                              "translator_type": "none",
+                              "url": "https://t.co/d3Ay1WPOVa",
+                              "want_retweets": true,
+                              "withheld_in_countries": []
+                            },
+                            "location": {
+                              "location": "日本"
+                            },
+                            "media_permissions": {
+                              "can_media_tag": true
+                            },
+                            "parody_commentary_fan_label": "None",
+                            "privacy": {
+                              "protected": false
+                            },
+                            "professional": {
+                              "category": [
+                                {
+                                  "icon_name": "IconBriefcaseStroke",
+                                  "id": 958,
+                                  "name": "起業家"
+                                }
+                              ],
+                              "professional_type": "Creator",
+                              "rest_id": "1558244543103115264"
+                            },
+                            "profile_bio": {
+                              "description": "株式会社カブ＆ピースの社長です。 @kabuand_jp"
+                            },
+                            "profile_description_language": "ja",
+                            "profile_image_shape": "Circle",
+                            "relationship_perspectives": {
+                              "blocked_by": false,
+                              "blocking": false,
+                              "followed_by": false,
+                              "following": true,
+                              "muting": false
+                            },
+                            "rest_id": "137857547",
+                            "super_follow_eligible": false,
+                            "super_followed_by": false,
+                            "super_following": false,
+                            "verification": {
+                              "verified": false
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "entryId": "user-137857547",
+                    "sortIndex": "2040792996399546365"
+                  },
+                  {
+                    "content": {
+                      "__typename": "TimelineTimelineItem",
+                      "clientEventInfo": {
+                        "component": "FollowingSgs",
+                        "element": "user"
+                      },
+                      "entryType": "TimelineTimelineItem",
+                      "itemContent": {
+                        "__typename": "TimelineUser",
+                        "itemType": "TimelineUser",
+                        "userDisplayType": "User",
+                        "user_results": {
+                          "result": {
+                            "__typename": "User",
+                            "affiliates_highlighted_label": {},
+                            "avatar": {
+                              "image_url": "https://pbs.twimg.com/profile_images/1899626193026191360/W4tRja0m_normal.jpg"
+                            },
+                            "core": {
+                              "created_at": "Fri Nov 26 03:21:46 +0000 2010",
+                              "name": "スターバックス コーヒー",
+                              "screen_name": "Starbucks_J"
+                            },
+                            "dm_permissions": {
+                              "can_dm": false
+                            },
+                            "follow_request_sent": false,
+                            "has_graduated_access": true,
+                            "id": "VXNlcjoyMTk4Njc4NTk=",
+                            "is_blue_verified": true,
+                            "legacy": {
+                              "default_profile": false,
+                              "default_profile_image": false,
+                              "description": "こんにちは。スターバックスの公式アカウントです。お店と同じ心地よい場所にしたいと思っています。パートナー3名で担当しておりお返事しきれないこともあると思いますがご理解ください。なお、店舗・商品などのお問合せは、お客様相談室0120-336-388（10:00-18:00 年中無休）でお受けしております。",
+                              "entities": {
+                                "description": {
+                                  "urls": []
+                                },
+                                "url": {
+                                  "urls": [
+                                    {
+                                      "display_url": "starbucks.co.jp",
+                                      "expanded_url": "https://www.starbucks.co.jp/",
+                                      "indices": [
+                                        0,
+                                        23
+                                      ],
+                                      "url": "https://t.co/16MnKeySXv"
+                                    }
+                                  ]
+                                }
+                              },
+                              "fast_followers_count": 0,
+                              "favourites_count": 5,
+                              "follow_request_sent": false,
+                              "followers_count": 9349839,
+                              "friends_count": 1552239,
+                              "has_custom_timelines": true,
+                              "is_translator": false,
+                              "listed_count": 11251,
+                              "media_count": 395617,
+                              "normal_followers_count": 9349839,
+                              "notifications": false,
+                              "pinned_tweet_ids_str": [
+                                "2040595288755519747"
+                              ],
+                              "possibly_sensitive": false,
+                              "profile_banner_url": "https://pbs.twimg.com/profile_banners/219867859/1774399660",
+                              "profile_interstitial_type": "",
+                              "statuses_count": 543880,
+                              "translator_type": "none",
+                              "url": "https://t.co/16MnKeySXv",
+                              "want_retweets": true,
+                              "withheld_in_countries": []
+                            },
+                            "location": {
+                              "location": "東京都品川区"
+                            },
+                            "media_permissions": {
+                              "can_media_tag": true
+                            },
+                            "parody_commentary_fan_label": "None",
+                            "privacy": {
+                              "protected": false
+                            },
+                            "profile_bio": {
+                              "description": "こんにちは。スターバックスの公式アカウントです。お店と同じ心地よい場所にしたいと思っています。パートナー3名で担当しておりお返事しきれないこともあると思いますがご理解ください。なお、店舗・商品などのお問合せは、お客様相談室0120-336-388（10:00-18:00 年中無休）でお受けしております。"
+                            },
+                            "profile_description_language": "ja",
+                            "profile_image_shape": "Square",
+                            "relationship_perspectives": {
+                              "blocked_by": false,
+                              "blocking": false,
+                              "followed_by": false,
+                              "following": true,
+                              "muting": false
+                            },
+                            "rest_id": "219867859",
+                            "super_follow_eligible": false,
+                            "super_followed_by": false,
+                            "super_following": false,
+                            "verification": {
+                              "verified": false,
+                              "verified_type": "Business"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "entryId": "user-219867859",
+                    "sortIndex": "2040792996399546364"
+                  },
+                  {
+                    "content": {
+                      "__typename": "TimelineTimelineCursor",
+                      "cursorType": "Bottom",
+                      "entryType": "TimelineTimelineCursor",
+                      "value": "0|2040792996399546361"
+                    },
+                    "entryId": "cursor-bottom-2040792996399546363",
+                    "sortIndex": "2040792996399546363"
+                  },
+                  {
+                    "content": {
+                      "__typename": "TimelineTimelineCursor",
+                      "cursorType": "Top",
+                      "entryType": "TimelineTimelineCursor",
+                      "value": "-1|2040792996399546369"
+                    },
+                    "entryId": "cursor-top-2040792996399546369",
+                    "sortIndex": "2040792996399546369"
+                  }
+                ],
+                "type": "TimelineAddEntries"
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
