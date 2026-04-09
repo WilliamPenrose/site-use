@@ -166,6 +166,9 @@ export async function getFollowList(
       const url = `https://x.com/${handle}/${direction}`;
       await primitives.navigate(url);
       await checkLoginRedirect(primitives, rootSpan);
+      // Note: checkProfileError detects emptyState/errorDetail via data-testid on the
+      // main profile page. On /following and /followers subpages, the error DOM may
+      // differ — nonexistent users may fall through to the GraphQL timeout below.
       await checkProfileError(primitives, handle, direction);
 
       // Wait for initial GraphQL response
@@ -192,8 +195,14 @@ export async function getFollowList(
         );
       }
 
-      // Scroll to collect more if needed
-      let hasMore = collector.length > count; // initial response already exceeded count
+      // Determine hasMore and scroll if needed.
+      // Three cases for the initial response vs count:
+      //   collector > count  → hasMore=true, no scroll needed (slice to count)
+      //   collector === count → hasMore=false, no scroll probe (exact match is
+      //                         ambiguous but returning false is safe — the caller
+      //                         can request more with a higher count if needed)
+      //   collector < count  → scroll to collect more, then re-evaluate
+      let hasMore = collector.length > count;
       if (collector.length < count) {
         const scrollResult = await rootSpan.span('collectFollowList', async (s) => {
           return collectFollowList(primitives, collector, { count }, s);

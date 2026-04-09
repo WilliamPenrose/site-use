@@ -303,4 +303,40 @@ describe('getFollowList', () => {
     await expect(getFollowList(primitives, { handle: 'secret', direction: 'following' }))
       .rejects.toThrow('protected account');
   });
+
+  it('returns data for protected user you follow (no false positive)', async () => {
+    // When you follow a protected user, Twitter sends BOTH UserByScreenName
+    // (with privacy.protected=true) AND the Following/Followers GraphQL data.
+    // isProtected is set but never checked because collector fills before the poll loop.
+    const protectedProfileBody = JSON.stringify({
+      data: { user: { result: { privacy: { protected: true } } } },
+    });
+
+    let followListHandler: any = null;
+    const primitives = createMockPrimitives({
+      navigate: vi.fn().mockImplementation(async () => {
+        if (followListHandler) {
+          followListHandler({ url: '/i/api/graphql/abc/Following', status: 200, body: goldenBody });
+        }
+      }),
+      interceptRequest: vi.fn().mockImplementation(async (pattern: RegExp, handler: any) => {
+        if (pattern.source.includes('Following|Followers')) {
+          followListHandler = handler;
+        } else if (pattern.source.includes('UserByScreenName')) {
+          setTimeout(() => handler({ url: '/i/api/graphql/abc/UserByScreenName', status: 200, body: protectedProfileBody }), 50);
+        }
+        return () => {};
+      }),
+      evaluate: vi.fn()
+        .mockResolvedValueOnce('https://x.com/secret/following')
+        .mockResolvedValueOnce(null),
+    });
+
+    const { getFollowList } = await import('../follow-list.js');
+    const result = await getFollowList(primitives, { handle: 'secret', direction: 'following', count: 5 });
+
+    // Should succeed — not throw ProtectedAccount
+    expect(result.users.length).toBe(5);
+    expect(result.meta.owner).toBe('secret');
+  });
 });
