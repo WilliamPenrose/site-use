@@ -13,11 +13,15 @@ import {
 import type {
   Primitives,
   Snapshot,
-  SnapshotNode,
   ScrollOptions,
   InterceptHandler,
   InterceptControl,
 } from './types.js';
+import { fetchAXData } from './snapshot/fetch.js';
+import { hydrateAXData } from './snapshot/hydrate.js';
+import { mergeAXData } from './snapshot/merge.js';
+import { filterNodes } from './snapshot/filter.js';
+import { buildSnapshotOutput } from './snapshot/output.js';
 import { RateLimitDetector } from './rate-limit-detect.js';
 
 const DEFAULT_SITE = '_default';
@@ -380,103 +384,18 @@ export class PuppeteerBackend implements Primitives {
     const client = await page.createCDPSession();
 
     try {
-      const { nodes } = await client.send('Accessibility.getFullAXTree');
-      return this.buildSnapshot(nodes);
+      // 5-stage pipeline: fetch → hydrate → merge → filter → output
+      const rawData = await fetchAXData(client);
+      const hydrated = hydrateAXData(rawData);
+      const { nodes, uidToBackendNodeId, axIdToUid } = mergeAXData(hydrated);
+      const filtered = filterNodes(nodes);
+      const snapshot = buildSnapshotOutput(filtered, axIdToUid);
+
+      this.uidToBackendNodeId = uidToBackendNodeId;
+      return snapshot;
     } finally {
       await client.detach();
     }
-  }
-
-  private buildSnapshot(axNodes: any[]): Snapshot {
-    const idToNode = new Map<string, SnapshotNode>();
-    this.uidToBackendNodeId = new Map();
-
-    // Build nodeId -> axNode lookup for parent-child resolution
-    const axNodeById = new Map<string, any>();
-    for (const node of axNodes) {
-      axNodeById.set(node.nodeId, node);
-    }
-
-    let nextUid = 1;
-
-    // Map from AX nodeId to assigned uid (for child reference resolution)
-    const axIdToUid = new Map<string, string>();
-
-    // First pass: assign uids to valid nodes
-    for (const node of axNodes) {
-      if (this.shouldSkipNode(node)) continue;
-
-      const uid = String(nextUid++);
-      axIdToUid.set(node.nodeId, uid);
-
-      if (node.backendDOMNodeId != null) {
-        this.uidToBackendNodeId.set(uid, node.backendDOMNodeId);
-      }
-    }
-
-    // Second pass: build SnapshotNode objects with children
-    for (const node of axNodes) {
-      const uid = axIdToUid.get(node.nodeId);
-      if (!uid) continue;
-
-      const snapshotNode: SnapshotNode = {
-        uid,
-        role: node.role?.value ?? '',
-        name: node.name?.value ?? '',
-      };
-
-      // Optional properties from AX properties array
-      if (node.properties) {
-        for (const prop of node.properties) {
-          const val = prop.value?.value;
-          switch (prop.name) {
-            case 'focused':
-              if (val) snapshotNode.focused = true;
-              break;
-            case 'disabled':
-              if (val) snapshotNode.disabled = true;
-              break;
-            case 'expanded':
-              if (val != null) snapshotNode.expanded = val;
-              break;
-            case 'selected':
-              if (val) snapshotNode.selected = true;
-              break;
-            case 'level':
-              if (val != null) snapshotNode.level = val;
-              break;
-          }
-        }
-      }
-
-      // Value (for form elements)
-      if (node.value?.value != null) {
-        snapshotNode.value = String(node.value.value);
-      }
-
-      // Children (resolve AX childIds to assigned uids)
-      if (node.childIds?.length) {
-        const childUids: string[] = [];
-        for (const childId of node.childIds) {
-          const childUid = axIdToUid.get(childId);
-          if (childUid) childUids.push(childUid);
-        }
-        if (childUids.length > 0) {
-          snapshotNode.children = childUids;
-        }
-      }
-
-      idToNode.set(uid, snapshotNode);
-    }
-
-    return { idToNode };
-  }
-
-  private shouldSkipNode(node: any): boolean {
-    if (node.ignored) return true;
-    const role = node.role?.value;
-    if (role === 'none' || role === 'Ignored') return true;
-    return false;
   }
 
   /**

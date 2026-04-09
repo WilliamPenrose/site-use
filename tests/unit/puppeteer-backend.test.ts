@@ -116,6 +116,9 @@ describe('PuppeteerBackend', () => {
           if (method === 'Accessibility.getFullAXTree') {
             return Promise.resolve({ nodes: [{ nodeId: 'ax-1', role: { value: 'button' }, name: { value: 'OK' }, backendDOMNodeId: 101, ignored: false, properties: [] }] });
           }
+          if (method === 'Page.getFrameTree') {
+            return Promise.resolve({ frameTree: { frame: { id: 'main', url: 'https://example.com', securityOrigin: 'https://example.com' } } });
+          }
           if (method === 'DOM.describeNode') return Promise.resolve({ node: { nodeId: 10 } });
           if (method === 'DOM.getBoxModel') return Promise.resolve({ model: { content: [100, 200, 200, 200, 200, 240, 100, 240] } });
           return Promise.resolve({});
@@ -293,9 +296,16 @@ describe('PuppeteerBackend', () => {
     // Helper: build a mock CDP session that returns a fake AX tree
     function mockCDPSessionWithAXTree(nodes: any[]) {
       const session = {
-        send: vi.fn().mockImplementation((method: string) => {
+        send: vi.fn().mockImplementation((method: string, params?: any) => {
           if (method === 'Accessibility.getFullAXTree') {
             return Promise.resolve({ nodes });
+          }
+          if (method === 'Page.getFrameTree') {
+            return Promise.resolve({
+              frameTree: {
+                frame: { id: 'main', url: 'https://example.com', securityOrigin: 'https://example.com' },
+              },
+            });
           }
           return Promise.resolve({});
         }),
@@ -474,6 +484,9 @@ describe('PuppeteerBackend', () => {
               ],
             });
           }
+          if (method === 'Page.getFrameTree') {
+            return Promise.resolve({ frameTree: { frame: { id: 'main', url: 'https://example.com', securityOrigin: 'https://example.com' } } });
+          }
           if (method === 'DOM.describeNode') {
             return Promise.resolve({ node: { nodeId: 10 } });
           }
@@ -542,6 +555,7 @@ describe('PuppeteerBackend', () => {
           if (method === 'Accessibility.getFullAXTree') {
             return Promise.resolve({ nodes: [{ nodeId: 'ax-1', role: { value: 'button' }, name: { value: 'Follow' }, backendDOMNodeId: 101, ignored: false, properties: [] }] });
           }
+          if (method === 'Page.getFrameTree') return Promise.resolve({ frameTree: { frame: { id: 'main', url: 'https://example.com', securityOrigin: 'https://example.com' } } });
           if (method === 'DOM.describeNode') return Promise.resolve({ node: { nodeId: 10 } });
           if (method === 'DOM.getBoxModel') return Promise.resolve({ model: { content: [100, 200, 200, 200, 200, 240, 100, 240] } });
           if (method === 'Runtime.evaluate') return Promise.resolve({ result: { value: 'visible' } });
@@ -582,6 +596,7 @@ describe('PuppeteerBackend', () => {
           if (method === 'Accessibility.getFullAXTree') {
             return Promise.resolve({ nodes: [{ nodeId: 'ax-1', role: { value: 'button' }, name: { value: 'Follow' }, backendDOMNodeId: 101, ignored: false, properties: [] }] });
           }
+          if (method === 'Page.getFrameTree') return Promise.resolve({ frameTree: { frame: { id: 'main', url: 'https://example.com', securityOrigin: 'https://example.com' } } });
           if (method === 'DOM.describeNode') return Promise.resolve({ node: { nodeId: 10 } });
           if (method === 'DOM.getBoxModel') return Promise.resolve({ model: { content: [100, 200, 200, 200, 200, 240, 100, 240] } });
           if (method === 'Runtime.evaluate') return Promise.resolve({ result: { value: 'visible' } });
@@ -621,6 +636,7 @@ describe('PuppeteerBackend', () => {
           if (method === 'Accessibility.getFullAXTree') {
             return Promise.resolve({ nodes: [{ nodeId: 'ax-1', role: { value: 'button' }, name: { value: 'Follow' }, backendDOMNodeId: 101, ignored: false, properties: [] }] });
           }
+          if (method === 'Page.getFrameTree') return Promise.resolve({ frameTree: { frame: { id: 'main', url: 'https://example.com', securityOrigin: 'https://example.com' } } });
           if (method === 'DOM.describeNode') return Promise.resolve({ node: { nodeId: 10 } });
           if (method === 'DOM.getBoxModel') return Promise.resolve({ model: { content: [100, 200, 200, 200, 200, 240, 100, 240] } });
           if (method === 'Runtime.evaluate') return Promise.resolve({ result: { value: 'hidden' } });
@@ -660,6 +676,7 @@ describe('PuppeteerBackend', () => {
           if (method === 'Accessibility.getFullAXTree') {
             return Promise.resolve({ nodes: [{ nodeId: 'ax-1', role: { value: 'button' }, name: { value: 'Follow' }, backendDOMNodeId: 101, ignored: false, properties: [] }] });
           }
+          if (method === 'Page.getFrameTree') return Promise.resolve({ frameTree: { frame: { id: 'main', url: 'https://example.com', securityOrigin: 'https://example.com' } } });
           if (method === 'DOM.describeNode') return Promise.resolve({ node: { nodeId: 10 } });
           if (method === 'DOM.getBoxModel') return Promise.resolve({ model: { content: [100, 200, 200, 200, 200, 240, 100, 240] } });
           if (method === 'Browser.getWindowForTarget') return Promise.resolve({ windowId: 1 });
@@ -950,6 +967,7 @@ describe('PuppeteerBackend', () => {
               ],
             });
           }
+          if (method === 'Page.getFrameTree') return Promise.resolve({ frameTree: { frame: { id: 'main', url: 'https://example.com', securityOrigin: 'https://example.com' } } });
           if (method === 'DOM.focus') {
             return Promise.resolve({});
           }
@@ -999,6 +1017,7 @@ describe('PuppeteerBackend', () => {
               }],
             });
           }
+          if (method === 'Page.getFrameTree') return Promise.resolve({ frameTree: { frame: { id: 'main', url: 'https://example.com', securityOrigin: 'https://example.com' } } });
           if (method === 'DOM.focus') {
             return Promise.reject(new Error('Could not find node'));
           }
@@ -1238,6 +1257,7 @@ describe('PuppeteerBackend', () => {
               ],
             });
           }
+          if (method === 'Page.getFrameTree') return Promise.resolve({ frameTree: { frame: { id: 'main', url: 'https://example.com', securityOrigin: 'https://example.com' } } });
           return Promise.resolve({});
         }),
         detach: vi.fn().mockResolvedValue(undefined),
