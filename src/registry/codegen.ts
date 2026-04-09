@@ -297,10 +297,39 @@ function buildWorkflowHelp(
 }
 
 /**
+ * Extract the field-name → ZodType shape from a schema, unwrapping
+ * ZodEffects layers (.refine/.transform/.superRefine) to reach the inner ZodObject.
+ */
+function getSchemaShape(schema: ZodType): Record<string, ZodType> | null {
+  let current: ZodType = schema;
+  // Unwrap ZodEffects (from .refine / .transform / .superRefine)
+  while (current instanceof z.ZodEffects) {
+    current = (current as z.ZodEffects<any>)._def.schema;
+  }
+  if (current instanceof z.ZodObject) {
+    return (current as z.ZodObject<any>).shape;
+  }
+  return null;
+}
+
+/** Check if a Zod field type is (or wraps) a number, unwrapping ZodDefault/ZodOptional. */
+function isNumberField(field: ZodType): boolean {
+  let current = field;
+  while (current instanceof z.ZodDefault || current instanceof z.ZodOptional) {
+    current = current._def.innerType;
+  }
+  return current instanceof z.ZodNumber;
+}
+
+/**
  * Minimal CLI arg parser: converts --flag value pairs to object,
  * then validates against the Zod schema.
+ *
+ * Schema-aware: only coerces values to numbers when the target field
+ * is z.number(). All other values are kept as strings for Zod to validate.
  */
 function parseCliArgs(args: string[], schema: ZodType): Record<string, unknown> {
+  const shape = getSchemaShape(schema);
   const raw: Record<string, unknown> = {};
   let i = 0;
   while (i < args.length) {
@@ -312,8 +341,14 @@ function parseCliArgs(args: string[], schema: ZodType): Record<string, unknown> 
         raw[key] = true;
         i++;
       } else {
-        const num = Number(next);
-        raw[key] = isNaN(num) ? next : num;
+        // Only coerce to number when the schema field is a number type
+        const field = shape?.[key];
+        if (field && isNumberField(field)) {
+          const num = Number(next);
+          raw[key] = isNaN(num) ? next : num;
+        } else {
+          raw[key] = next;
+        }
         i += 2;
       }
     } else {
