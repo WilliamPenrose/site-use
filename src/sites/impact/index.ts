@@ -40,8 +40,7 @@ export const plugin: SitePlugin = {
   --proposal-file <path>   Path to proposal template YAML (required)
   --max-per-keyword <n>    Max proposals to send per keyword (1-500, default: 50)
   --delay <seconds>        Extra wait between cards (default: 0)
-  --dry-run                Fill form but don't submit
-  --debug                  Include diagnostic info`,
+  --dry-run                Fill form but don't submit`,
       },
     },
   ],

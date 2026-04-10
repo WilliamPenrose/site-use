@@ -25,8 +25,6 @@ export const SendProposalParamsSchema = z.object({
     .describe('Extra wait between cards (seconds)'),
   dryRun: z.boolean().default(false)
     .describe('Preview mode: fill form but do not submit'),
-  debug: z.boolean().default(false)
-    .describe('Include diagnostic info'),
 }).refine(
   d => d.keyword || d.keywordsFile,
   { message: 'Either --keyword or --keywords-file is required' },
