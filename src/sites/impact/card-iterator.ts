@@ -151,16 +151,17 @@ export async function clickSendProposal(
 /**
  * Check if a card has a "already sent" UI indicator.
  * Returns true if the card shows signs of a prior proposal.
- * Currently checks badge-container content — TBD exact element.
+ *
+ * NOTE: The exact indicator element is TBD (spec §2.4). All tested cards
+ * had an empty .badge-container. This function is a stub that always
+ * returns false until a card with an existing relationship is found
+ * and the indicator element is identified.
  */
 export async function isAlreadySent(
-  primitives: Primitives,
-  cardIndex: number,
+  _primitives: Primitives,
+  _cardIndex: number,
 ): Promise<boolean> {
-  return primitives.evaluate<boolean>(`(() => {
-    const card = document.querySelectorAll('${CARD_SELECTOR}')[${cardIndex}];
-    const badge = card?.querySelector('.badge-container');
-    // If badge has visible content, assume already contacted
-    return badge ? badge.innerHTML.trim().length > 10 : false;
-  })()`);
+  // TODO: identify the actual "already sent" indicator element.
+  // Returning false to avoid false positives that skip valid cards.
+  return false;
 }
