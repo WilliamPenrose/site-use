@@ -29,7 +29,7 @@ export const plugin: SitePlugin = {
       params: SendProposalParamsSchema,
       execute: (primitives: Primitives, params: unknown, trace?: Trace) =>
         sendProposal(primitives, params as SendProposalParams, trace),
-      dailyLimit: 50, // TODO: revert to 10 after integration testing
+      dailyLimit: 10,
       dailyLimitKey: 'send-proposal-batch',
       expose: ['cli'],
       cli: {
