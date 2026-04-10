@@ -1,5 +1,4 @@
 import type { Primitives } from '../../primitives/types.js';
-import { hover } from '../../ops/hover.js';
 import { findByDescriptor } from '../../ops/matchers.js';
 import { ElementNotFound } from '../../errors.js';
 
@@ -55,13 +54,38 @@ export async function resolveCardIndex(
 }
 
 /**
- * Hover over a card by its DOM index to reveal the "Send Proposal" button.
+ * Hover over a card by its querySelectorAll index to reveal the "Send Proposal" button.
+ * Each .discovery-card is the sole child of its own .iui-card wrapper,
+ * so :nth-child cannot be used. Instead, get bounding rect via evaluate
+ * and dispatch mouseMoved via CDP.
  */
 export async function hoverCard(
   primitives: Primitives,
   cardIndex: number,
 ): Promise<void> {
-  await hover(primitives, `${CARD_SELECTOR}:nth-child(${cardIndex + 1})`);
+  const rect = await primitives.evaluate<{ x: number; y: number; w: number; h: number } | null>(`(() => {
+    const card = document.querySelectorAll('${CARD_SELECTOR}')[${cardIndex}];
+    if (!card) return null;
+    const r = card.getBoundingClientRect();
+    return { x: r.x, y: r.y, w: r.width, h: r.height };
+  })()`);
+
+  if (!rect || rect.w < 1 || rect.h < 1) {
+    throw new ElementNotFound(`Card at index ${cardIndex} not found or zero-size`);
+  }
+
+  const page = await primitives.getRawPage();
+  const cdp = await page.createCDPSession();
+  try {
+    await cdp.send('Input.dispatchMouseEvent', {
+      type: 'mouseMoved',
+      x: rect.x + rect.w / 2,
+      y: rect.y + rect.h / 2,
+    });
+  } finally {
+    await cdp.detach();
+  }
+
   // Wait for Vue @mouseenter to flip display:none → visible
   await new Promise(r => setTimeout(r, 500));
 }

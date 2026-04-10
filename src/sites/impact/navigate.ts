@@ -14,9 +14,16 @@ export async function searchKeyword(
   keyword: string,
 ): Promise<void> {
   await primitives.navigate(IMPACT_DISCOVERY_URL);
-  await new Promise(r => setTimeout(r, 2000));
 
-  // Find and focus the search input
+  // Wait for search input to appear (page may take a few seconds to render)
+  const inputDeadline = Date.now() + 10_000;
+  while (Date.now() < inputDeadline) {
+    const hasInput = await primitives.evaluate<boolean>(
+      `!!document.querySelector('${SEARCH_INPUT_SELECTOR}')`,
+    );
+    if (hasInput) break;
+    await new Promise(r => setTimeout(r, 500));
+  }
   const hasInput = await primitives.evaluate<boolean>(
     `!!document.querySelector('${SEARCH_INPUT_SELECTOR}')`,
   );
@@ -48,7 +55,16 @@ export async function searchKeyword(
 
   await primitives.type(searchUid, keyword);
   await primitives.pressKey('Enter');
-  await new Promise(r => setTimeout(r, 3000)); // Wait for search results
+
+  // Search clears all cards then reloads — wait for cards to reappear.
+  // Observed latency: ~6s on real network. Poll up to 15s.
+  const deadline = Date.now() + 15_000;
+  while (Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, 1000));
+    const count = await countCards(primitives);
+    if (count > 0) return;
+  }
+  // No cards after timeout — keyword may have zero results (not an error)
 }
 
 /**
