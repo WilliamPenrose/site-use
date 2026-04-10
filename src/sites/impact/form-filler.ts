@@ -31,13 +31,16 @@ export async function waitForIframeForm(
 /**
  * Fill Template Term dropdown.
  *
+ * ⚠️ CDP escape hatch (dropdown button click only) — Why not primitives?
  * The iframe has 12+ buttons sharing data-testid="uicl-multi-select-input-button"
- * (Template Term, hour, minute, AM/PM, timezone, Length, etc.).
- * AX tree "Select" matches the wrong button. querySelectorAll()[0] hits the hour picker.
+ * (Template Term, hour, minute, AM/PM, timezone, Length, etc.). All appear as
+ * [button] "Select" in the AX tree — findByDescriptor cannot disambiguate.
+ * CDP DOM nested querySelector is the only reliable path:
+ *   iframeDoc → first section.iui-form-section → its sole multi-select button.
+ * backendNodeId → getBoxModel gives absolute coordinates for the click.
  *
- * Solution: CDP DOM nested querySelector — first section.iui-form-section contains
- * exactly one multi-select button (Template Term). backendNodeId → getBoxModel
- * gives main-page absolute coordinates for iframe elements.
+ * Once the dropdown is open, option selection uses AX snapshot + primitives.click
+ * since option names (e.g. "Public Terms") are unique.
  */
 export async function fillTemplateTerm(
   primitives: Primitives,
@@ -97,6 +100,17 @@ export async function fillTemplateTerm(
 /**
  * Ensure Start Date is set. If the date button is empty, click the
  * calendar "Today" button or the today date cell.
+ *
+ * ⚠️ CDP escape hatch (entire function) — Why not primitives?
+ * 1. Date button: shares data-testid="uicl-date-input" with fallback date
+ *    pickers — AX disambiguation unreliable, use CDP nested querySelector.
+ * 2. Calendar "Today" button: no unique AX name, identified by outerHTML
+ *    text match among generic calendar buttons.
+ * 3. Date cell fallback: <td> elements have no AX role/name for the day
+ *    number — only raw innerHTML reveals which cell is "today".
+ * All clicks use CDP Input.dispatchMouseEvent with getBoxModel coordinates
+ * (same mechanism as primitives.click, minus Bezier trajectory). Acceptable
+ * because these are iframe-internal form controls, not user-visible page actions.
  */
 export async function ensureStartDate(
   primitives: Primitives,

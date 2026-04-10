@@ -55,9 +55,14 @@ export async function resolveCardIndex(
 
 /**
  * Hover over a card by its querySelectorAll index to reveal the "Send Proposal" button.
+ *
+ * ⚠️ CDP escape hatch — Why not primitives?
+ * Primitives has no hover method; ops/hover.ts only accepts a CSS selector.
  * Each .discovery-card is the sole child of its own .iui-card wrapper,
- * so :nth-child cannot be used. Instead, get bounding rect via evaluate
- * and dispatch mouseMoved via CDP.
+ * so CSS :nth-child cannot address them by querySelectorAll index.
+ * We use evaluate to get the Nth card's bounding rect, then CDP
+ * Input.dispatchMouseEvent(mouseMoved) to trigger Vue's @mouseenter.
+ * This is mouseMoved only (not a click), so anti-detection risk is minimal.
  */
 export async function hoverCard(
   primitives: Primitives,
