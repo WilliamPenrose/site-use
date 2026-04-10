@@ -182,9 +182,15 @@ export async function ensureStartDate(
 
 /**
  * Fill Partner Groups tag input.
- * If chips already exist, skip. Otherwise type the value.
- * NOTE: Tag input is autocomplete-only — typed text may not create a chip.
- * This is a known limitation (spec §2.6 TODO).
+ * If chips already exist, skip. Otherwise focus via CDP and type the value.
+ * Typing creates a chip automatically (no Enter/Tab needed).
+ *
+ * ⚠️ CDP escape hatch (focus only) — Why not primitives?
+ * The tag input is an `<input>` inside the iframe with data-testid but
+ * no unique aria-label. AX snapshot matching is unreliable (multiple
+ * textboxes in iframe, hard to disambiguate from message textarea).
+ * CDP DOM.focus on the exact data-testid is the reliable path.
+ * Typing uses page.keyboard which sends real key events.
  */
 export async function fillPartnerGroup(
   primitives: Primitives,
@@ -202,44 +208,39 @@ export async function fillPartnerGroup(
 
   if (chipCount > 0) return; // Use existing chips
 
-  // Find tag input via DOM-to-ARIA bridge
-  const inputLabel = await primitives.evaluate<string>(`(() => {
-    const iframe = document.querySelector('${IFRAME_SELECTOR}');
-    const input = iframe?.contentDocument?.querySelector('input[data-testid="uicl-tag-input-text-input"]');
-    return input?.getAttribute('aria-label') ?? input?.placeholder ?? '';
-  })()`);
-
-  const snapshot = await primitives.takeSnapshot();
-  let inputNode = inputLabel
-    ? findByDescriptor(snapshot, { role: 'textbox', name: inputLabel })
-    : null;
-  // Fallback: find by searching iframe textboxes, skipping the message textarea.
-  // The message textarea typically has role=textbox with a longer or different name.
-  // Tag input is identifiable by having no value and not being multiline.
-  if (!inputNode) {
-    const messageLabel = await primitives.evaluate<string>(`(() => {
-      const iframe = document.querySelector('${IFRAME_SELECTOR}');
-      const ta = iframe?.contentDocument?.querySelector('textarea[data-testid="uicl-textarea"]');
-      return ta?.getAttribute('aria-label') ?? ta?.placeholder ?? '';
-    })()`);
-    for (const [, node] of snapshot.idToNode) {
-      if (node.role === 'textbox' && node.frameUrl?.includes('proposal')
-          && node.name !== messageLabel) {
-        inputNode = node;
-        break;
-      }
+  // Focus tag input via CDP and type value
+  const page = await primitives.getRawPage();
+  const cdp = await page.createCDPSession();
+  try {
+    const doc = await cdp.send('DOM.getDocument', { depth: -1, pierce: true });
+    const iframeDocId = findIframeDocId(doc.root);
+    if (!iframeDocId) {
+      console.error('[site-use] impact: Partner Groups — iframe not found, skipping');
+      return;
     }
-  }
-  if (!inputNode) {
-    // Known limitation: tag input AX matching is unreliable (spec §2.6 TODO).
-    // Warn but don't throw — partner group is optional.
-    console.error('[site-use] impact: Partner Groups tag input not found in AX snapshot — skipping (known limitation)');
-    return;
+
+    const tagBid = await queryBackendId(cdp as unknown as AnyCDPSession, iframeDocId, 'input[data-testid="uicl-tag-input-text-input"]');
+    await cdp.send('DOM.scrollIntoViewIfNeeded', { backendNodeId: tagBid });
+    await new Promise(r => setTimeout(r, 200));
+    await cdp.send('DOM.focus', { backendNodeId: tagBid });
+    await new Promise(r => setTimeout(r, 200));
+  } finally {
+    await cdp.detach();
   }
 
-  await primitives.scrollIntoView(inputNode.uid);
-  await primitives.type(inputNode.uid, value, { delay: 30 });
-  await new Promise(r => setTimeout(r, 300));
+  await page.keyboard.type(value, { delay: 30 });
+  await new Promise(r => setTimeout(r, 500));
+
+  // Verify chip was created
+  const afterCount = await primitives.evaluate<number>(`(() => {
+    const iframe = document.querySelector('${IFRAME_SELECTOR}');
+    return iframe?.contentDocument?.querySelectorAll(
+      '[data-testid="uicl-tag-input-delete-icon"]'
+    )?.length ?? 0;
+  })()`);
+  if (afterCount === 0) {
+    console.error('[site-use] impact: Partner Groups — typed but no chip created');
+  }
 }
 
 /**
