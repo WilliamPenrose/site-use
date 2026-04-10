@@ -339,21 +339,36 @@ export async function waitForSuccess(
 
 /**
  * Close the iframe dialog if it's open (for error recovery / dry-run).
- * Uses Escape key — safer than matching unnamed close buttons.
+ * Clicks outside the dialog area to dismiss it — Escape may not work
+ * on impact.com's modal implementation.
  */
 export async function closeDialog(primitives: Primitives): Promise<void> {
-  await primitives.pressKey('Escape');
-  await new Promise(r => setTimeout(r, 500));
-  // If iframe still present, try one more Escape (some modals need two)
+  const page = await primitives.getRawPage();
+  const cdp = await page.createCDPSession();
+  try {
+    // Click top-left corner (outside the centered dialog)
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 10, y: 10 });
+    await new Promise(r => setTimeout(r, 50));
+    await cdp.send('Input.dispatchMouseEvent', {
+      type: 'mousePressed', x: 10, y: 10, button: 'left', clickCount: 1,
+    });
+    await cdp.send('Input.dispatchMouseEvent', {
+      type: 'mouseReleased', x: 10, y: 10, button: 'left', clickCount: 1,
+    });
+  } finally {
+    await cdp.detach();
+  }
+  await new Promise(r => setTimeout(r, 1000));
+
+  // Verify dialog is gone
   const still = await primitives.evaluate<boolean>(
     `!!document.querySelector('${IFRAME_SELECTOR}')`,
   );
   if (still) {
+    // Fallback: press Escape
     await primitives.pressKey('Escape');
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise(r => setTimeout(r, 1000));
   }
-  // Wait for page to stabilize after dialog close
-  await new Promise(r => setTimeout(r, 1000));
 }
 
 // ── CDP helpers (for iframe DOM operations) ──────────────────
