@@ -188,6 +188,8 @@ export async function sendProposal(
 
     // 3. Search
     await searchKeyword(primitives, keyword);
+    const initialCardCount = await countCards(primitives);
+    console.error(`[site-use] impact: [keyword ${ki + 1}/${keywords.length}] ${initialCardCount} cards found`);
 
     let consecutiveFailures = 0;
     let cardCount = 0;

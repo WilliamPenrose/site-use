@@ -213,17 +213,29 @@ export async function fillPartnerGroup(
   let inputNode = inputLabel
     ? findByDescriptor(snapshot, { role: 'textbox', name: inputLabel })
     : null;
-  // Fallback: find by searching iframe textboxes
+  // Fallback: find by searching iframe textboxes, skipping the message textarea.
+  // The message textarea typically has role=textbox with a longer or different name.
+  // Tag input is identifiable by having no value and not being multiline.
   if (!inputNode) {
+    const messageLabel = await primitives.evaluate<string>(`(() => {
+      const iframe = document.querySelector('${IFRAME_SELECTOR}');
+      const ta = iframe?.contentDocument?.querySelector('textarea[data-testid="uicl-textarea"]');
+      return ta?.getAttribute('aria-label') ?? ta?.placeholder ?? '';
+    })()`);
     for (const [, node] of snapshot.idToNode) {
-      if (node.role === 'textbox' && node.frameUrl?.includes('proposal') && node.name !== inputLabel) {
-        // Skip the message textarea (already matched above if present)
+      if (node.role === 'textbox' && node.frameUrl?.includes('proposal')
+          && node.name !== messageLabel) {
         inputNode = node;
         break;
       }
     }
   }
-  if (!inputNode) return; // Tag input not found — non-fatal (spec §2.6 TODO)
+  if (!inputNode) {
+    // Known limitation: tag input AX matching is unreliable (spec §2.6 TODO).
+    // Warn but don't throw — partner group is optional.
+    console.error('[site-use] impact: Partner Groups tag input not found in AX snapshot — skipping (known limitation)');
+    return;
+  }
 
   await primitives.scrollIntoView(inputNode.uid);
   await primitives.type(inputNode.uid, value, { delay: 30 });

@@ -31,7 +31,11 @@ export async function searchKeyword(
     throw new ElementNotFound('Search input not found on discovery page');
   }
 
-  // Clear existing text and type keyword
+  // Clear existing text before typing new keyword.
+  // ⚠️ Uses synthetic `input` Event to trigger Vue reactivity after programmatic
+  // value clear. This is NOT a MouseEvent/click — it's an input notification that
+  // browsers fire natively on every keystroke. Anti-detection risk is negligible
+  // compared to synthetic click events prohibited by §2.
   await primitives.evaluate(`(() => {
     const input = document.querySelector('${SEARCH_INPUT_SELECTOR}');
     input.value = '';
