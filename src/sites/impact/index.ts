@@ -38,7 +38,7 @@ export const plugin: SitePlugin = {
   --keyword <text>         Single search keyword
   --keywords-file <path>   Path to keywords file (one per line, # comments)
   --proposal-file <path>   Path to proposal template YAML (required)
-  --max-per-keyword <n>    Max cards per keyword (1-500, default: 50)
+  --max-per-keyword <n>    Max proposals to send per keyword (1-500, default: 50)
   --delay <seconds>        Extra wait between cards (default: 0)
   --dry-run                Fill form but don't submit
   --debug                  Include diagnostic info`,

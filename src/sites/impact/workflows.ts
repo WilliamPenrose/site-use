@@ -196,20 +196,23 @@ export async function sendProposal(
     const processedIds = new Set<string>();
     let keywordBroken = false;
 
-    // Card iteration loop
+    // Card iteration loop.
+    // cardCount tracks actual sends (including dry-run and failed attempts),
+    // NOT skipped cards. maxPerKeyword limits how many proposals we attempt.
     while (cardCount < params.maxPerKeyword) {
       const cards = await extractVisibleCards(primitives);
-      let processedAny = false;
+      let seenNewCards = false;
 
       for (const card of cards) {
         if (cardCount >= params.maxPerKeyword) break;
         if (processedIds.has(card.partnerId)) continue;
         processedIds.add(card.partnerId);
+        seenNewCards = true;
         totalCards++;
 
-        // Skip checks
+        // Skip checks — these do NOT count toward maxPerKeyword
         if (resumeSet.has(card.partnerId)) {
-          console.error(`[site-use] impact: [${cardCount + 1}] ${card.partnerName} — already sent, skipping`);
+          console.error(`[site-use] impact: ${card.partnerName} — already sent, skipping`);
           results.push({
             partnerName: card.partnerName,
             partnerId: card.partnerId,
@@ -220,22 +223,17 @@ export async function sendProposal(
             timestamp: new Date().toISOString(),
           });
           skipped++;
-          cardCount++;
-          processedAny = true;
           continue;
         }
 
         // Resolve fresh DOM index — cards may shift after sends (spec §2.8)
         const freshIdx = await resolveCardIndex(primitives, card.partnerId);
         if (freshIdx < 0) {
-          // Card disappeared from DOM (likely already processed), skip
-          cardCount++;
-          processedAny = true;
-          continue;
+          continue; // Card disappeared from DOM
         }
         const uiSent = await isAlreadySent(primitives, freshIdx);
         if (uiSent) {
-          console.error(`[site-use] impact: [${cardCount + 1}] ${card.partnerName} — UI indicator, skipping`);
+          console.error(`[site-use] impact: ${card.partnerName} — UI indicator, skipping`);
           results.push({
             partnerName: card.partnerName,
             partnerId: card.partnerId,
@@ -246,19 +244,18 @@ export async function sendProposal(
             timestamp: new Date().toISOString(),
           });
           skipped++;
-          cardCount++;
-          processedAny = true;
           continue;
         }
 
-        // Process card (with up to 2 retries for transient failures like DOM stabilization timeout)
-        console.error(`[site-use] impact: [${cardCount + 1}] ${card.partnerName} — sending...`);
+        // Process card (with up to 2 retries for transient failures)
+        cardCount++;
+        console.error(`[site-use] impact: [${cardCount}/${params.maxPerKeyword}] ${card.partnerName} — sending...`);
         let lastErr: string | undefined;
         let cardSuccess = false;
         for (let attempt = 0; attempt < 3; attempt++) {
           try {
             if (attempt > 0) {
-              console.error(`[site-use] impact: [${cardCount + 1}] ${card.partnerName} — retrying (attempt ${attempt + 1})...`);
+              console.error(`[site-use] impact: [${cardCount}/${params.maxPerKeyword}] ${card.partnerName} — retrying (attempt ${attempt + 1})...`);
               await new Promise(r => setTimeout(r, 2000)); // Let page stabilize
             }
             const result = await processCard(primitives, card, template, keyword, params.dryRun);
@@ -271,13 +268,12 @@ export async function sendProposal(
               resumeSet.add(card.partnerId);
             }
             consecutiveFailures = 0;
-            console.error(`[site-use] impact: [${cardCount + 1}] ${card.partnerName} — ${result.skipped ? 'dry-run' : 'sent'}`);
+            console.error(`[site-use] impact: [${cardCount}/${params.maxPerKeyword}] ${card.partnerName} — ${result.skipped ? 'dry-run' : 'sent'}`);
             cardSuccess = true;
             break;
           } catch (err) {
             lastErr = err instanceof Error ? err.message : String(err);
-            console.error(`[site-use] impact: [${cardCount + 1}] ${card.partnerName} — failed: ${lastErr}`);
-            // Try to close dialog on error before retry
+            console.error(`[site-use] impact: [${cardCount}/${params.maxPerKeyword}] ${card.partnerName} — failed: ${lastErr}`);
             try { await closeDialog(primitives); } catch {}
           }
         }
@@ -294,7 +290,6 @@ export async function sendProposal(
           await logCardAction(card.partnerId, false, 'failed');
           consecutiveFailures++;
 
-          // Circuit breaker: per-keyword counter
           if (consecutiveFailures >= CIRCUIT_BREAKER_LIMIT) {
             console.error(`[site-use] impact: circuit breaker tripped for "${keyword}" (${CIRCUIT_BREAKER_LIMIT} consecutive failures)`);
             anyCircuitBreaker = true;
@@ -302,9 +297,6 @@ export async function sendProposal(
             break;
           }
         }
-
-        cardCount++;
-        processedAny = true;
 
         // Extra delay between cards
         if (params.delay > 0) {
@@ -314,10 +306,10 @@ export async function sendProposal(
 
       if (keywordBroken) break;
 
-      // If we processed cards in this batch but need more, scroll to load them.
-      // If no cards were processed (all already in processedIds), the list is exhausted.
-      if (!processedAny || cardCount >= params.maxPerKeyword) break;
-      console.error(`[site-use] impact: scrolling for more cards (processed ${cardCount}/${params.maxPerKeyword})...`);
+      // If no new cards in this batch (all in processedIds), list is exhausted.
+      // If we still need more sends, scroll for more.
+      if (!seenNewCards || cardCount >= params.maxPerKeyword) break;
+      console.error(`[site-use] impact: scrolling for more cards (sent ${cardCount}/${params.maxPerKeyword})...`);
       const hasMore = await scrollForMore(primitives);
       if (!hasMore) {
         console.error('[site-use] impact: no more cards after scroll');
