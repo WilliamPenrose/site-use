@@ -44,31 +44,39 @@ export async function searchKeyword(
     throw new ElementNotFound('Search input not found on discovery page');
   }
 
-  // Find search textbox via AX snapshot, clear via select-all + backspace, then type
-  const snapshot = await primitives.takeSnapshot();
-  let searchUid: string | null = null;
-  for (const [, node] of snapshot.idToNode) {
-    if (node.role === 'textbox' && node.name === 'Search') {
-      searchUid = node.uid;
-      break;
-    }
-  }
-  if (!searchUid) {
-    throw new ElementNotFound('Search textbox not found in AX snapshot');
-  }
-
-  // Click to focus, select-all + backspace to clear (no synthetic DOM events)
-  await primitives.click(searchUid);
-  await new Promise(r => setTimeout(r, 200));
+  // Triple-click the search input to select all text, then Backspace to clear,
+  // then type the new keyword. Triple-click reliably selects all text in the input
+  // (Meta+A was intercepted by Vue and didn't work on this component).
   const page = await primitives.getRawPage();
-  await page.keyboard.down('Meta');
-  await page.keyboard.press('a');
-  await page.keyboard.up('Meta');
+  const cdp = await page.createCDPSession();
+  try {
+    const doc = await cdp.send('DOM.getDocument', { depth: 0 });
+    const { nodeId } = await cdp.send('DOM.querySelector', {
+      nodeId: doc.root.nodeId,
+      selector: SEARCH_INPUT_SELECTOR,
+    }) as { nodeId: number };
+    if (!nodeId) throw new ElementNotFound('Search input not found via CDP');
+    const { node } = await cdp.send('DOM.describeNode', { nodeId }) as { node: { backendNodeId: number } };
+    const { model } = await cdp.send('DOM.getBoxModel', { backendNodeId: node.backendNodeId }) as {
+      model: { content: number[] };
+    };
+    const [x1, y1, , , x3, , , y4] = model.content;
+    const cx = (x1 + x3) / 2;
+    const cy = (y1 + y4) / 2;
+
+    // Triple-click to select all text in the input
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: cx, y: cy, button: 'left', clickCount: 3 });
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: cx, y: cy, button: 'left', clickCount: 3 });
+  } finally {
+    await cdp.detach();
+  }
+  await new Promise(r => setTimeout(r, 200));
+
   await page.keyboard.press('Backspace');
   await new Promise(r => setTimeout(r, 200));
 
-  await primitives.type(searchUid, keyword);
-  await primitives.pressKey('Enter');
+  await page.keyboard.type(keyword, { delay: 30 });
+  await page.keyboard.press('Enter');
 
   // Search clears all cards then reloads — wait for cards to reappear.
   // Observed latency: ~6s on real network. Poll up to 15s.
