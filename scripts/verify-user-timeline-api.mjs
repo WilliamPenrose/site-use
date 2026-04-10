@@ -40,14 +40,18 @@ const pages = await browser.pages();
 const page = pages[0] || await browser.newPage();
 
 const client = await page.createCDPSession();
-await client.send('Network.enable');
+await client.send('Network.enable', {
+  maxResourceBufferSize: 10 * 1024 * 1024,   // 10 MB per resource
+  maxTotalBufferSize: 50 * 1024 * 1024,       // 50 MB total
+});
 
 // ── Phase 1: Capture all GraphQL endpoints on profile page load ──
 
 const allEndpoints = [];
 const capturedResponses = new Map(); // endpoint name → { url, body }
+const pendingRequests = new Map();   // requestId → { endpointName, url }
 
-client.on('Network.responseReceived', async (event) => {
+client.on('Network.responseReceived', (event) => {
   const { requestId, response } = event;
   const graphqlMatch = response.url.match(/\/i\/api\/graphql\/[^/]+\/(\w+)/);
   if (!graphqlMatch) return;
@@ -55,15 +59,23 @@ client.on('Network.responseReceived', async (event) => {
   const endpointName = graphqlMatch[1];
   allEndpoints.push(endpointName);
 
-  // Capture UserTweets and UserTweetsAndReplies (and similar names)
   if (endpointName.includes('UserTweets') || endpointName.includes('UserMedia')) {
-    try {
-      const { body } = await client.send('Network.getResponseBody', { requestId });
-      capturedResponses.set(endpointName, { url: response.url, body });
-      console.log(`  ✓ Captured ${endpointName} (${response.status})`);
-    } catch (err) {
-      console.error(`  ✗ Failed to get body for ${endpointName}: ${err.message}`);
-    }
+    pendingRequests.set(requestId, { endpointName, url: response.url });
+  }
+});
+
+client.on('Network.loadingFinished', async (event) => {
+  const { requestId } = event;
+  const pending = pendingRequests.get(requestId);
+  if (!pending) return;
+  pendingRequests.delete(requestId);
+
+  try {
+    const { body } = await client.send('Network.getResponseBody', { requestId });
+    capturedResponses.set(pending.endpointName, { url: pending.url, body });
+    console.log(`  ✓ Captured ${pending.endpointName}`);
+  } catch (err) {
+    console.error(`  ✗ Failed to get body for ${pending.endpointName}: ${err.message}`);
   }
 });
 
@@ -194,8 +206,9 @@ if (repliesTab) {
   // Clear previous captures for fresh interception
   const repliesCaptures = new Map();
   const repliesEndpoints = [];
+  const repliesPending = new Map();
 
-  const repliesHandler = async (event) => {
+  const repliesResponseHandler = (event) => {
     const { requestId, response } = event;
     const graphqlMatch = response.url.match(/\/i\/api\/graphql\/[^/]+\/(\w+)/);
     if (!graphqlMatch) return;
@@ -204,17 +217,27 @@ if (repliesTab) {
     repliesEndpoints.push(endpointName);
 
     if (endpointName.includes('UserTweets') || endpointName.includes('Replies')) {
-      try {
-        const { body } = await client.send('Network.getResponseBody', { requestId });
-        repliesCaptures.set(endpointName, { url: response.url, body });
-        console.log(`  ✓ Captured ${endpointName} (${response.status})`);
-      } catch (err) {
-        console.error(`  ✗ Failed to get body for ${endpointName}: ${err.message}`);
-      }
+      repliesPending.set(requestId, { endpointName, url: response.url });
     }
   };
 
-  client.on('Network.responseReceived', repliesHandler);
+  const repliesFinishedHandler = async (event) => {
+    const { requestId } = event;
+    const pending = repliesPending.get(requestId);
+    if (!pending) return;
+    repliesPending.delete(requestId);
+
+    try {
+      const { body } = await client.send('Network.getResponseBody', { requestId });
+      repliesCaptures.set(pending.endpointName, { url: pending.url, body });
+      console.log(`  ✓ Captured ${pending.endpointName}`);
+    } catch (err) {
+      console.error(`  ✗ Failed to get body for ${pending.endpointName}: ${err.message}`);
+    }
+  };
+
+  client.on('Network.responseReceived', repliesResponseHandler);
+  client.on('Network.loadingFinished', repliesFinishedHandler);
 
   // Click the replies tab
   const tabs = await page.$$('[data-testid="primaryColumn"] [role="tablist"] [role="tab"]');
@@ -298,7 +321,8 @@ if (repliesTab) {
     console.log(`  Saved to: ${outPath}`);
   }
 
-  client.removeListener('Network.responseReceived', repliesHandler);
+  client.off('Network.responseReceived', repliesResponseHandler);
+  client.off('Network.loadingFinished', repliesFinishedHandler);
 }
 
 // ── Cleanup ──
