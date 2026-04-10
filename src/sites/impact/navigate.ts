@@ -44,31 +44,28 @@ export async function searchKeyword(
     throw new ElementNotFound('Search input not found on discovery page');
   }
 
-  // Clear existing text before typing new keyword.
-  // ⚠️ Uses synthetic `input` Event to trigger Vue reactivity after programmatic
-  // value clear. This is NOT a MouseEvent/click — it's an input notification that
-  // browsers fire natively on every keystroke. Anti-detection risk is negligible
-  // compared to synthetic click events prohibited by §2.
-  await primitives.evaluate(`(() => {
-    const input = document.querySelector('${SEARCH_INPUT_SELECTOR}');
-    input.value = '';
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    input.focus();
-  })()`);
-  await new Promise(r => setTimeout(r, 300));
-
-  // Type keyword using snapshot → find textbox → primitives.type
+  // Find search textbox via AX snapshot, clear via select-all + backspace, then type
   const snapshot = await primitives.takeSnapshot();
   let searchUid: string | null = null;
-  for (const [uid, node] of snapshot.idToNode) {
-    if (node.role === 'textbox' && node.focused) {
-      searchUid = uid;
+  for (const [, node] of snapshot.idToNode) {
+    if (node.role === 'textbox' && node.name === 'Search') {
+      searchUid = node.uid;
       break;
     }
   }
   if (!searchUid) {
-    throw new ElementNotFound('Cannot find focused search textbox in AX snapshot');
+    throw new ElementNotFound('Search textbox not found in AX snapshot');
   }
+
+  // Click to focus, select-all + backspace to clear (no synthetic DOM events)
+  await primitives.click(searchUid);
+  await new Promise(r => setTimeout(r, 200));
+  const page = await primitives.getRawPage();
+  await page.keyboard.down('Meta');
+  await page.keyboard.press('a');
+  await page.keyboard.up('Meta');
+  await page.keyboard.press('Backspace');
+  await new Promise(r => setTimeout(r, 200));
 
   await primitives.type(searchUid, keyword);
   await primitives.pressKey('Enter');
