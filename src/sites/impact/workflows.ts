@@ -303,10 +303,15 @@ export async function sendProposal(
 
       if (keywordBroken) break;
 
-      // Scroll for more cards
+      // If we processed cards in this batch but need more, scroll to load them.
+      // If no cards were processed (all already in processedIds), the list is exhausted.
       if (!processedAny || cardCount >= params.maxPerKeyword) break;
+      console.error(`[site-use] impact: scrolling for more cards (processed ${cardCount}/${params.maxPerKeyword})...`);
       const hasMore = await scrollForMore(primitives);
-      if (!hasMore) break;
+      if (!hasMore) {
+        console.error('[site-use] impact: no more cards after scroll');
+        break;
+      }
     }
 
     if (!keywordBroken) allCircuitBreaker = false;
