@@ -228,8 +228,17 @@ export async function fillPartnerGroup(
     await cdp.detach();
   }
 
+  console.error(`[site-use] impact: fillPartnerGroup — typing "${value}"...`);
   await page.keyboard.type(value, { delay: 80 });
   await new Promise(r => setTimeout(r, 2000)); // Wait for autocomplete dropdown
+
+  // Check if dropdown appeared
+  const dropdownVisible = await primitives.evaluate<boolean>(`(() => {
+    const iframe = document.querySelector('${IFRAME_SELECTOR}');
+    const dd = iframe?.contentDocument?.querySelector('[data-testid="uicl-tag-input-dropdown"]');
+    return !!dd && getComputedStyle(dd).display !== 'none';
+  })()`);
+  console.error(`[site-use] impact: fillPartnerGroup — dropdown visible: ${dropdownVisible}`);
 
   // Select first matching autocomplete suggestion.
   // Dropdown appears as li[role="option"] inside [data-testid="uicl-tag-input-dropdown"].
@@ -239,9 +248,16 @@ export async function fillPartnerGroup(
     role: 'option',
     name: new RegExp(escaped, 'i'),
   });
+  console.error(`[site-use] impact: fillPartnerGroup — AX option found: ${optionNode ? `uid=${optionNode.uid} name="${optionNode.name}" frameUrl=${optionNode.frameUrl ?? 'main'}` : 'NONE'}`);
   if (optionNode) {
     await primitives.click(optionNode.uid);
     await new Promise(r => setTimeout(r, 500));
+    // Verify chip
+    const chipAfter = await primitives.evaluate<number>(`(() => {
+      const iframe = document.querySelector('${IFRAME_SELECTOR}');
+      return iframe?.contentDocument?.querySelectorAll('[data-testid="uicl-tag-input-delete-icon"]')?.length ?? 0;
+    })()`);
+    console.error(`[site-use] impact: fillPartnerGroup — chips after click: ${chipAfter}`);
   } else {
     console.error(`[site-use] impact: Partner Groups — no autocomplete match for "${value}"`);
   }
