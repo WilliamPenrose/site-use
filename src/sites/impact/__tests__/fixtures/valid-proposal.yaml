@@ -1,0 +1,10 @@
+templateTerm: "public terms"
+partnerGroup: "Auto"
+message: |
+  Hi {partnerName},
+
+  We'd love to partner with you.
+  Found you through "{keyword}" search.
+
+  Best,
+  Team

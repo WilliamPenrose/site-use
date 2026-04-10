@@ -68,6 +68,7 @@
     "dotenv": "^16.4.7",
     "puppeteer-core": "^24.39.1",
     "snarkdown": "^2.0.0",
+    "yaml": "^2.8.3",
     "zod": "^3.24.2"
   },
   "devDependencies": {
