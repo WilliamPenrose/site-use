@@ -96,13 +96,33 @@ export async function countCards(primitives: Primitives): Promise<number> {
 /**
  * Scroll down to trigger infinite scroll, wait for new cards.
  * Returns true if new cards appeared, false if list is exhausted.
+ *
+ * ⚠️ CDP escape hatch — Why not primitives.scroll?
+ * The card list is inside an inner scrollable container (overflow-y: auto),
+ * not the window. primitives.scroll dispatches wheel events at the window
+ * level which has no effect. We must find the scrollable ancestor of
+ * .discovery-card and set its scrollTop directly.
  */
 export async function scrollForMore(
   primitives: Primitives,
 ): Promise<boolean> {
   const before = await countCards(primitives);
-  await primitives.scroll({ direction: 'down', amount: 800 });
-  // Wait up to 5s for new cards
+
+  // Scroll the inner container that holds the card grid to its bottom
+  await primitives.evaluate(`(() => {
+    const card = document.querySelector('${CARD_SELECTOR}');
+    if (!card) return;
+    let el = card.parentElement;
+    while (el && el !== document.body) {
+      if (el.scrollHeight > el.clientHeight + 50 && getComputedStyle(el).overflowY !== 'visible') {
+        el.scrollTop = el.scrollHeight;
+        return;
+      }
+      el = el.parentElement;
+    }
+  })()`);
+
+  // Wait up to 5s for new cards to load
   const deadline = Date.now() + 5_000;
   while (Date.now() < deadline) {
     await new Promise(r => setTimeout(r, 500));
