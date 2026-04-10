@@ -229,17 +229,21 @@ export async function fillPartnerGroup(
   }
 
   await page.keyboard.type(value, { delay: 30 });
-  await new Promise(r => setTimeout(r, 500));
+  await new Promise(r => setTimeout(r, 1500)); // Wait for autocomplete dropdown
 
-  // Verify chip was created
-  const afterCount = await primitives.evaluate<number>(`(() => {
-    const iframe = document.querySelector('${IFRAME_SELECTOR}');
-    return iframe?.contentDocument?.querySelectorAll(
-      '[data-testid="uicl-tag-input-delete-icon"]'
-    )?.length ?? 0;
-  })()`);
-  if (afterCount === 0) {
-    console.error('[site-use] impact: Partner Groups — typed but no chip created');
+  // Select first matching autocomplete suggestion.
+  // Dropdown appears as li[role="option"] inside [data-testid="uicl-tag-input-dropdown"].
+  const snapshot = await primitives.takeSnapshot();
+  const escaped = value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const optionNode = findByDescriptor(snapshot, {
+    role: 'option',
+    name: new RegExp(escaped, 'i'),
+  });
+  if (optionNode) {
+    await primitives.click(optionNode.uid);
+    await new Promise(r => setTimeout(r, 500));
+  } else {
+    console.error(`[site-use] impact: Partner Groups — no autocomplete match for "${value}"`);
   }
 }
 
