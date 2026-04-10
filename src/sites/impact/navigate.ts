@@ -15,6 +15,19 @@ export async function searchKeyword(
 ): Promise<void> {
   await primitives.navigate(IMPACT_DISCOVERY_URL);
 
+  // Ensure we're on "All Partners" tab. Hash changes on the same base URL
+  // may not trigger a full page reload — Vue router can ignore them.
+  const onAllPartners = await primitives.evaluate<boolean>(
+    `window.location.hash.includes('businessModels=all')`,
+  );
+  if (!onAllPartners) {
+    // Force hash update + wait for Vue to react
+    await primitives.evaluate(
+      `window.location.hash = 'businessModels=all&partnerStatuses=1&relationshipInclusions=prospecting&sortBy=reachRating&sortOrder=DESC'`,
+    );
+    await new Promise(r => setTimeout(r, 3000));
+  }
+
   // Wait for search input to appear (page may take a few seconds to render)
   const inputDeadline = Date.now() + 10_000;
   while (Date.now() < inputDeadline) {
