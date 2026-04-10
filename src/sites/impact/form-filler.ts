@@ -1,4 +1,5 @@
 import type { Primitives } from '../../primitives/types.js';
+import { findByDescriptor } from '../../ops/matchers.js';
 import { ElementNotFound, StateTransitionFailed } from '../../errors.js';
 import type { SubstitutionContext } from './types.js';
 import { substituteVariables } from './proposal-template.js';
@@ -269,50 +270,37 @@ export async function fillMessage(
 
 /**
  * Click the Submit ("Send Proposal") button inside the iframe.
- * Uses CDP DOM to find the button by text match, then backendNodeId → getBoxModel → click.
+ * Uses AX snapshot — M1 pipeline includes iframe content. The submit button
+ * has testId="uicl-webflow-button" which is unique, so AX name match is safe.
+ * (The card's hover button with the same name is display:none → invisible to AX.)
  */
 export async function clickSubmit(primitives: Primitives): Promise<void> {
-  const page = await primitives.getRawPage();
-  const cdp = await page.createCDPSession();
-  try {
-    const doc = await cdp.send('DOM.getDocument', { depth: -1, pierce: true });
-    const iframeDocId = findIframeDocId(doc.root);
-    if (!iframeDocId) throw new ElementNotFound('Iframe document not found');
-
-    const bid = await findButtonByText(cdp as unknown as AnyCDPSession, iframeDocId, 'Send Proposal');
-    if (!bid) throw new ElementNotFound('"Send Proposal" submit button not found in iframe');
-    await cdp.send('DOM.scrollIntoViewIfNeeded', { backendNodeId: bid });
-    await new Promise(r => setTimeout(r, 200));
-    await cdpClick(cdp as unknown as AnyCDPSession, bid);
-  } finally {
-    await cdp.detach();
+  const snapshot = await primitives.takeSnapshot();
+  const btn = findByDescriptor(snapshot, { role: 'button', name: 'Send Proposal' });
+  if (!btn) {
+    throw new ElementNotFound('"Send Proposal" submit button not found in iframe AX');
   }
+  await primitives.scrollIntoView(btn.uid);
+  await new Promise(r => setTimeout(r, 200));
+  await primitives.click(btn.uid);
 }
 
 /**
  * Handle the confirmation popup: find "I understand" button in iframe and click.
- * Polls via CDP DOM since the confirmation appears after submit.
+ * Polls AX snapshot since the confirmation appears after submit.
+ * Impact.com is English-only (spec §2.1), text matching is safe.
  */
 export async function clickConfirm(
   primitives: Primitives,
   timeoutMs = 5_000,
 ): Promise<void> {
-  const page = await primitives.getRawPage();
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const cdp = await page.createCDPSession();
-    try {
-      const doc = await cdp.send('DOM.getDocument', { depth: -1, pierce: true });
-      const iframeDocId = findIframeDocId(doc.root);
-      if (iframeDocId) {
-        const bid = await findButtonByText(cdp as unknown as AnyCDPSession, iframeDocId, 'I understand');
-        if (bid) {
-          await cdpClick(cdp as unknown as AnyCDPSession, bid);
-          return;
-        }
-      }
-    } finally {
-      await cdp.detach();
+    const snapshot = await primitives.takeSnapshot();
+    const btn = findByDescriptor(snapshot, { role: 'button', name: 'I understand' });
+    if (btn) {
+      await primitives.click(btn.uid);
+      return;
     }
     await new Promise(r => setTimeout(r, 500));
   }
@@ -433,37 +421,4 @@ async function cdpClick(
   await cdp.send('Input.dispatchMouseEvent', {
     type: 'mouseReleased', x: cx, y: cy, button: 'left', clickCount: 1,
   });
-}
-
-/**
- * Find a button by its text content inside an iframe document.
- * Returns backendNodeId or null if not found.
- */
-async function findButtonByText(
-  cdp: AnyCDPSession,
-  iframeDocId: number,
-  text: string,
-): Promise<number | null> {
-  const { nodeIds } = await cdp.send('DOM.querySelectorAll', {
-    nodeId: iframeDocId,
-    selector: 'button[data-testid="uicl-button"], button[data-testid="uicl-webflow-button"]',
-  }) as { nodeIds: number[] };
-
-  for (const nid of nodeIds) {
-    const { outerHTML } = await cdp.send('DOM.getOuterHTML', { nodeId: nid }) as { outerHTML: string };
-    if (outerHTML.includes(text)) {
-      const { node } = await cdp.send('DOM.describeNode', { nodeId: nid }) as { node: { backendNodeId: number } };
-      // Only return if element has size (is visible)
-      try {
-        const { model } = await cdp.send('DOM.getBoxModel', { backendNodeId: node.backendNodeId }) as {
-          model: { content: number[] };
-        };
-        const [x1, , , , x3] = model.content;
-        if (x3 - x1 > 0) return node.backendNodeId;
-      } catch {
-        continue; // Element not visible
-      }
-    }
-  }
-  return null;
 }
