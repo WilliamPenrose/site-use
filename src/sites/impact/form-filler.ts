@@ -319,18 +319,20 @@ export async function waitForSuccess(
 
 /**
  * Close the iframe dialog if it's open (for error recovery / dry-run).
+ * Uses Escape key — safer than matching unnamed close buttons which could
+ * hit the wrong element on a complex page.
  */
 export async function closeDialog(primitives: Primitives): Promise<void> {
-  // Click the modal close button (X) on the main page
-  const snapshot = await primitives.takeSnapshot();
-  const closeBtn = findByDescriptor(snapshot, { role: 'button', name: '' });
-  // Fallback: press Escape
-  if (closeBtn) {
-    await primitives.click(closeBtn.uid);
-  } else {
-    await primitives.pressKey('Escape');
-  }
+  await primitives.pressKey('Escape');
   await new Promise(r => setTimeout(r, 500));
+  // If iframe still present, try one more Escape (some modals need two)
+  const still = await primitives.evaluate<boolean>(
+    `!!document.querySelector('${IFRAME_SELECTOR}')`,
+  );
+  if (still) {
+    await primitives.pressKey('Escape');
+    await new Promise(r => setTimeout(r, 500));
+  }
 }
 
 // ── CDP helpers (for iframe DOM operations) ──────────────────

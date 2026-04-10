@@ -4,7 +4,7 @@ import type { Trace } from '../../trace.js';
 import { NOOP_TRACE } from '../../trace.js';
 import { parseProposalTemplate } from './proposal-template.js';
 import { searchKeyword, countCards, scrollForMore } from './navigate.js';
-import { extractVisibleCards, hoverCard, clickSendProposal, isAlreadySent } from './card-iterator.js';
+import { extractVisibleCards, resolveCardIndex, hoverCard, clickSendProposal, isAlreadySent } from './card-iterator.js';
 import {
   waitForIframeForm, fillTemplateTerm, ensureStartDate,
   fillPartnerGroup, fillMessage, clickSubmit, clickConfirm,
@@ -90,7 +90,7 @@ async function logCardAction(
  */
 async function processCard(
   primitives: Primitives,
-  card: { partnerName: string; partnerId: string; cardIndex: number },
+  card: { partnerName: string; partnerId: string },
   template: ProposalTemplate,
   keyword: string,
   dryRun: boolean,
@@ -101,9 +101,15 @@ async function processCard(
     keyword,
   };
 
+  // Resolve fresh DOM index — cards may shift after previous sends (spec §2.8)
+  const cardIndex = await resolveCardIndex(primitives, card.partnerId);
+  if (cardIndex < 0) {
+    throw new Error(`Card for partner ${card.partnerId} no longer in DOM`);
+  }
+
   // Hover → click Send Proposal
-  await hoverCard(primitives, card.cardIndex);
-  await clickSendProposal(primitives, card.cardIndex);
+  await hoverCard(primitives, cardIndex);
+  await clickSendProposal(primitives, cardIndex);
 
   // Wait for iframe form
   const formLoaded = await waitForIframeForm(primitives);
@@ -217,7 +223,15 @@ export async function sendProposal(
           continue;
         }
 
-        const uiSent = await isAlreadySent(primitives, card.cardIndex);
+        // Resolve fresh DOM index — cards may shift after sends (spec §2.8)
+        const freshIdx = await resolveCardIndex(primitives, card.partnerId);
+        if (freshIdx < 0) {
+          // Card disappeared from DOM (likely already processed), skip
+          cardCount++;
+          processedAny = true;
+          continue;
+        }
+        const uiSent = await isAlreadySent(primitives, freshIdx);
         if (uiSent) {
           console.error(`[site-use] impact: [${cardCount + 1}] ${card.partnerName} — UI indicator, skipping`);
           results.push({

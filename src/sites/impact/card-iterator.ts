@@ -34,6 +34,27 @@ export async function extractVisibleCards(
 }
 
 /**
+ * Resolve a card's current DOM index by partnerId.
+ * Cards may disappear after a successful send (spec §2.8), shifting indices.
+ * Always call this before interacting with a card to get a fresh index.
+ * Returns -1 if the card is no longer in the DOM.
+ */
+export async function resolveCardIndex(
+  primitives: Primitives,
+  partnerId: string,
+): Promise<number> {
+  return primitives.evaluate<number>(`(() => {
+    const cards = document.querySelectorAll('${CARD_SELECTOR}');
+    for (let i = 0; i < cards.length; i++) {
+      const img = cards[i].querySelector('img');
+      const src = img?.src ?? '';
+      if (src.endsWith('/${partnerId}')) return i;
+    }
+    return -1;
+  })()`);
+}
+
+/**
  * Hover over a card by its DOM index to reveal the "Send Proposal" button.
  */
 export async function hoverCard(
@@ -54,7 +75,7 @@ export async function clickSendProposal(
   primitives: Primitives,
   cardIndex: number,
 ): Promise<void> {
-  // Read button text from DOM (locale-safe: impact.com is English-only)
+  // Read button text from DOM (impact.com is English-only per spec §2.1)
   const btnText = await primitives.evaluate<string | null>(`(() => {
     const card = document.querySelectorAll('${CARD_SELECTOR}')[${cardIndex}];
     const btn = card?.querySelector('button[data-testid="uicl-button"]');
