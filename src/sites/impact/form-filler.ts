@@ -446,7 +446,7 @@ async function findButtonByText(
 ): Promise<number | null> {
   const { nodeIds } = await cdp.send('DOM.querySelectorAll', {
     nodeId: iframeDocId,
-    selector: 'button[data-testid="uicl-button"]',
+    selector: 'button[data-testid="uicl-button"], button[data-testid="uicl-webflow-button"]',
   }) as { nodeIds: number[] };
 
   for (const nid of nodeIds) {
