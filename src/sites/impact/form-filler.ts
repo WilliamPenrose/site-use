@@ -318,6 +318,7 @@ export async function clickSubmit(primitives: Primitives): Promise<void> {
   if (!btn) {
     throw new ElementNotFound('"Send Proposal" submit button not found in iframe AX');
   }
+  console.error(`[site-use] impact: clickSubmit — found "Send Proposal" (uid=${btn.uid}, frameUrl=${btn.frameUrl ?? 'main'})`);
   await primitives.scrollIntoView(btn.uid);
   await new Promise(r => setTimeout(r, 200));
   await primitives.click(btn.uid);
@@ -333,12 +334,23 @@ export async function clickConfirm(
   timeoutMs = 5_000,
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs;
+  let pollCount = 0;
   while (Date.now() < deadline) {
+    pollCount++;
     const snapshot = await primitives.takeSnapshot();
     const btn = findByDescriptor(snapshot, { role: 'button', name: 'I understand' });
     if (btn) {
+      console.error(`[site-use] impact: clickConfirm — found "I understand" on poll #${pollCount} (uid=${btn.uid}, frameUrl=${btn.frameUrl ?? 'main'})`);
       await primitives.click(btn.uid);
       return;
+    }
+    // Also check if iframe is already gone (submit completed without confirmation)
+    const iframeGone = await primitives.evaluate<boolean>(
+      `!document.querySelector('${IFRAME_SELECTOR}')`,
+    );
+    if (iframeGone) {
+      console.error(`[site-use] impact: clickConfirm — iframe already gone on poll #${pollCount}, no confirmation popup appeared`);
+      return; // Submit succeeded without confirmation — don't throw
     }
     await new Promise(r => setTimeout(r, 500));
   }
