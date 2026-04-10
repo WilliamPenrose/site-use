@@ -137,19 +137,17 @@ export async function clickSendProposal(
 }
 
 /**
- * Check if a card has a "already sent" UI indicator.
- * Returns true if the card shows signs of a prior proposal.
- *
- * NOTE: The exact indicator element is TBD (spec §2.4). All tested cards
- * had an empty .badge-container. This function is a stub that always
- * returns false until a card with an existing relationship is found
- * and the indicator element is identified.
+ * Check if a card has an "already sent" UI indicator.
+ * Sent cards have a `.hover-action.always-show.add-action` element (a blue check
+ * icon visible without hover). Unsent cards only have `.hover-action.performable-action`
+ * elements (hidden until hover).
  */
 export async function isAlreadySent(
-  _primitives: Primitives,
-  _cardIndex: number,
+  primitives: Primitives,
+  cardIndex: number,
 ): Promise<boolean> {
-  // TODO: identify the actual "already sent" indicator element.
-  // Returning false to avoid false positives that skip valid cards.
-  return false;
+  return primitives.evaluate<boolean>(`(() => {
+    const card = document.querySelectorAll('${CARD_SELECTOR}')[${cardIndex}];
+    return !!card?.querySelector('.hover-action.always-show.add-action');
+  })()`);
 }
