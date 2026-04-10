@@ -228,8 +228,8 @@ export async function fillPartnerGroup(
     await cdp.detach();
   }
 
-  await page.keyboard.type(value, { delay: 30 });
-  await new Promise(r => setTimeout(r, 1500)); // Wait for autocomplete dropdown
+  await page.keyboard.type(value, { delay: 80 });
+  await new Promise(r => setTimeout(r, 2000)); // Wait for autocomplete dropdown
 
   // Select first matching autocomplete suggestion.
   // Dropdown appears as li[role="option"] inside [data-testid="uicl-tag-input-dropdown"].
