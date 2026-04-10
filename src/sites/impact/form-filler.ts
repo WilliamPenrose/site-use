@@ -11,7 +11,7 @@ const IFRAME_SELECTOR = 'iframe[src*="proposal"]';
  */
 export async function waitForIframeForm(
   primitives: Primitives,
-  timeoutMs = 10_000,
+  timeoutMs = 15_000,
 ): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -352,6 +352,8 @@ export async function closeDialog(primitives: Primitives): Promise<void> {
     await primitives.pressKey('Escape');
     await new Promise(r => setTimeout(r, 500));
   }
+  // Wait for page to stabilize after dialog close
+  await new Promise(r => setTimeout(r, 1000));
 }
 
 // ── CDP helpers (for iframe DOM operations) ──────────────────
