@@ -122,8 +122,8 @@ export async function scrollForMore(
     }
   })()`);
 
-  // Wait up to 5s for new cards to load
-  const deadline = Date.now() + 5_000;
+  // Wait up to 10s for new cards to load (network latency can vary)
+  const deadline = Date.now() + 10_000;
   while (Date.now() < deadline) {
     await new Promise(r => setTimeout(r, 500));
     const after = await countCards(primitives);

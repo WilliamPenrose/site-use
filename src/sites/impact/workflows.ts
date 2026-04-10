@@ -251,11 +251,11 @@ export async function sendProposal(
           continue;
         }
 
-        // Process card (with 1 retry for transient failures like DOM stabilization timeout)
+        // Process card (with up to 2 retries for transient failures like DOM stabilization timeout)
         console.error(`[site-use] impact: [${cardCount + 1}] ${card.partnerName} — sending...`);
         let lastErr: string | undefined;
         let cardSuccess = false;
-        for (let attempt = 0; attempt < 2; attempt++) {
+        for (let attempt = 0; attempt < 3; attempt++) {
           try {
             if (attempt > 0) {
               console.error(`[site-use] impact: [${cardCount + 1}] ${card.partnerName} — retrying (attempt ${attempt + 1})...`);

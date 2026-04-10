@@ -230,14 +230,19 @@ export async function fillPartnerGroup(
 
   console.error(`[site-use] impact: fillPartnerGroup — typing "${value}"...`);
   await page.keyboard.type(value, { delay: 80 });
-  await new Promise(r => setTimeout(r, 2000)); // Wait for autocomplete dropdown
 
-  // Check if dropdown appeared
-  const dropdownVisible = await primitives.evaluate<boolean>(`(() => {
-    const iframe = document.querySelector('${IFRAME_SELECTOR}');
-    const dd = iframe?.contentDocument?.querySelector('[data-testid="uicl-tag-input-dropdown"]');
-    return !!dd && getComputedStyle(dd).display !== 'none';
-  })()`);
+  // Poll for autocomplete dropdown to appear (up to 5s)
+  let dropdownVisible = false;
+  const ddDeadline = Date.now() + 5_000;
+  while (Date.now() < ddDeadline) {
+    await new Promise(r => setTimeout(r, 500));
+    dropdownVisible = await primitives.evaluate<boolean>(`(() => {
+      const iframe = document.querySelector('${IFRAME_SELECTOR}');
+      const dd = iframe?.contentDocument?.querySelector('[data-testid="uicl-tag-input-dropdown"]');
+      return !!dd && getComputedStyle(dd).display !== 'none';
+    })()`);
+    if (dropdownVisible) break;
+  }
   console.error(`[site-use] impact: fillPartnerGroup — dropdown visible: ${dropdownVisible}`);
 
   // Select first matching autocomplete suggestion.
@@ -352,7 +357,7 @@ export async function clickSubmit(primitives: Primitives): Promise<void> {
  */
 export async function clickConfirm(
   primitives: Primitives,
-  timeoutMs = 5_000,
+  timeoutMs = 10_000,
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   let pollCount = 0;
