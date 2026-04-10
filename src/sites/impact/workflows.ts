@@ -251,37 +251,48 @@ export async function sendProposal(
           continue;
         }
 
-        // Process card
+        // Process card (with 1 retry for transient failures like DOM stabilization timeout)
         console.error(`[site-use] impact: [${cardCount + 1}] ${card.partnerName} — sending...`);
-        try {
-          const result = await processCard(primitives, card, template, keyword, params.dryRun);
-          results.push(result);
-          if (result.skipped) {
-            skipped++;
-          } else {
-            sent++;
-            await logCardAction(card.partnerId, true, 'sent');
-            resumeSet.add(card.partnerId);
+        let lastErr: string | undefined;
+        let cardSuccess = false;
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            if (attempt > 0) {
+              console.error(`[site-use] impact: [${cardCount + 1}] ${card.partnerName} — retrying (attempt ${attempt + 1})...`);
+              await new Promise(r => setTimeout(r, 2000)); // Let page stabilize
+            }
+            const result = await processCard(primitives, card, template, keyword, params.dryRun);
+            results.push(result);
+            if (result.skipped) {
+              skipped++;
+            } else {
+              sent++;
+              await logCardAction(card.partnerId, true, 'sent');
+              resumeSet.add(card.partnerId);
+            }
+            consecutiveFailures = 0;
+            console.error(`[site-use] impact: [${cardCount + 1}] ${card.partnerName} — ${result.skipped ? 'dry-run' : 'sent'}`);
+            cardSuccess = true;
+            break;
+          } catch (err) {
+            lastErr = err instanceof Error ? err.message : String(err);
+            console.error(`[site-use] impact: [${cardCount + 1}] ${card.partnerName} — failed: ${lastErr}`);
+            // Try to close dialog on error before retry
+            try { await closeDialog(primitives); } catch {}
           }
-          consecutiveFailures = 0;
-          console.error(`[site-use] impact: [${cardCount + 1}] ${card.partnerName} — ${result.skipped ? 'dry-run' : 'sent'}`);
-        } catch (err) {
-          const errMsg = err instanceof Error ? err.message : String(err);
-          console.error(`[site-use] impact: [${cardCount + 1}] ${card.partnerName} — failed: ${errMsg}`);
+        }
+        if (!cardSuccess) {
           results.push({
             partnerName: card.partnerName,
             partnerId: card.partnerId,
             keyword,
             success: false,
-            error: errMsg,
+            error: lastErr,
             timestamp: new Date().toISOString(),
           });
           failed++;
           await logCardAction(card.partnerId, false, 'failed');
           consecutiveFailures++;
-
-          // Try to close dialog on error
-          try { await closeDialog(primitives); } catch {}
 
           // Circuit breaker: per-keyword counter
           if (consecutiveFailures >= CIRCUIT_BREAKER_LIMIT) {
