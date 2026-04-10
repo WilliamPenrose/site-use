@@ -64,45 +64,33 @@ export async function fillTemplateTerm(
     await cdpClick(cdp as unknown as AnyCDPSession, btnBid);
     await new Promise(r => setTimeout(r, 800));
 
-    // Find target option in dropdown list
-    const { nodeIds } = await cdp.send('DOM.querySelectorAll', {
-      nodeId: iframeDocId,
-      selector: '.iui-dropdown li, .iui-list li',
-    }) as { nodeIds: number[] };
-
-    const escaped = value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const pattern = new RegExp(escaped, 'i');
-    let clicked = false;
-    for (const nid of nodeIds) {
-      const { outerHTML } = await cdp.send('DOM.getOuterHTML', { nodeId: nid }) as { outerHTML: string };
-      if (pattern.test(outerHTML)) {
-        const { node } = await cdp.send('DOM.describeNode', { nodeId: nid }) as { node: { backendNodeId: number } };
-        // Only click visible items (width > 0)
-        try {
-          await cdpClick(cdp as unknown as AnyCDPSession, node.backendNodeId);
-          clicked = true;
-          break;
-        } catch {
-          continue; // Element may be zero-size, try next match
-        }
-      }
-    }
-    if (!clicked) {
-      throw new ElementNotFound(`Template Term option "${value}" not found in dropdown`);
-    }
-    await new Promise(r => setTimeout(r, 500));
-
-    // Verify selection
-    const { outerHTML: newBtnHtml } = await cdp.send('DOM.getOuterHTML', {
-      nodeId: sectionId,
-    }) as { outerHTML: string };
-    if (!pattern.test(newBtnHtml)) {
-      throw new StateTransitionFailed(
-        `Template Term: expected "${value}" but section HTML does not contain it`,
-      );
-    }
   } finally {
     await cdp.detach();
+  }
+
+  // Find target option in dropdown via AX snapshot.
+  // Option text (e.g. "Public Terms") is unique in the dropdown.
+  const escaped = value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(escaped, 'i');
+  const snapshot = await primitives.takeSnapshot();
+  const optionNode = findByDescriptor(snapshot, { role: 'option', name: pattern })
+    ?? findByDescriptor(snapshot, { role: 'listitem', name: pattern });
+  if (!optionNode) {
+    throw new ElementNotFound(`Template Term option "${value}" not found in dropdown`);
+  }
+  await primitives.click(optionNode.uid);
+  await new Promise(r => setTimeout(r, 500));
+
+  // Verify selection via DOM
+  const newText = await primitives.evaluate<string>(`(() => {
+    const iframe = document.querySelector('${IFRAME_SELECTOR}');
+    const section = iframe?.contentDocument?.querySelector('section.iui-form-section');
+    return section?.querySelector('button[data-testid="uicl-multi-select-input-button"]')?.textContent?.trim() ?? '';
+  })()`);
+  if (!pattern.test(newText)) {
+    throw new StateTransitionFailed(
+      `Template Term: expected "${value}", got "${newText}"`,
+    );
   }
 }
 
@@ -200,30 +188,39 @@ export async function fillPartnerGroup(
 
   if (chipCount > 0) return; // Use existing chips
 
-  // Focus tag input and type value
-  const page = await primitives.getRawPage();
-  const cdp = await page.createCDPSession();
-  try {
-    const doc = await cdp.send('DOM.getDocument', { depth: -1, pierce: true });
-    const iframeDocId = findIframeDocId(doc.root);
-    if (!iframeDocId) return;
+  // Find tag input via DOM-to-ARIA bridge
+  const inputLabel = await primitives.evaluate<string>(`(() => {
+    const iframe = document.querySelector('${IFRAME_SELECTOR}');
+    const input = iframe?.contentDocument?.querySelector('input[data-testid="uicl-tag-input-text-input"]');
+    return input?.getAttribute('aria-label') ?? input?.placeholder ?? '';
+  })()`);
 
-    const tagBid = await queryBackendId(cdp as unknown as AnyCDPSession, iframeDocId, 'input[data-testid="uicl-tag-input-text-input"]');
-    await cdp.send('DOM.scrollIntoViewIfNeeded', { backendNodeId: tagBid });
-    await new Promise(r => setTimeout(r, 200));
-    await cdp.send('DOM.focus', { backendNodeId: tagBid });
-    await new Promise(r => setTimeout(r, 200));
-  } finally {
-    await cdp.detach();
+  const snapshot = await primitives.takeSnapshot();
+  let inputNode = inputLabel
+    ? findByDescriptor(snapshot, { role: 'textbox', name: inputLabel })
+    : null;
+  // Fallback: find by searching iframe textboxes
+  if (!inputNode) {
+    for (const [, node] of snapshot.idToNode) {
+      if (node.role === 'textbox' && node.frameUrl?.includes('proposal') && node.name !== inputLabel) {
+        // Skip the message textarea (already matched above if present)
+        inputNode = node;
+        break;
+      }
+    }
   }
+  if (!inputNode) return; // Tag input not found — non-fatal (spec §2.6 TODO)
 
-  await page.keyboard.type(value, { delay: 30 });
+  await primitives.scrollIntoView(inputNode.uid);
+  await primitives.type(inputNode.uid, value, { delay: 30 });
   await new Promise(r => setTimeout(r, 300));
 }
 
 /**
  * Fill the Message textarea.
  * Applies variable substitution before typing.
+ * Uses AX snapshot to find the textarea (M1 includes iframe content),
+ * then primitives.type for input.
  */
 export async function fillMessage(
   primitives: Primitives,
@@ -232,30 +229,45 @@ export async function fillMessage(
 ): Promise<void> {
   const message = substituteVariables(template, ctx);
 
-  const page = await primitives.getRawPage();
-  const cdp = await page.createCDPSession();
-  try {
-    const doc = await cdp.send('DOM.getDocument', { depth: -1, pierce: true });
-    const iframeDocId = findIframeDocId(doc.root);
-    if (!iframeDocId) throw new ElementNotFound('Iframe document not found');
+  // Find textarea via AX snapshot — look for textbox by DOM-to-ARIA bridge
+  const textareaText = await primitives.evaluate<string>(`(() => {
+    const iframe = document.querySelector('${IFRAME_SELECTOR}');
+    const ta = iframe?.contentDocument?.querySelector('textarea[data-testid="uicl-textarea"]');
+    return ta?.getAttribute('aria-label') ?? ta?.placeholder ?? '';
+  })()`);
 
-    const taBid = await queryBackendId(cdp as unknown as AnyCDPSession, iframeDocId, 'textarea[data-testid="uicl-textarea"]');
-    await cdp.send('DOM.scrollIntoViewIfNeeded', { backendNodeId: taBid });
-    await new Promise(r => setTimeout(r, 200));
-    await cdp.send('DOM.focus', { backendNodeId: taBid });
-    await new Promise(r => setTimeout(r, 200));
-  } finally {
-    await cdp.detach();
+  const snapshot = await primitives.takeSnapshot();
+  // Try matching by name, fallback to any textbox in iframe context
+  let taNode = textareaText
+    ? findByDescriptor(snapshot, { role: 'textbox', name: textareaText })
+    : null;
+  // Fallback: find textbox with empty/generic name (the message textarea)
+  if (!taNode) {
+    for (const [, node] of snapshot.idToNode) {
+      if (node.role === 'textbox' && node.frameUrl?.includes('proposal')) {
+        taNode = node;
+        break;
+      }
+    }
+  }
+  if (!taNode) {
+    throw new ElementNotFound('Message textarea not found in AX snapshot');
   }
 
-  // Select all + delete to clear
+  await primitives.scrollIntoView(taNode.uid);
+  await new Promise(r => setTimeout(r, 200));
+
+  // Clear existing content via select-all + backspace, then type
+  await primitives.click(taNode.uid);
+  await new Promise(r => setTimeout(r, 100));
+  const page = await primitives.getRawPage();
   await page.keyboard.down('Meta');
   await page.keyboard.press('a');
   await page.keyboard.up('Meta');
   await page.keyboard.press('Backspace');
   await new Promise(r => setTimeout(r, 100));
 
-  await page.keyboard.type(message, { delay: 2 });
+  await primitives.type(taNode.uid, message, { delay: 2 });
   await new Promise(r => setTimeout(r, 300));
 
   // Verify

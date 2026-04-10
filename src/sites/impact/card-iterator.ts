@@ -1,4 +1,5 @@
 import type { Primitives } from '../../primitives/types.js';
+import { findByDescriptor } from '../../ops/matchers.js';
 import { ElementNotFound } from '../../errors.js';
 
 const CARD_SELECTOR = '.discovery-card';
@@ -97,55 +98,37 @@ export async function hoverCard(
 
 /**
  * After hovering, click the "Send Proposal" button on the card.
- * Uses CDP getBoxModel for coordinates (avoids AX snapshot stabilization overhead).
- * The button is in the main frame, scoped to querySelectorAll[cardIndex].
+ * DOM-to-ARIA bridge: read button text via evaluate (scoped to card),
+ * then match in AX snapshot and click via primitives.click(uid) (Bezier trajectory).
+ * Main-frame clicks MUST go through primitives for anti-detection.
  */
 export async function clickSendProposal(
   primitives: Primitives,
   cardIndex: number,
 ): Promise<void> {
-  // Verify button is visible
-  const btnVisible = await primitives.evaluate<boolean>(`(() => {
+  // Read button text from DOM (impact.com is English-only per spec §2.1)
+  const btnText = await primitives.evaluate<string | null>(`(() => {
     const card = document.querySelectorAll('${CARD_SELECTOR}')[${cardIndex}];
     const btn = card?.querySelector('button[data-testid="uicl-button"]');
-    return !!btn && getComputedStyle(btn).display !== 'none';
+    if (!btn || getComputedStyle(btn).display === 'none') return null;
+    return btn.textContent?.trim() ?? null;
   })()`);
 
-  if (!btnVisible) {
+  if (!btnText) {
     throw new ElementNotFound(
       `"Send Proposal" button not visible on card ${cardIndex} after hover`,
     );
   }
 
-  // Get button bounding rect and click via CDP
-  const btnRect = await primitives.evaluate<{ x: number; y: number; w: number; h: number } | null>(`(() => {
-    const card = document.querySelectorAll('${CARD_SELECTOR}')[${cardIndex}];
-    const btn = card?.querySelector('button[data-testid="uicl-button"]');
-    if (!btn) return null;
-    const r = btn.getBoundingClientRect();
-    return { x: r.x, y: r.y, w: r.width, h: r.height };
-  })()`);
-
-  if (!btnRect || btnRect.w < 1) {
-    throw new ElementNotFound('Send Proposal button has zero size');
+  // Find in AX snapshot and click via Bezier trajectory
+  const snapshot = await primitives.takeSnapshot();
+  const node = findByDescriptor(snapshot, { role: 'button', name: btnText });
+  if (!node) {
+    throw new ElementNotFound(
+      `AX node for button "${btnText}" not found in snapshot`,
+    );
   }
-
-  const page = await primitives.getRawPage();
-  const cdp = await page.createCDPSession();
-  try {
-    const cx = btnRect.x + btnRect.w / 2;
-    const cy = btnRect.y + btnRect.h / 2;
-    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: cx, y: cy });
-    await new Promise(r => setTimeout(r, 50));
-    await cdp.send('Input.dispatchMouseEvent', {
-      type: 'mousePressed', x: cx, y: cy, button: 'left', clickCount: 1,
-    });
-    await cdp.send('Input.dispatchMouseEvent', {
-      type: 'mouseReleased', x: cx, y: cy, button: 'left', clickCount: 1,
-    });
-  } finally {
-    await cdp.detach();
-  }
+  await primitives.click(node.uid);
 }
 
 /**
