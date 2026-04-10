@@ -63,9 +63,11 @@ export async function hoverCard(
   primitives: Primitives,
   cardIndex: number,
 ): Promise<void> {
+  // scrollIntoView first, then get fresh viewport-relative coordinates
   const rect = await primitives.evaluate<{ x: number; y: number; w: number; h: number } | null>(`(() => {
     const card = document.querySelectorAll('${CARD_SELECTOR}')[${cardIndex}];
     if (!card) return null;
+    card.scrollIntoView({ block: 'center' });
     const r = card.getBoundingClientRect();
     return { x: r.x, y: r.y, w: r.width, h: r.height };
   })()`);
@@ -73,10 +75,14 @@ export async function hoverCard(
   if (!rect || rect.w < 1 || rect.h < 1) {
     throw new ElementNotFound(`Card at index ${cardIndex} not found or zero-size`);
   }
+  await new Promise(r => setTimeout(r, 200)); // Let scroll settle
 
   const page = await primitives.getRawPage();
   const cdp = await page.createCDPSession();
   try {
+    // Move mouse away first, then into card — triggers mouseenter event
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 0, y: 0 });
+    await new Promise(r => setTimeout(r, 100));
     await cdp.send('Input.dispatchMouseEvent', {
       type: 'mouseMoved',
       x: rect.x + rect.w / 2,

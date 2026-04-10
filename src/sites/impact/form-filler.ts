@@ -1,7 +1,6 @@
 import type { Primitives } from '../../primitives/types.js';
-import { findByDescriptor } from '../../ops/matchers.js';
 import { ElementNotFound, StateTransitionFailed } from '../../errors.js';
-import type { ProposalTemplate, SubstitutionContext } from './types.js';
+import type { SubstitutionContext } from './types.js';
 import { substituteVariables } from './proposal-template.js';
 
 const IFRAME_SELECTOR = 'iframe[src*="proposal"]';
@@ -30,64 +29,79 @@ export async function waitForIframeForm(
 
 /**
  * Fill Template Term dropdown.
- * Locates via DOM path: first section.iui-form-section → its multi-select button.
+ *
+ * The iframe has 12+ buttons sharing data-testid="uicl-multi-select-input-button"
+ * (Template Term, hour, minute, AM/PM, timezone, Length, etc.).
+ * AX tree "Select" matches the wrong button. querySelectorAll()[0] hits the hour picker.
+ *
+ * Solution: CDP DOM nested querySelector — first section.iui-form-section contains
+ * exactly one multi-select button (Template Term). backendNodeId → getBoxModel
+ * gives main-page absolute coordinates for iframe elements.
  */
 export async function fillTemplateTerm(
   primitives: Primitives,
   value: string,
 ): Promise<void> {
-  // Click the Template Term dropdown button
-  await primitives.evaluate(`(() => {
-    const iframe = document.querySelector('${IFRAME_SELECTOR}');
-    const section = iframe?.contentDocument?.querySelector('section.iui-form-section');
-    const btn = section?.querySelector('button[data-testid="uicl-multi-select-input-button"]');
-    btn?.scrollIntoView({ block: 'center' });
-  })()`);
-  await new Promise(r => setTimeout(r, 300));
+  const page = await primitives.getRawPage();
+  const cdp = await page.createCDPSession();
+  try {
+    const doc = await cdp.send('DOM.getDocument', { depth: -1, pierce: true });
+    const iframeDocId = findIframeDocId(doc.root);
+    if (!iframeDocId) throw new ElementNotFound('Iframe document not found');
 
-  // Take snapshot to find and click the button via AX
-  let snapshot = await primitives.takeSnapshot();
-  // Use evaluate to get the button text, then match in AX
-  const btnText = await primitives.evaluate<string>(`(() => {
-    const iframe = document.querySelector('${IFRAME_SELECTOR}');
-    const section = iframe?.contentDocument?.querySelector('section.iui-form-section');
-    return section?.querySelector('button[data-testid="uicl-multi-select-input-button"]')?.textContent?.trim() ?? '';
-  })()`);
+    // Nested query: first section → its only multi-select button
+    const { nodeId: sectionId } = await cdp.send('DOM.querySelector', {
+      nodeId: iframeDocId,
+      selector: 'section.iui-form-section',
+    }) as { nodeId: number };
+    if (!sectionId) throw new ElementNotFound('Template Term section not found');
 
-  const btnNode = findByDescriptor(snapshot, { role: 'button', name: btnText || 'Select' });
-  if (!btnNode) {
-    throw new ElementNotFound('Template Term dropdown button not found in AX');
-  }
-  await primitives.click(btnNode.uid);
-  await new Promise(r => setTimeout(r, 800));
+    const btnBid = await queryBackendId(cdp as unknown as AnyCDPSession, sectionId,
+      'button[data-testid="uicl-multi-select-input-button"]');
+    await cdp.send('DOM.scrollIntoViewIfNeeded', { backendNodeId: btnBid });
+    await new Promise(r => setTimeout(r, 300));
+    await cdpClick(cdp as unknown as AnyCDPSession, btnBid);
+    await new Promise(r => setTimeout(r, 800));
 
-  // Find target option in dropdown
-  snapshot = await primitives.takeSnapshot();
-  const optionNode = findByDescriptor(snapshot, {
-    role: 'option',
-    name: new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'),
-  });
-  // Fallback: try listitem role
-  const target = optionNode ?? findByDescriptor(snapshot, {
-    role: 'listitem',
-    name: new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'),
-  });
-  if (!target) {
-    throw new ElementNotFound(`Template Term option "${value}" not found in dropdown`);
-  }
-  await primitives.click(target.uid);
-  await new Promise(r => setTimeout(r, 500));
+    // Find target option in dropdown list
+    const { nodeIds } = await cdp.send('DOM.querySelectorAll', {
+      nodeId: iframeDocId,
+      selector: '.iui-dropdown li, .iui-list li',
+    }) as { nodeIds: number[] };
 
-  // Verify
-  const newText = await primitives.evaluate<string>(`(() => {
-    const iframe = document.querySelector('${IFRAME_SELECTOR}');
-    const section = iframe?.contentDocument?.querySelector('section.iui-form-section');
-    return section?.querySelector('button[data-testid="uicl-multi-select-input-button"]')?.textContent?.trim() ?? '';
-  })()`);
-  if (!newText.toLowerCase().includes(value.toLowerCase())) {
-    throw new StateTransitionFailed(
-      `Template Term: expected "${value}", got "${newText}"`,
-    );
+    const escaped = value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const pattern = new RegExp(escaped, 'i');
+    let clicked = false;
+    for (const nid of nodeIds) {
+      const { outerHTML } = await cdp.send('DOM.getOuterHTML', { nodeId: nid }) as { outerHTML: string };
+      if (pattern.test(outerHTML)) {
+        const { node } = await cdp.send('DOM.describeNode', { nodeId: nid }) as { node: { backendNodeId: number } };
+        // Only click visible items (width > 0)
+        try {
+          await cdpClick(cdp as unknown as AnyCDPSession, node.backendNodeId);
+          clicked = true;
+          break;
+        } catch {
+          continue; // Element may be zero-size, try next match
+        }
+      }
+    }
+    if (!clicked) {
+      throw new ElementNotFound(`Template Term option "${value}" not found in dropdown`);
+    }
+    await new Promise(r => setTimeout(r, 500));
+
+    // Verify selection
+    const { outerHTML: newBtnHtml } = await cdp.send('DOM.getOuterHTML', {
+      nodeId: sectionId,
+    }) as { outerHTML: string };
+    if (!pattern.test(newBtnHtml)) {
+      throw new StateTransitionFailed(
+        `Template Term: expected "${value}" but section HTML does not contain it`,
+      );
+    }
+  } finally {
+    await cdp.detach();
   }
 }
 
@@ -108,21 +122,9 @@ export async function ensureStartDate(
   // If date is already displayed, skip
   if (dateText.length > 0) return;
 
-  // Click date button to open calendar
-  const snapshot = await primitives.takeSnapshot();
-  // Date input button — find by evaluate text then AX match
-  const dateBtnText = await primitives.evaluate<string>(`(() => {
-    const iframe = document.querySelector('${IFRAME_SELECTOR}');
-    const btn = iframe?.contentDocument?.querySelector('button[data-testid="uicl-date-input"]');
-    btn?.scrollIntoView({ block: 'center' });
-    return btn?.textContent?.trim() ?? '';
-  })()`);
-
-  // Use getRawPage + CDP for precise iframe element clicking
   const page = await primitives.getRawPage();
   const cdp = await page.createCDPSession();
   try {
-    // Get iframe document via CDP DOM
     const doc = await cdp.send('DOM.getDocument', { depth: -1, pierce: true });
     const iframeDocId = findIframeDocId(doc.root);
     if (!iframeDocId) throw new ElementNotFound('Iframe document not found');
@@ -136,17 +138,17 @@ export async function ensureStartDate(
     const { nodeId: calId } = await cdp.send('DOM.querySelector', {
       nodeId: iframeDocId,
       selector: '.iui-calendar',
-    });
+    }) as { nodeId: number };
     if (calId) {
       const { nodeIds: calBtnIds } = await cdp.send('DOM.querySelectorAll', {
         nodeId: calId,
         selector: 'button',
-      });
+      }) as { nodeIds: number[] };
       let clicked = false;
       for (const nid of calBtnIds) {
-        const { outerHTML } = await cdp.send('DOM.getOuterHTML', { nodeId: nid });
+        const { outerHTML } = await cdp.send('DOM.getOuterHTML', { nodeId: nid }) as { outerHTML: string };
         if (/>\s*Today\s*</i.test(outerHTML)) {
-          const { node } = await cdp.send('DOM.describeNode', { nodeId: nid });
+          const { node } = await cdp.send('DOM.describeNode', { nodeId: nid }) as { node: { backendNodeId: number } };
           await cdpClick(cdp as unknown as AnyCDPSession, node.backendNodeId);
           clicked = true;
           break;
@@ -158,11 +160,11 @@ export async function ensureStartDate(
         const today = new Date().getDate().toString();
         const { nodeIds: tdIds } = await cdp.send('DOM.querySelectorAll', {
           nodeId: calId, selector: 'td',
-        });
+        }) as { nodeIds: number[] };
         for (const nid of tdIds) {
-          const { outerHTML } = await cdp.send('DOM.getOuterHTML', { nodeId: nid });
+          const { outerHTML } = await cdp.send('DOM.getOuterHTML', { nodeId: nid }) as { outerHTML: string };
           if (new RegExp(`>${today}<`).test(outerHTML)) {
-            const { node } = await cdp.send('DOM.describeNode', { nodeId: nid });
+            const { node } = await cdp.send('DOM.describeNode', { nodeId: nid }) as { node: { backendNodeId: number } };
             await cdpClick(cdp as unknown as AnyCDPSession, node.backendNodeId);
             break;
           }
@@ -267,32 +269,50 @@ export async function fillMessage(
 
 /**
  * Click the Submit ("Send Proposal") button inside the iframe.
+ * Uses CDP DOM to find the button by text match, then backendNodeId → getBoxModel → click.
  */
 export async function clickSubmit(primitives: Primitives): Promise<void> {
-  const snapshot = await primitives.takeSnapshot();
-  const btn = findByDescriptor(snapshot, { role: 'button', name: 'Send Proposal' });
-  if (!btn) {
-    throw new ElementNotFound('"Send Proposal" submit button not found in iframe AX');
+  const page = await primitives.getRawPage();
+  const cdp = await page.createCDPSession();
+  try {
+    const doc = await cdp.send('DOM.getDocument', { depth: -1, pierce: true });
+    const iframeDocId = findIframeDocId(doc.root);
+    if (!iframeDocId) throw new ElementNotFound('Iframe document not found');
+
+    const bid = await findButtonByText(cdp as unknown as AnyCDPSession, iframeDocId, 'Send Proposal');
+    if (!bid) throw new ElementNotFound('"Send Proposal" submit button not found in iframe');
+    await cdp.send('DOM.scrollIntoViewIfNeeded', { backendNodeId: bid });
+    await new Promise(r => setTimeout(r, 200));
+    await cdpClick(cdp as unknown as AnyCDPSession, bid);
+  } finally {
+    await cdp.detach();
   }
-  await primitives.scrollIntoView(btn.uid);
-  await new Promise(r => setTimeout(r, 200));
-  await primitives.click(btn.uid);
 }
 
 /**
  * Handle the confirmation popup: find "I understand" button in iframe and click.
+ * Polls via CDP DOM since the confirmation appears after submit.
  */
 export async function clickConfirm(
   primitives: Primitives,
   timeoutMs = 5_000,
 ): Promise<void> {
+  const page = await primitives.getRawPage();
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const snapshot = await primitives.takeSnapshot();
-    const btn = findByDescriptor(snapshot, { role: 'button', name: 'I understand' });
-    if (btn) {
-      await primitives.click(btn.uid);
-      return;
+    const cdp = await page.createCDPSession();
+    try {
+      const doc = await cdp.send('DOM.getDocument', { depth: -1, pierce: true });
+      const iframeDocId = findIframeDocId(doc.root);
+      if (iframeDocId) {
+        const bid = await findButtonByText(cdp as unknown as AnyCDPSession, iframeDocId, 'I understand');
+        if (bid) {
+          await cdpClick(cdp as unknown as AnyCDPSession, bid);
+          return;
+        }
+      }
+    } finally {
+      await cdp.detach();
     }
     await new Promise(r => setTimeout(r, 500));
   }
@@ -319,8 +339,7 @@ export async function waitForSuccess(
 
 /**
  * Close the iframe dialog if it's open (for error recovery / dry-run).
- * Uses Escape key — safer than matching unnamed close buttons which could
- * hit the wrong element on a complex page.
+ * Uses Escape key — safer than matching unnamed close buttons.
  */
 export async function closeDialog(primitives: Primitives): Promise<void> {
   await primitives.pressKey('Escape');
@@ -397,4 +416,37 @@ async function cdpClick(
   await cdp.send('Input.dispatchMouseEvent', {
     type: 'mouseReleased', x: cx, y: cy, button: 'left', clickCount: 1,
   });
+}
+
+/**
+ * Find a button by its text content inside an iframe document.
+ * Returns backendNodeId or null if not found.
+ */
+async function findButtonByText(
+  cdp: AnyCDPSession,
+  iframeDocId: number,
+  text: string,
+): Promise<number | null> {
+  const { nodeIds } = await cdp.send('DOM.querySelectorAll', {
+    nodeId: iframeDocId,
+    selector: 'button[data-testid="uicl-button"]',
+  }) as { nodeIds: number[] };
+
+  for (const nid of nodeIds) {
+    const { outerHTML } = await cdp.send('DOM.getOuterHTML', { nodeId: nid }) as { outerHTML: string };
+    if (outerHTML.includes(text)) {
+      const { node } = await cdp.send('DOM.describeNode', { nodeId: nid }) as { node: { backendNodeId: number } };
+      // Only return if element has size (is visible)
+      try {
+        const { model } = await cdp.send('DOM.getBoxModel', { backendNodeId: node.backendNodeId }) as {
+          model: { content: number[] };
+        };
+        const [x1, , , , x3] = model.content;
+        if (x3 - x1 > 0) return node.backendNodeId;
+      } catch {
+        continue; // Element not visible
+      }
+    }
+  }
+  return null;
 }
