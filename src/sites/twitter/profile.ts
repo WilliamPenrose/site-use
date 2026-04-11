@@ -300,6 +300,7 @@ async function collectReplies(
         );
       }
 
+      await primitives.scrollIntoView(node.uid);
       await primitives.click(node.uid);
       s.set('clicked', true);
     });
