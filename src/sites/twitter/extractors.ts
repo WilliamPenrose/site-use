@@ -412,6 +412,13 @@ const GRAPHQL_SEARCH_PATTERN = /\/i\/api\/graphql\/.*\/SearchTimeline/;
 
 export const GRAPHQL_PROFILE_PATTERN = /\/i\/api\/graphql\/.*\/UserByScreenName/;
 
+// UserTweets: profile Posts tab. Must NOT match UserTweetsAndReplies.
+// Negative lookahead ensures "UserTweets" is not followed by "And".
+const GRAPHQL_USER_TWEETS_PATTERN = /\/i\/api\/graphql\/.*\/UserTweets(?!And)/;
+
+// UserTweetsAndReplies: profile Replies tab.
+const GRAPHQL_USER_TWEETS_AND_REPLIES_PATTERN = /\/i\/api\/graphql\/.*\/UserTweetsAndReplies/;
+
 /** Parse GraphQL SearchTimeline response into RawTweetData[]. */
 export function parseGraphQLSearch(body: string): RawTweetData[] {
   let data: any;
@@ -575,5 +582,5 @@ export function parseFollowListResponse(body: string): UserProfile[] {
   return users;
 }
 
-export { GRAPHQL_TIMELINE_PATTERN, GRAPHQL_TWEET_DETAIL_PATTERN, GRAPHQL_SEARCH_PATTERN, GRAPHQL_FOLLOW_LIST_PATTERN };
+export { GRAPHQL_TIMELINE_PATTERN, GRAPHQL_TWEET_DETAIL_PATTERN, GRAPHQL_SEARCH_PATTERN, GRAPHQL_FOLLOW_LIST_PATTERN, GRAPHQL_USER_TWEETS_PATTERN, GRAPHQL_USER_TWEETS_AND_REPLIES_PATTERN };
 
