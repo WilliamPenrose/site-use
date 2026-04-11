@@ -316,12 +316,33 @@ async function collectReplies(
       }
     }
 
-    // Scroll for more data. We need extra raw items because filtering will
-    // remove non-target-user tweets. Collect ~3x to have enough after filtering.
+    // Scroll for more data in rounds until we have enough filtered replies.
+    // Replies tab contains both target user's replies AND other users' original
+    // tweets (conversation context). The reply ratio varies widely — elonmusk
+    // has ~29% replies (6 Module / 21 entries), so a fixed multiplier fails.
     const t0 = Date.now();
-    const rawTarget = count * 3;
-    if (repliesCollector.length < rawTarget) {
-      await collectData(primitives, repliesCollector, { count: rawTarget, t0 }, span);
+    let rawTarget = count * 3;
+    let prevRawCount = repliesCollector.length;
+
+    while (true) {
+      if (repliesCollector.length < rawTarget) {
+        await collectData(primitives, repliesCollector, { count: rawTarget, t0 }, span);
+      }
+
+      // Check: enough target-user replies in raw data?
+      const filteredCount = repliesCollector.items
+        .filter(raw =>
+          raw.authorHandle.toLowerCase() === handle.toLowerCase() &&
+          raw.inReplyTo !== undefined,
+        ).length;
+
+      if (filteredCount >= count) break;
+
+      // No new data arrived — scrolling exhausted
+      if (repliesCollector.length <= prevRawCount) break;
+
+      prevRawCount = repliesCollector.length;
+      rawTarget = repliesCollector.length + count * 3;
     }
 
     // Process: parse → build map → filter to target user's replies → enrich
