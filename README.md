@@ -4,7 +4,7 @@
 
 Want your AI agent to monitor your Twitter timeline — but worried about getting banned, or burning tokens on every scroll?
 
-site-use lets your agent browse Twitter like a real person, automatically caches everything it sees, and delivers structured content at the lowest possible cost.
+site-use lets your agent browse Twitter like a real person and delivers structured content at the lowest possible cost.
 
 ## Why site-use
 
@@ -22,14 +22,10 @@ site-use bakes all browsing actions into deterministic code. Zero token cost at 
 
 A single feed collection takes just seconds — the slight wait is intentional, mimicking human browsing pace.
 
-### Photographic memory
-
-All collected content is automatically stored in a local database with full-text search. Filter by author, date, engagement metrics, or tweet type. Fetch once, query forever.
-
-Compared to alternatives:
+### Compared to alternatives
 
 - **Traditional scrapers** can't see your personalized timeline unless you hand over your credentials to a third party
-- **Letting your agent browse the web directly** is not only expensive, but doesn't cache anything — every session starts from scratch
+- **Letting your agent browse the web directly** is not only expensive — every session starts from scratch with no structure
 - **Twitter's official API** is the best option if you can afford it — we encourage subscribing to support the platform. site-use is for those who can't justify $200/month
 
 ### Structured semantics
@@ -78,9 +74,11 @@ Ask your agent "help me set up site-use" — it will launch Chrome, walk you thr
 site-use also works standalone without an AI agent:
 
 ```bash
-site-use twitter feed             # Fetch timeline
-site-use twitter search --query "AI agents"  # Search Twitter
-site-use search "keyword"         # Search cached data
+site-use twitter feed                          # Fetch timeline (writes to file)
+site-use twitter feed --stdout                 # Full JSON to stdout
+site-use twitter search --query "AI agents"    # Search Twitter
+site-use twitter profile --handle elonmusk     # View a profile
+site-use twitter tweet_detail --url <url>      # Get a tweet and its replies
 ```
 
 ## Architecture
@@ -93,9 +91,9 @@ Browser layer → Sites layer → CLI
 
 Isolated Chrome profile protects user privacy. Anti-fingerprinting at the launch-parameter level. Human-like behavior at the interaction level. Three layers of defense built from the ground up.
 
-**Sites layer (workflows + local private storage)**
+**Sites layer (deterministic workflows)**
 
-Twitter-specific workflows that extract full structured data directly from Twitter. All content flows into a local database — your Twitter data belongs to you permanently, never passing through any third party.
+Twitter-specific workflows that extract full structured data directly from Twitter's internal APIs. Returns structured JSON — your agent gets clean data, not raw HTML.
 
 **CLI (deterministic automation)**
 
@@ -103,8 +101,8 @@ All browsing actions are baked into deterministic code — zero token cost at ex
 
 ## Roadmap
 
-- [x] Twitter timeline collection and local caching
-- [x] Full-text search with structured filters
+- [x] Twitter timeline, search, profile, tweet detail
+- [x] Follow/unfollow with daily rate limiting
 - [x] Anti-detection diagnostic suite
 - [ ] Reddit support
 - [ ] More sites (vote in Issues)

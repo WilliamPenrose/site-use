@@ -4,7 +4,7 @@
 
 想让 AI 帮你盯着 Twitter timeline，又怕封号、又嫌贵？
 
-site-use 让你的 agent 像真人一样刷推，自动缓存看过的内容，以最低成本把有价值的信息喂给你。
+site-use 让你的 agent 像真人一样刷推，以最低成本把有价值的信息喂给你。
 
 ## 为什么用 site-use
 
@@ -22,14 +22,10 @@ site-use 把这些浏览动作预先封装好，执行时零 token 消耗。agen
 
 一次 feed 抓取只需要几秒——稍有等待是因为刻意模拟真人浏览节奏。
 
-### 过目不忘
-
-所有抓取内容自动存入本地数据库，支持全文搜索，可按作者、日期、互动量、推文类型筛选。抓一次，永远能查。
-
-对比其他方案：
+### 对比其他方案
 
 - **普通爬虫/抓取器** 看不到你的专属 timeline，除非你把账号密码交给第三方
-- **让 agent 自己去看网页** 不仅贵，还不会帮你缓存，每次都要重新抓
+- **让 agent 自己去看网页** 不仅贵，还没有结构化输出，每次都要重新抓
 - **Twitter 官方 API** 是最佳选择，推荐有条件的用户优先使用以支持平台发展。site-use 是为暂时负担不起 $200/月的用户提供的替代方案
 
 ### 结构化语义
@@ -78,9 +74,11 @@ openclaw skills install site-use-x
 不用 AI agent 也可以独立使用：
 
 ```bash
-site-use twitter feed             # 抓取 timeline
-site-use twitter search --query "AI agents"  # 搜索 Twitter
-site-use search "关键词"          # 搜索缓存数据
+site-use twitter feed                          # 抓取 timeline（写入文件）
+site-use twitter feed --stdout                 # 完整 JSON 输出到 stdout
+site-use twitter search --query "AI agents"    # 搜索 Twitter
+site-use twitter profile --handle elonmusk     # 查看用户资料
+site-use twitter tweet_detail --url <url>      # 查看推文及回复
 ```
 
 
@@ -94,9 +92,9 @@ Browser 层 → Sites 层 → CLI
 
 独立 Chrome 配置文件隔离用户隐私，启动参数级别的反指纹，行为级别的拟人化，三层防护从底层开始构建信任。
 
-**Sites 层（封装 + 本地私有存储）**
+**Sites 层（确定性工作流）**
 
-Twitter 专属工作流，直接提取 Twitter 内部的完整数据，不丢失任何信息。抓取内容自动进入本地数据库，你的 Twitter 数据终身归你所有，不经过任何第三方。
+Twitter 专属工作流，直接提取 Twitter 内部 API 的完整数据。返回结构化 JSON——agent 拿到的是干净数据，不是原始 HTML。
 
 **CLI（确定性自动化）**
 
@@ -104,8 +102,8 @@ Twitter 专属工作流，直接提取 Twitter 内部的完整数据，不丢失
 
 ## 路线图
 
-- [x] Twitter timeline 抓取与本地缓存
-- [x] 全文搜索与结构化筛选
+- [x] Twitter timeline、搜索、用户资料、推文详情
+- [x] 关注/取关（带每日限额保护）
 - [x] 反检测诊断套件
 - [ ] Reddit 支持
 - [ ] 小红书支持
