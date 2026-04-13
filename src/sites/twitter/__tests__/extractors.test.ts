@@ -14,8 +14,11 @@ import {
   GRAPHQL_PROFILE_PATTERN,
   parseFollowListResponse,
   GRAPHQL_FOLLOW_LIST_PATTERN,
+  GRAPHQL_USER_TWEETS_PATTERN,
+  GRAPHQL_USER_TWEETS_AND_REPLIES_PATTERN,
 } from '../extractors.js';
 import type { RawTweetData, UserProfile, ProfileResult } from '../types.js';
+import { InReplyToSchema, ProfileWithTimelineSchema } from '../types.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -1224,5 +1227,135 @@ describe('parseFollowListResponse', () => {
     });
     const users = parseFollowListResponse(body);
     expect(users).toEqual([]);
+  });
+});
+
+describe('InReplyToSchema', () => {
+  it('accepts text field', () => {
+    const result = InReplyToSchema.parse({
+      handle: 'jawwwn_',
+      tweetId: '123',
+      text: 'Peter Thiel says the left is "Low Testosterone"',
+    });
+    expect(result.text).toBe('Peter Thiel says the left is "Low Testosterone"');
+  });
+
+  it('text is optional', () => {
+    const result = InReplyToSchema.parse({ handle: 'test', tweetId: '456' });
+    expect(result.text).toBeUndefined();
+  });
+});
+
+describe('ProfileWithTimelineSchema', () => {
+  it('accepts posts and replies arrays', () => {
+    const result = ProfileWithTimelineSchema.parse({
+      user: {
+        userId: '1', handle: 'test', displayName: 'Test', bio: '',
+        followersCount: 0, followingCount: 0, tweetsCount: 0, likesCount: 0,
+        verified: false, createdAt: '2020-01-01',
+      },
+      relationship: null,
+      posts: [],
+      replies: [],
+      errors: ['replies timed out'],
+    });
+    expect(result.posts).toEqual([]);
+    expect(result.replies).toEqual([]);
+    expect(result.errors).toEqual(['replies timed out']);
+  });
+
+  it('posts/replies/errors are optional', () => {
+    const result = ProfileWithTimelineSchema.parse({
+      user: {
+        userId: '1', handle: 'test', displayName: 'Test', bio: '',
+        followersCount: 0, followingCount: 0, tweetsCount: 0, likesCount: 0,
+        verified: false, createdAt: '2020-01-01',
+      },
+      relationship: null,
+    });
+    expect(result.posts).toBeUndefined();
+    expect(result.replies).toBeUndefined();
+    expect(result.errors).toBeUndefined();
+  });
+});
+
+describe('GRAPHQL_USER_TWEETS_PATTERN', () => {
+  it('matches UserTweets endpoint', () => {
+    expect(GRAPHQL_USER_TWEETS_PATTERN.test(
+      '/i/api/graphql/x3B_xLqC0yZawOB7WQhaVQ/UserTweets?variables=...'
+    )).toBe(true);
+  });
+
+  it('does not match UserTweetsAndReplies', () => {
+    expect(GRAPHQL_USER_TWEETS_PATTERN.test(
+      '/i/api/graphql/Yt1JzwcBsBWYEEi3jMTe2Q/UserTweetsAndReplies?variables=...'
+    )).toBe(false);
+  });
+});
+
+describe('GRAPHQL_USER_TWEETS_AND_REPLIES_PATTERN', () => {
+  it('matches UserTweetsAndReplies endpoint', () => {
+    expect(GRAPHQL_USER_TWEETS_AND_REPLIES_PATTERN.test(
+      '/i/api/graphql/Yt1JzwcBsBWYEEi3jMTe2Q/UserTweetsAndReplies?variables=...'
+    )).toBe(true);
+  });
+
+  it('does not match plain UserTweets', () => {
+    expect(GRAPHQL_USER_TWEETS_AND_REPLIES_PATTERN.test(
+      '/i/api/graphql/x3B_xLqC0yZawOB7WQhaVQ/UserTweets?variables=...'
+    )).toBe(false);
+  });
+});
+
+const userTweetsBody = fs.readFileSync(
+  path.join(__dirname, 'fixtures/golden/user-tweets-sample.json'), 'utf-8',
+);
+const userTweetsAndRepliesBody = fs.readFileSync(
+  path.join(__dirname, 'fixtures/golden/user-tweets-and-replies-sample.json'), 'utf-8',
+);
+
+describe('parseGraphQLTimeline — UserTweets', () => {
+  it('parses UserTweets golden fixture', () => {
+    const tweets = parseGraphQLTimeline(userTweetsBody);
+    expect(tweets.length).toBeGreaterThan(0);
+    for (const t of tweets) {
+      expect(t.authorHandle).toBeTruthy();
+      expect(t.text).toBeDefined();
+    }
+  });
+
+  it('includes retweets from UserTweets', () => {
+    const tweets = parseGraphQLTimeline(userTweetsBody);
+    const retweets = tweets.filter(t => t.isRetweet);
+    expect(retweets.length).toBeGreaterThan(0);
+  });
+
+  it('includes self-thread items from profile-conversation modules', () => {
+    const tweets = parseGraphQLTimeline(userTweetsBody);
+    const byAuthor = tweets.filter(t => t.authorHandle === 'hwwaanng');
+    expect(byAuthor.length).toBeGreaterThan(1);
+  });
+});
+
+describe('parseGraphQLTimeline — UserTweetsAndReplies', () => {
+  it('parses UserTweetsAndReplies golden fixture', () => {
+    const tweets = parseGraphQLTimeline(userTweetsAndRepliesBody);
+    expect(tweets.length).toBeGreaterThan(0);
+  });
+
+  it('contains both original tweets and replies', () => {
+    const tweets = parseGraphQLTimeline(userTweetsAndRepliesBody);
+    const originals = tweets.filter(t => !t.inReplyTo);
+    const replies = tweets.filter(t => t.inReplyTo);
+    expect(originals.length).toBeGreaterThan(0);
+    expect(replies.length).toBeGreaterThan(0);
+  });
+
+  it('reply tweets have inReplyTo with handle and tweetId', () => {
+    const tweets = parseGraphQLTimeline(userTweetsAndRepliesBody);
+    const reply = tweets.find(t => t.inReplyTo);
+    expect(reply).toBeDefined();
+    expect(reply!.inReplyTo!.handle).toBeTruthy();
+    expect(reply!.inReplyTo!.tweetId).toBeTruthy();
   });
 });

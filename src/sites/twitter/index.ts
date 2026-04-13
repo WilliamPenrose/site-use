@@ -124,14 +124,15 @@ export const plugin: SitePlugin = {
       description:
         'View a Twitter/X user profile and follow relationship. ' +
         'Use --following to list who they follow, --followers to list who follows them. ' +
+        'Use --posts to include recent tweets, --replies to include replies. ' +
         'Read-only — no side effects.',
       params: TwitterProfileParamsSchema,
       execute: (primitives: Primitives, params: unknown, trace?: Trace) =>
         getProfile(primitives, params as Parameters<typeof getProfile>[1], trace),
       expose: ['cli'],
       cli: {
-        description: 'View a user profile, following, or followers',
-        help: `Options:\n  --handle <user>        Twitter handle (with or without @)\n  --url <url>            Profile URL (alternative to --handle)\n  --following            List accounts this user follows\n  --followers            List accounts that follow this user\n  --count <n>            Number of users (1-500, default: 20, only with --following/--followers)\n  --debug                Include diagnostic info\n\nExamples:\n  twitter profile --handle elonmusk\n  twitter profile --handle elonmusk --following\n  twitter profile --following                    (query self)`,
+        description: 'View a user profile, following, followers, posts, or replies',
+        help: `Options:\n  --handle <user>        Twitter handle (with or without @)\n  --url <url>            Profile URL (alternative to --handle)\n  --posts                Include user's recent tweets\n  --replies              Include user's replies\n  --following            List accounts this user follows\n  --followers            List accounts that follow this user\n  --count <n>            Number of items (1-500, default: 20)\n  --debug                Include diagnostic info\n\nExamples:\n  twitter profile --handle elonmusk\n  twitter profile --handle elonmusk --posts --count 10\n  twitter profile --handle elonmusk --posts --replies\n  twitter profile --handle elonmusk --following\n  twitter profile --following                    (query self)`,
       },
     },
   ],
