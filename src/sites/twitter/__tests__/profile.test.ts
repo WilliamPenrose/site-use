@@ -445,6 +445,68 @@ describe('getProfile — timeline dispatch', () => {
     expect(result.errors![0]).toMatch(/replies/i);
   });
 
+  it('--replies alone does not register UserTweets interceptor', async () => {
+    const interceptedPatterns: string[] = [];
+    const handlers = new Map<string, (response: { url: string; status: number; body: string }) => void>();
+
+    const primitives = createMockPrimitives({
+      navigate: vi.fn().mockImplementation(async () => {
+        const profileHandler = handlers.get('profile');
+        if (profileHandler) {
+          profileHandler({
+            url: '/i/api/graphql/abc/UserByScreenName?variables=...',
+            status: 200,
+            body: goldenBody,
+          });
+        }
+      }),
+      interceptRequest: vi.fn().mockImplementation(async (pattern: RegExp, handler: any) => {
+        interceptedPatterns.push(pattern.source);
+        if (pattern.source.includes('UserByScreenName')) {
+          handlers.set('profile', handler);
+        } else if (pattern.source.includes('UserTweetsAndReplies')) {
+          handlers.set('replies', handler);
+        }
+        return () => {};
+      }),
+      evaluate: vi.fn()
+        .mockResolvedValueOnce('https://x.com/hwwaanng')  // checkLoginRedirect
+        .mockResolvedValueOnce(null)                       // checkProfileError
+        .mockResolvedValueOnce(null)                       // getSelfHandle
+        .mockResolvedValueOnce('返信'),                     // find replies tab by href
+      takeSnapshot: vi.fn().mockResolvedValue({
+        idToNode: new Map([
+          ['tab-1', { uid: 'tab-1', role: 'tab', name: '返信' }],
+        ]),
+      }),
+      click: vi.fn().mockImplementation(async () => {
+        const repliesHandler = handlers.get('replies');
+        if (repliesHandler) {
+          repliesHandler({
+            url: '/i/api/graphql/yyy/UserTweetsAndReplies?variables=...',
+            status: 200,
+            body: userTweetsAndRepliesBody,
+          });
+        }
+      }),
+      scroll: vi.fn().mockResolvedValue(undefined),
+    });
+
+    const { getProfile } = await import('../profile.js');
+    const result = await getProfile(primitives, { handle: 'hwwaanng', replies: true, count: 5 }) as ProfileWithTimelineResult;
+
+    // Should NOT have intercepted UserTweets pattern
+    const hasUserTweets = interceptedPatterns.some(p => p.includes('UserTweets') && !p.includes('UserTweetsAnd'));
+    expect(hasUserTweets).toBe(false);
+
+    // Should still return replies
+    expect(result.replies).toBeDefined();
+    expect(result.replies!.length).toBeGreaterThan(0);
+
+    // Should NOT have posts
+    expect(result.posts).toBeUndefined();
+  });
+
   it('--following and --posts are mutually exclusive', async () => {
     const primitives = createMockPrimitives();
     const { getProfile } = await import('../profile.js');

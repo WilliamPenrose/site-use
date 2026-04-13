@@ -136,22 +136,28 @@ async function getProfileWithTimeline(
     // --- Phase 1: Navigate and capture profile + UserTweets ---
 
     let profileBody: string | null = null;
-    const tweetsCollector = createDataCollector<import('./types.js').RawTweetData>();
 
     const cleanupProfile = await primitives.interceptRequest(
       GRAPHQL_PROFILE_PATTERN,
       (response) => { if (!profileBody) profileBody = response.body; },
     );
 
-    const cleanupTweets = await primitives.interceptRequest(
-      GRAPHQL_USER_TWEETS_PATTERN,
-      (response) => {
-        try {
-          const parsed = parseGraphQLTimeline(response.body);
-          tweetsCollector.push(...parsed);
-        } catch { /* non-fatal */ }
-      },
-    );
+    // Only intercept UserTweets when --posts is requested
+    const tweetsCollector = opts.posts
+      ? createDataCollector<import('./types.js').RawTweetData>()
+      : null;
+
+    const cleanupTweets = tweetsCollector
+      ? await primitives.interceptRequest(
+          GRAPHQL_USER_TWEETS_PATTERN,
+          (response) => {
+            try {
+              const parsed = parseGraphQLTimeline(response.body);
+              tweetsCollector.push(...parsed);
+            } catch { /* non-fatal */ }
+          },
+        )
+      : () => {};
 
     try {
       await primitives.navigate(`https://x.com/${handle}`);
@@ -186,7 +192,7 @@ async function getProfileWithTimeline(
 
       // --- Phase 2: Collect posts ---
 
-      if (opts.posts) {
+      if (opts.posts && tweetsCollector) {
         try {
           // Wait for initial UserTweets data
           if (tweetsCollector.length === 0) {
@@ -223,7 +229,7 @@ async function getProfileWithTimeline(
 
       if (opts.replies) {
         try {
-          await collectReplies(primitives, handle, count, result, rootSpan);
+          result.replies = await collectReplies(primitives, handle, count, rootSpan);
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
           errors.push(`replies: ${msg}`);
@@ -248,9 +254,8 @@ async function collectReplies(
   primitives: Primitives,
   handle: string,
   count: number,
-  result: ProfileWithTimelineResult,
   span: import('../../trace.js').SpanHandle,
-): Promise<void> {
+): Promise<Tweet[]> {
   const repliesCollector = createDataCollector<import('./types.js').RawTweetData>();
 
   const cleanup = await primitives.interceptRequest(
@@ -369,8 +374,8 @@ async function collectReplies(
       }
     }
 
-    result.replies = targetReplies;
     span.set('repliesReturned', targetReplies.length);
+    return targetReplies;
   } finally {
     cleanup();
   }
