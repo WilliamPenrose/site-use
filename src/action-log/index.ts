@@ -1,4 +1,6 @@
-import type { DatabaseSync } from 'node:sqlite';
+import fs from 'node:fs';
+import path from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 
 export interface ActionLogEntry {
   site: string;
@@ -8,6 +10,26 @@ export interface ActionLogEntry {
   prevState?: string;
   resultState?: string;
   timestamp: string;
+}
+
+export function openActionLogDb(dbPath: string): DatabaseSync {
+  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+  const db = new DatabaseSync(dbPath);
+  db.exec('PRAGMA journal_mode = WAL');
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS action_log (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      site         TEXT NOT NULL,
+      action       TEXT NOT NULL,
+      target       TEXT NOT NULL,
+      success      INTEGER NOT NULL DEFAULT 1,
+      prev_state   TEXT,
+      result_state TEXT,
+      timestamp    TEXT NOT NULL
+    )
+  `);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_action_log_daily ON action_log(site, action, timestamp)');
+  return db;
 }
 
 export function logAction(db: DatabaseSync, entry: ActionLogEntry): void {

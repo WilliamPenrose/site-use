@@ -2,16 +2,16 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { initializeDatabase } from '../../src/storage/schema.js';
-import { logAction, getDailyActionCount } from '../../src/storage/action-log.js';
+import { openActionLogDb, logAction, getDailyActionCount } from '../../src/action-log/index.js';
+import type { DatabaseSync } from 'node:sqlite';
 
-describe('action-log', () => {
+describe('action-log (standalone)', () => {
   let dbPath: string;
-  let db: ReturnType<typeof initializeDatabase>;
+  let db: DatabaseSync;
 
   beforeEach(() => {
-    dbPath = path.join(os.tmpdir(), `site-use-test-${Date.now()}.db`);
-    db = initializeDatabase(dbPath);
+    dbPath = path.join(os.tmpdir(), `site-use-action-log-test-${Date.now()}.db`);
+    db = openActionLogDb(dbPath);
   });
 
   afterEach(() => {
@@ -109,5 +109,16 @@ describe('action-log', () => {
 
     const count = getDailyActionCount(db, 'twitter', ['follow', 'unfollow']);
     expect(count).toBe(2);
+  });
+
+  it('openActionLogDb is idempotent (can be called twice on same path)', () => {
+    db.close();
+    const db2 = openActionLogDb(dbPath);
+    logAction(db2, {
+      site: 'twitter', action: 'follow', target: 'user1',
+      success: true, timestamp: new Date().toISOString(),
+    });
+    expect(getDailyActionCount(db2, 'twitter', ['follow'])).toBe(1);
+    db = db2; // so afterEach closes it
   });
 });

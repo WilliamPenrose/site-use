@@ -5,19 +5,6 @@ import { validatePlugins } from '../../src/registry/validation.js';
 import type { SitePlugin } from '../../src/registry/types.js';
 import type { SiteRuntimeManager } from '../../src/runtime/manager.js';
 
-vi.mock('../../src/storage/index.js', () => ({
-  createStore: vi.fn(() => ({
-    ingest: vi.fn().mockResolvedValue({ inserted: 0, duplicates: 0 }),
-    search: vi.fn().mockResolvedValue({ items: [] }),
-    statsBySite: vi.fn().mockResolvedValue({}),
-    countItems: vi.fn().mockResolvedValue(0),
-  })),
-}));
-
-vi.mock('../../src/fetch-timestamps.js', () => ({
-  setLastFetchTime: vi.fn(),
-  getAllTimestamps: vi.fn(() => ({})),
-}));
 
 function fakeManager(): SiteRuntimeManager {
   return { get: vi.fn(), clearAll: vi.fn() } as unknown as SiteRuntimeManager;
@@ -36,12 +23,6 @@ function fakePlugin(overrides: Partial<SitePlugin> = {}): SitePlugin {
       execute: async () => ({ items: [], meta: { coveredUsers: [], timeRange: { from: '', to: '' } } }),
       params: z.object({ count: z.number().default(10) }),
     }],
-    storeAdapter: {
-      toIngestItems: (items) => items.map(item => ({
-        site: 'fake', id: item.id, text: item.text, author: item.author.handle,
-        timestamp: item.timestamp, url: item.url, rawJson: JSON.stringify(item),
-      })),
-    },
     ...overrides,
   };
 }
@@ -127,59 +108,6 @@ describe('Plugin Contract', () => {
     const alpha = fakePlugin({ name: 'alpha', domains: ['alpha.com'] });
     const beta = fakePlugin({ name: 'beta', domains: ['beta.com'] });
     validatePlugins([alpha, beta]);
-  });
-
-  it('calls storeAdapter after workflow execute via CLI handler', async () => {
-    const storeAdapterSpy = vi.fn(() => []);
-    const plugin = fakePlugin({
-      storeAdapter: { toIngestItems: storeAdapterSpy },
-      workflows: [{
-        kind: 'collection' as const,
-        name: 'feed',
-        description: 'Collect feed',
-        execute: async () => ({
-          items: [{ id: '1', author: { handle: 'a', name: 'A' }, text: 't', timestamp: '', url: '', media: [], links: [], siteMeta: {} }],
-          meta: { coveredUsers: [], timeRange: { from: '', to: '' } },
-        }),
-        params: z.object({}),
-      }],
-    });
-    const mockRuntime = makeMockRuntime(plugin);
-    const mgr = { get: vi.fn(async () => mockRuntime), clearAll: vi.fn() } as unknown as SiteRuntimeManager;
-    const cmds = generateCliCommands([plugin], mgr);
-    const feedCmd = cmds.find(c => c.command === 'feed')!;
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
-    await feedCmd.handler([]);
-    expect(storeAdapterSpy).toHaveBeenCalled();
-    consoleSpy.mockRestore();
-    stderrSpy.mockRestore();
-  });
-
-  it('does not call storeAdapter when not declared via CLI handler', async () => {
-    const plugin = fakePlugin({
-      workflows: [{
-        kind: 'collection' as const,
-        name: 'feed',
-        description: 'Collect feed',
-        execute: async () => ({
-          items: [{ id: '1', author: { handle: 'a', name: 'A' }, text: 't', timestamp: '', url: '', media: [], links: [], siteMeta: {} }],
-          meta: { coveredUsers: [], timeRange: { from: '', to: '' } },
-        }),
-        params: z.object({}),
-      }],
-    });
-    delete (plugin as Record<string, unknown>).storeAdapter;
-    const mockRuntime = makeMockRuntime(plugin);
-    const mgr = { get: vi.fn(async () => mockRuntime), clearAll: vi.fn() } as unknown as SiteRuntimeManager;
-    const cmds = generateCliCommands([plugin], mgr);
-    const feedCmd = cmds.find(c => c.command === 'feed')!;
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
-    // Should not throw — just skips ingest
-    await feedCmd.handler([]);
-    consoleSpy.mockRestore();
-    stderrSpy.mockRestore();
   });
 
   it('twitter plugin registers search workflow with correct schema', async () => {

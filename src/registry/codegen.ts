@@ -1,15 +1,10 @@
 import { z, type ZodType } from 'zod';
-import type { SitePlugin, CollectionWorkflow, ActionWorkflow } from './types.js';
+import type { SitePlugin, ActionWorkflow } from './types.js';
 import type { SiteRuntimeManager } from '../runtime/manager.js';
 import { wrapToolHandler } from './tool-wrapper.js';
-import { setLastFetchTime } from '../fetch-timestamps.js';
-import { getConfig, getKnowledgeDbPath } from '../config.js';
 import path from 'node:path';
 import os from 'node:os';
-import { withSmartCache, stripFrameworkFlags } from '../cli/smart-cache.js';
-import { createStore } from '../storage/index.js';
-import { SEARCH_FIELDS } from '../storage/types.js';
-import { unwrapToolResult, formatCliOutput } from './cli-output.js';
+import { unwrapToolResult, writeOutput } from './cli-output.js';
 import fs from 'node:fs';
 import type { Trace } from '../trace.js';
 
@@ -70,32 +65,14 @@ export function generateCliCommands(
 
         const isAction = wf.kind === 'action';
         const isQuery = wf.kind === 'query';
-        const hasCacheSupport = wf.kind === 'collection' && !!((wf as CollectionWorkflow).localQuery && (wf as CollectionWorkflow).cache);
-
         const wrappedWf = wrapToolHandler({
           siteName: plugin.name,
           toolName: `${plugin.name}_${wf.name}`,
           getRuntime: () => runtimeManager.get(plugin.name),
           onBrowserDisconnected: () => runtimeManager.clearAll(),
           paramsSchema: wf.params,
-          autoIngest: plugin.storeAdapter
-            ? { storeAdapter: plugin.storeAdapter as { toIngestItems: (items: any[], context?: Record<string, unknown>) => any[] }, siteName: plugin.name }
-            : undefined,
           handler: async (params, runtime, trace) => {
-            const result = await wf.execute(runtime.primitives, params, trace);
-            if (wf.kind === 'collection' && (wf as CollectionWorkflow).cache) {
-              const cacheConfig = (wf as CollectionWorkflow).cache!;
-              const cfg = getConfig();
-              const tsPath = path.join(cfg.dataDir, 'fetch-timestamps.json');
-              const rawVariant = cacheConfig.variantKey
-                ? ((params as Record<string, unknown>)[cacheConfig.variantKey] as string | undefined) ?? cacheConfig.defaultVariant ?? 'default'
-                : cacheConfig.defaultVariant ?? 'default';
-              const variant = cacheConfig.canonicalizeVariant
-                ? cacheConfig.canonicalizeVariant(rawVariant)
-                : rawVariant;
-              setLastFetchTime(tsPath, plugin.name, variant);
-            }
-            return result;
+            return await wf.execute(runtime.primitives, params, trace);
           },
           actionOpts: isAction ? {
             dailyLimit: (wf as ActionWorkflow).dailyLimit,
@@ -133,75 +110,24 @@ export function generateCliCommands(
               if (dumpRawDir && isDefaultDir) rotateDumpFiles(dumpRawDir);
             }
 
-            const { cacheFlags, pluginArgs, fields } = stripFrameworkFlags(
-              remainingArgs,
-              wf.cache?.defaultMaxAge ?? 120,
-            );
+            const { stdoutFlag, outputPath, pluginArgs } = stripOutputFlags(remainingArgs);
             const params = parseCliArgs(pluginArgs, wf.params);
 
             if (dumpRawDir) {
-              if (cacheFlags.forceLocal) throw new Error('--dump-raw and --local are mutually exclusive.');
-              cacheFlags.forceFetch = true;
               (params as Record<string, unknown>).dumpRaw = dumpRawDir;
             }
 
-            const variantKey = wf.cache?.variantKey;
-            const rawVariant = variantKey
-              ? ((params as Record<string, unknown>)[variantKey] as string | undefined) ?? wf.cache!.defaultVariant ?? 'default'
-              : wf.cache?.defaultVariant ?? 'default';
-            const variant = wf.cache?.canonicalizeVariant
-              ? wf.cache.canonicalizeVariant(rawVariant)
-              : rawVariant;
+            // ── Execute ──
+            const data = unwrapToolResult(await wrappedWf(params));
+            if (data === null) return;  // error already printed
 
-            // ── Data fetch ────────────────────────────────────
-            let data: unknown;
-            let source: 'local' | 'remote' | undefined;
-            let ageMinutes: number | undefined;
-
-            if (hasCacheSupport) {
-              const cfg = getConfig();
-              const dbPath = getKnowledgeDbPath(cfg.dataDir);
-              const cacheResult = await withSmartCache(
-                {
-                  siteName: plugin.name,
-                  variant,
-                  maxAge: cacheFlags.maxAge,
-                  forceLocal: cacheFlags.forceLocal,
-                  forceFetch: cacheFlags.forceFetch,
-                  dataDir: cfg.dataDir,
-                },
-                {
-                  localQuery: async () => {
-                    const store = createStore(dbPath);
-                    try { return await wf.localQuery!(store, params); }
-                    finally { store.close(); }
-                  },
-                  remoteFetch: async () => {
-                    const result = await wrappedWf(params);
-                    const unwrapped = unwrapToolResult(result);
-                    if (unwrapped === null) throw new Error('tool returned error');
-                    return unwrapped;
-                  },
-                  hasLocalData: async () => {
-                    if (!fs.existsSync(dbPath)) return false;
-                    const store = createStore(dbPath);
-                    try { return (await store.countItems({ site: plugin.name })) > 0; }
-                    catch { return false; }
-                    finally { store.close(); }
-                  },
-                },
-              );
-              data = cacheResult.result;
-              source = cacheResult.source;
-              ageMinutes = cacheResult.ageMinutes;
-            } else {
-              data = unwrapToolResult(await wrappedWf(params));
-              if (data === null) return;  // error already printed to stdout + exitCode set
-            }
-
-            // ── Output ────────────────────────────────────────
-            // source is undefined for non-cache paths → no stderr hint (preserves original behavior)
-            formatCliOutput(data, { fields, quiet: cacheFlags.quiet, source, ageMinutes, variant });
+            // ── Output ──
+            writeOutput(data, {
+              stdout: stdoutFlag,
+              outputPath,
+              siteName: plugin.name,
+              workflowName: wf.name,
+            });
 
             if (dumpRawDir) console.error(`Dumped to ${dumpRawDir}`);
           },
@@ -257,9 +183,40 @@ function rotateDumpFiles(dir: string): void {
   }
 }
 
+export function stripOutputFlags(
+  args: string[],
+): { stdoutFlag: boolean; outputPath?: string; pluginArgs: string[] } {
+  let stdoutFlag = false;
+  let outputPath: string | undefined;
+  const pluginArgs: string[] = [];
+
+  let i = 0;
+  while (i < args.length) {
+    const arg = args[i];
+    switch (arg) {
+      case '--stdout':
+        stdoutFlag = true;
+        i++;
+        break;
+      case '--output': {
+        outputPath = args[i + 1];
+        if (!outputPath || outputPath.startsWith('--')) {
+          throw new Error('--output requires a file path');
+        }
+        i += 2;
+        break;
+      }
+      default:
+        pluginArgs.push(arg);
+        i++;
+    }
+  }
+  return { stdoutFlag, outputPath, pluginArgs };
+}
+
 function buildWorkflowHelp(
   siteName: string,
-  wf: { name: string; kind?: string; cache?: { defaultMaxAge: number }; localQuery?: unknown; dumpRaw?: boolean; cli?: { description?: string; help?: string } },
+  wf: { name: string; kind?: string; dumpRaw?: boolean; cli?: { description?: string; help?: string } },
 ): string {
   const lines: string[] = [];
   const desc = wf.cli?.description ?? wf.name;
@@ -277,19 +234,9 @@ function buildWorkflowHelp(
       lines.push('');
     }
 
-    if (wf.cache) {
-      lines.push('Cache options:');
-      if (wf.localQuery) {
-        lines.push('  --local                Force local cache query (no browser)');
-      }
-      lines.push('  --fetch                Force fetch from browser (skip freshness check)');
-      lines.push(`  --max-age <minutes>    Max cache age before auto-fetching (default: ${wf.cache.defaultMaxAge})`);
-      lines.push('');
-    }
-
     lines.push('Output options:');
-    lines.push(`  --fields <list>        Comma-separated fields: ${SEARCH_FIELDS.join(',')}`);
-    lines.push('  --quiet, -q            Suppress JSON output, show one-line summary only');
+    lines.push('  --stdout               Full JSON output to stdout');
+    lines.push('  --output <path>        Write output to specific file path');
     lines.push('');
   }
 

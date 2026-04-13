@@ -7,7 +7,6 @@ export type {
   CheckLoginResult,
   AuthCapability,
   WorkflowDeclaration,
-  StoreAdapter,
   SiteErrorHints,
   ExposeTarget,
   CliConfig,

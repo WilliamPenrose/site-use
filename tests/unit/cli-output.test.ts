@@ -1,127 +1,74 @@
-import { describe, it, expect, vi } from 'vitest';
-import { unwrapToolResult } from '../../src/registry/cli-output.js';
-import { formatCliOutput } from '../../src/registry/cli-output.js';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import { writeOutput, unwrapToolResult } from '../../src/registry/cli-output.js';
 
 describe('unwrapToolResult', () => {
-  it('returns parsed JSON from successful tool result', () => {
+  it('parses successful result', () => {
     const result = {
-      content: [{ type: 'text' as const, text: '{"items":[1,2,3]}' }],
+      content: [{ type: 'text' as const, text: '{"items":[]}' }],
     };
-    expect(unwrapToolResult(result)).toEqual({ items: [1, 2, 3] });
+    expect(unwrapToolResult(result)).toEqual({ items: [] });
   });
 
-  it('returns null and sets exitCode on error result', () => {
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+  it('returns null and sets exitCode on error', () => {
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     const result = {
-      content: [{ type: 'text' as const, text: '{"type":"SessionExpired","message":"Not logged in"}' }],
+      content: [{ type: 'text' as const, text: '{"type":"PluginError"}' }],
       isError: true,
     };
-    const data = unwrapToolResult(result);
-    expect(data).toBeNull();
+    expect(unwrapToolResult(result)).toBeNull();
     expect(process.exitCode).toBe(1);
-    expect(logSpy).toHaveBeenCalledWith('{"type":"SessionExpired","message":"Not logged in"}');
-    logSpy.mockRestore();
+    consoleSpy.mockRestore();
     process.exitCode = undefined as any;
   });
 });
 
-describe('formatCliOutput', () => {
-  it('outputs JSON to stdout in normal mode', () => {
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+describe('writeOutput', () => {
+  let tmpDir: string;
 
-    formatCliOutput({ items: [{ text: 'hello' }] }, { quiet: false });
-
-    expect(logSpy).toHaveBeenCalledOnce();
-    const output = JSON.parse(logSpy.mock.calls[0][0] as string);
-    expect(output.items[0].text).toBe('hello');
-
-    logSpy.mockRestore();
-    errSpy.mockRestore();
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'site-use-output-test-'));
   });
 
-  it('outputs one-line summary to stderr in quiet mode', () => {
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-    formatCliOutput(
-      { items: [{ text: 'a' }, { text: 'b' }], meta: { timeRange: { from: '2026-03-30T10:00:00Z', to: '2026-03-30T12:00:00Z' } } },
-      { quiet: true, variant: 'for_you' },
-    );
-
-    expect(logSpy).not.toHaveBeenCalled();
-    expect(errSpy).toHaveBeenCalled();
-    const msg = errSpy.mock.calls[0][0] as string;
-    expect(msg).toContain('2 items');
-
-    logSpy.mockRestore();
-    errSpy.mockRestore();
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('shows cache source hint on stderr when source is local', () => {
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-    formatCliOutput(
-      { items: [] },
-      { quiet: false, source: 'local', ageMinutes: 5 },
-    );
-
-    const stderrOutput = errSpy.mock.calls.map(c => c[0]).join('\n');
-    expect(stderrOutput).toContain('cached');
-    expect(stderrOutput).toContain('5min');
-
-    logSpy.mockRestore();
-    errSpy.mockRestore();
+  it('--stdout writes full JSON to stdout', () => {
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const data = { items: [{ id: '1' }], meta: {} };
+    writeOutput(data, { stdout: true, siteName: 'twitter', workflowName: 'feed' });
+    expect(consoleSpy).toHaveBeenCalledOnce();
+    const output = JSON.parse(consoleSpy.mock.calls[0][0]);
+    expect(output.items).toHaveLength(1);
+    consoleSpy.mockRestore();
   });
 
-  it('no stderr hint when source is undefined (non-cache path)', () => {
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+  it('default writes to file and prints summary to stdout', () => {
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const outputPath = path.join(tmpDir, 'test-output.json');
+    const data = { items: [{ id: '1' }, { id: '2' }], meta: {} };
+    writeOutput(data, { stdout: false, outputPath, siteName: 'twitter', workflowName: 'feed' });
 
-    formatCliOutput(
-      { items: [{ text: 'hello' }] },
-      { quiet: false },  // source omitted → undefined
-    );
+    // Verify file written
+    expect(fs.existsSync(outputPath)).toBe(true);
+    const written = JSON.parse(fs.readFileSync(outputPath, 'utf-8'));
+    expect(written.items).toHaveLength(2);
 
-    expect(logSpy).toHaveBeenCalledOnce();
-    expect(errSpy).not.toHaveBeenCalled();
-
-    logSpy.mockRestore();
-    errSpy.mockRestore();
+    // Verify summary to stdout
+    const summary = JSON.parse(consoleSpy.mock.calls[0][0]);
+    expect(summary.count).toBe(2);
+    expect(summary.file).toBe(outputPath);
+    consoleSpy.mockRestore();
   });
 
-  it('applies fields filter when fields are provided', () => {
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-    formatCliOutput(
-      { items: [{ id: '1', text: 'hello', author: 'alice', timestamp: '2026-01-01', url: 'http://x.com/1' }] },
-      { quiet: false, fields: ['author', 'text'] as any },
-    );
-
-    const output = JSON.parse(logSpy.mock.calls[0][0] as string);
-    expect(output.items[0].author).toBe('alice');
-    expect(output.items[0].text).toBe('hello');
-    expect(output.items[0].url).toBeUndefined();
-
-    logSpy.mockRestore();
-    errSpy.mockRestore();
-  });
-
-  it('localizes timestamps before output', () => {
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-    formatCliOutput(
-      { items: [{ timestamp: '2026-03-30T10:00:00.000Z' }] },
-      { quiet: false },
-    );
-
-    const output = JSON.parse(logSpy.mock.calls[0][0] as string);
-    expect(typeof output.items[0].timestamp).toBe('string');
-
-    logSpy.mockRestore();
-    errSpy.mockRestore();
+  it('creates output directory if it does not exist', () => {
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const outputPath = path.join(tmpDir, 'nested', 'dir', 'output.json');
+    writeOutput({ items: [] }, { stdout: false, outputPath, siteName: 'twitter', workflowName: 'feed' });
+    expect(fs.existsSync(outputPath)).toBe(true);
+    consoleSpy.mockRestore();
   });
 });

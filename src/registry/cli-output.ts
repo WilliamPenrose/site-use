@@ -1,12 +1,12 @@
 import type { ToolResult } from './tool-wrapper.js';
 import { localizeTimestamps } from '../format-date.js';
-import { applyFieldsFilter } from '../storage/fields.js';
-import type { SearchResultItem, SearchField } from '../storage/types.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
 
 /**
  * Extract and parse the JSON payload from a ToolResult.
- * On error: prints the error text to stdout and sets process.exitCode = 1,
- * matching the original codegen inline error handling behavior.
+ * On error: prints the error text to stdout and sets process.exitCode = 1.
  * Returns null on error so the caller can short-circuit.
  */
 export function unwrapToolResult(result: ToolResult): unknown | null {
@@ -19,54 +19,38 @@ export function unwrapToolResult(result: ToolResult): unknown | null {
   return JSON.parse(text);
 }
 
-export interface FormatCliOutputOptions {
-  fields?: SearchField[];
-  quiet: boolean;
-  /** 'local' | 'remote' for cache paths; undefined for non-cache paths (no stderr hint). */
-  source?: 'local' | 'remote';
-  ageMinutes?: number;
-  variant?: string;
+export interface WriteOutputOptions {
+  stdout: boolean;
+  outputPath?: string;
+  siteName: string;
+  workflowName: string;
 }
 
 /**
- * Unified CLI output pipeline:
- * 1. Localize timestamps
- * 2. Apply fields filter (if specified)
- * 3. Output JSON to stdout (normal) or one-line summary to stderr (quiet)
- * 4. Show source hint on stderr
+ * Output pipeline for collection workflows:
+ * - Localize timestamps
+ * - If --stdout: full JSON to stdout
+ * - Otherwise: write to file, print summary to stdout
  */
-export function formatCliOutput(data: unknown, opts: FormatCliOutputOptions): void {
-  let output = localizeTimestamps(data) as Record<string, unknown>;
+export function writeOutput(data: unknown, opts: WriteOutputOptions): void {
+  const localized = localizeTimestamps(data);
 
-  if (opts.fields && Array.isArray(output.items)) {
-    output = { ...output, items: applyFieldsFilter(output.items as SearchResultItem[], opts.fields) };
+  if (opts.stdout) {
+    console.log(JSON.stringify(localized, null, 2));
+    return;
   }
 
-  if (opts.quiet) {
-    const items = Array.isArray(output.items) ? output.items : [];
-    const meta = output.meta as { timeRange?: { from?: string; to?: string } } | undefined;
-    const from = meta?.timeRange?.from ?? '';
-    const to = meta?.timeRange?.to ?? '';
-    const timeStr = from && to
-      ? ` ${from.replace('T', ' ').slice(0, 25)} ~ ${to.replace('T', ' ').slice(11, 25)}`
-      : '';
-    const variant = opts.variant ?? 'default';
+  const outputPath = opts.outputPath ?? defaultOutputPath(opts.siteName, opts.workflowName);
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+  fs.writeFileSync(outputPath, JSON.stringify(localized, null, 2));
 
-    if (opts.source === 'local') {
-      const age = opts.ageMinutes != null ? `${opts.ageMinutes}min old` : 'age unknown';
-      console.error(`Using cached data (${age}). ${items.length} items in cache.`);
-    } else {
-      console.error(`Synced ${items.length} items (${variant},${timeStr}).`);
-    }
-  } else {
-    console.log(JSON.stringify(output, null, 2));
+  const items = (localized as Record<string, unknown>).items;
+  const count = Array.isArray(items) ? items.length : 0;
+  console.log(JSON.stringify({ count, file: outputPath }));
+}
 
-    if (opts.source === 'local') {
-      const age = opts.ageMinutes != null ? `${opts.ageMinutes}min old` : 'age unknown';
-      console.error(`Using cached data (${age}).`);
-    } else if (opts.source === 'remote') {
-      console.error('Fetched from browser.');
-    }
-    // source undefined (no-cache path) → no stderr hint
-  }
+function defaultOutputPath(siteName: string, workflowName: string): string {
+  const dataDir = process.env.SITE_USE_DATA_DIR || path.join(os.homedir(), '.site-use');
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 23);
+  return path.join(dataDir, 'output', siteName, `${workflowName}-${timestamp}.json`);
 }

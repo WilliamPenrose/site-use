@@ -67,10 +67,6 @@ export function getConfig(): Config {
   return { dataDir, chromeProfileDir, chromeJsonPath, proxy, proxySource, webrtcPolicy };
 }
 
-export function getKnowledgeDbPath(dataDir: string): string {
-  return path.join(dataDir, 'data', 'knowledge.db');
-}
-
 export interface ClickEnhancementConfig {
   /** Bezier curve mouse trajectory before clicking. Default: true */
   trajectory: boolean;

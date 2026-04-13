@@ -22,9 +22,6 @@ const SitePluginSchema = z.object({
     expose: z.array(z.enum(['mcp', 'cli'])).optional(),
     cli: z.unknown().optional(),
   }).optional(),
-  storeAdapter: z.object({
-    toIngestItems: z.function().args(z.array(z.any()), z.record(z.unknown()).optional()),
-  }).optional(),
   hints: z.object({
     sessionExpired: z.string().optional(),
     rateLimited: z.string().optional(),

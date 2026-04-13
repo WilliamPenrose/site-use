@@ -1,10 +1,7 @@
 import type { ZodType } from 'zod';
 import type { Primitives } from '../primitives/types.js';
 import type { DetectFn } from '../primitives/rate-limit-detect.js';
-import type { IngestItem } from '../storage/types.js';
-import type { KnowledgeStore } from '../storage/index.js';
 import type { Trace } from '../trace.js';
-import type { DisplaySchema } from '../display/resolve.js';
 
 // ── Expose target ──────────────────────────────────────────────
 
@@ -83,20 +80,6 @@ export interface CheckLoginResult {
 
 // ── Capabilities ───────────────────────────────────────────────
 
-export interface CacheConfig {
-  defaultMaxAge: number;
-  variantKey?: string;
-  defaultVariant?: string;
-  /**
-   * Optional normalizer applied to the variant value before it is used
-   * as a cache / freshness key. Lets sites collapse equivalent user
-   * inputs (e.g. case/whitespace variants of the same tab) into a
-   * single canonical key so the smart cache and `lastCollected` stats
-   * don't split across spurious duplicates.
-   */
-  canonicalizeVariant?: (raw: string) => string;
-}
-
 export interface AuthCapability {
   /** Full login check (navigates + checks). Used by check_login tool. */
   check: (primitives: Primitives) => Promise<CheckLoginResult>;
@@ -123,8 +106,6 @@ interface WorkflowBase {
 
 export interface CollectionWorkflow extends WorkflowBase {
   kind: 'collection';
-  cache?: CacheConfig;
-  localQuery?: (store: KnowledgeStore, params: unknown) => Promise<unknown>;
   dumpRaw?: boolean;
 }
 
@@ -140,12 +121,6 @@ export interface QueryWorkflow extends WorkflowBase {
 }
 
 export type WorkflowDeclaration = CollectionWorkflow | ActionWorkflow | QueryWorkflow;
-
-// ── Store adapter ──────────────────────────────────────────────
-
-export interface StoreAdapter {
-  toIngestItems: (items: FeedItem[], context?: Record<string, unknown>) => IngestItem[];
-}
 
 // ── Error hints ────────────────────────────────────────────────
 
@@ -168,10 +143,7 @@ export interface SitePlugin {
 
   // ── Site-wide capabilities ──
   auth?: AuthCapability;
-  storeAdapter?: StoreAdapter;
   hints?: SiteErrorHints;
-  /** Display schema for resolving site-specific fields from raw_json in search results. */
-  displaySchema?: DisplaySchema;
 
   // ── Per-operation capabilities ──
   workflows?: WorkflowDeclaration[];

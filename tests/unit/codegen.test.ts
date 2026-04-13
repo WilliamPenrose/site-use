@@ -79,8 +79,8 @@ describe('generateCliCommands', () => {
   });
 });
 
-describe('generateCliCommands — smart cache', () => {
-  it('generates workflow command that accepts cache flags without error', () => {
+describe('generateCliCommands — help', () => {
+  it('collection workflow --help shows output options', async () => {
     const plugin = fakePlugin({
       workflows: [{
         kind: 'collection' as const,
@@ -88,41 +88,6 @@ describe('generateCliCommands — smart cache', () => {
         description: 'Collect feed',
         execute: async () => ({ items: [], meta: { coveredUsers: [], timeRange: { from: '', to: '' } } }),
         params: z.object({ tab: z.string().optional() }),
-        localQuery: async () => ({ items: [], meta: { coveredUsers: [], timeRange: { from: '', to: '' } } }),
-        cache: { defaultMaxAge: 120, variantKey: 'tab', defaultVariant: 'for_you' },
-      }],
-    });
-    const cmds = generateCliCommands([plugin], fakeManager());
-    const entry = cmds.find(c => c.command === 'feed');
-    expect(entry).toBeDefined();
-  });
-
-  it('workflow with cache but no localQuery has no --local behavior', () => {
-    const plugin = fakePlugin({
-      workflows: [{
-        kind: 'collection' as const,
-        name: 'feed',
-        description: 'Collect feed',
-        execute: async () => ({ items: [], meta: { coveredUsers: [], timeRange: { from: '', to: '' } } }),
-        params: z.object({ count: z.number().optional() }),
-        cache: { defaultMaxAge: 120 },
-      }],
-    });
-    const cmds = generateCliCommands([plugin], fakeManager());
-    const entry = cmds.find(c => c.command === 'feed');
-    expect(entry).toBeDefined();
-  });
-
-  it('workflow with cache handles --help showing cache options', async () => {
-    const plugin = fakePlugin({
-      workflows: [{
-        kind: 'collection' as const,
-        name: 'feed',
-        description: 'Collect feed',
-        execute: async () => ({ items: [], meta: { coveredUsers: [], timeRange: { from: '', to: '' } } }),
-        params: z.object({ tab: z.string().optional() }),
-        localQuery: async () => ({ items: [], meta: { coveredUsers: [], timeRange: { from: '', to: '' } } }),
-        cache: { defaultMaxAge: 120 },
         cli: { description: 'Collect feed', help: 'Feed help text' },
       }],
     });
@@ -133,9 +98,8 @@ describe('generateCliCommands — smart cache', () => {
     expect(consoleSpy).toHaveBeenCalled();
     const output = consoleSpy.mock.calls.map(c => c[0]).join('\n');
     expect(output).toContain('Feed help text');
-    expect(output).toContain('--local');
-    expect(output).toContain('--fetch');
-    expect(output).toContain('--max-age');
+    expect(output).toContain('--stdout');
+    expect(output).toContain('--output');
     consoleSpy.mockRestore();
   });
 
