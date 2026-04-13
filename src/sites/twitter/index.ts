@@ -3,12 +3,8 @@ import type { Primitives } from '../../primitives/types.js';
 import type { Trace } from '../../trace.js';
 import { twitterDetect, isLoggedIn } from './site.js';
 import { checkLogin, getFeed, getTweetDetail, getSearch, follow, unfollow } from './workflows.js';
-import { feedItemsToIngestItems } from './store-adapter.js';
 import { TwitterFeedParamsSchema, TweetDetailParamsSchema, TwitterSearchParamsSchema, TwitterFollowActionParamsSchema, TwitterProfileParamsSchema } from './types.js';
 import { getProfile } from './profile.js';
-import { twitterLocalQuery } from './local-query.js';
-import { twitterDisplaySchema } from './display.js';
-import { canonicalizeTab } from './canonicalize.js';
 
 export const plugin: SitePlugin = {
   apiVersion: 1,
@@ -21,10 +17,6 @@ export const plugin: SitePlugin = {
     guard: isLoggedIn,
     description: 'Check if user is logged in to Twitter/X. Returns { loggedIn: boolean }.',
   },
-  storeAdapter: {
-    toIngestItems: feedItemsToIngestItems,
-  },
-
   workflows: [
     {
       kind: 'collection' as const,
@@ -38,13 +30,6 @@ export const plugin: SitePlugin = {
       params: TwitterFeedParamsSchema,
       execute: (primitives: Primitives, params: unknown) =>
         getFeed(primitives, params as Parameters<typeof getFeed>[1]),
-      cache: {
-        defaultMaxAge: 120,
-        variantKey: 'tab',
-        defaultVariant: 'for_you',
-        canonicalizeVariant: canonicalizeTab,
-      },
-      localQuery: twitterLocalQuery,
       dumpRaw: true,
       cli: {
         description: 'Collect tweets from the home timeline',
@@ -137,8 +122,6 @@ export const plugin: SitePlugin = {
       },
     },
   ],
-
-  displaySchema: twitterDisplaySchema,
 
   hints: {
     rateLimited:

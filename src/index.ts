@@ -1,15 +1,12 @@
 #!/usr/bin/env node --no-warnings=ExperimentalWarning
 import { launchAndDetach, readChromeJson, closeBrowser, recoverOrphanChrome } from './browser/browser.js';
 import { getConfig } from './config.js';
-import { runKnowledgeCli } from './cli/knowledge.js';
-import { runCleanCli } from './cli/clean.js';
 import { ensureBrowser } from './browser/browser.js';
 
 import { BUILD_HASH, BUILD_DATE } from './build-info.js';
 import { discoverPlugins } from './registry/discovery.js';
 import { generateCliCommands } from './registry/codegen.js';
 import { SiteRuntimeManager } from './runtime/manager.js';
-import { registerDisplaySchema } from './storage/query.js';
 import { runScreenshotCli } from './cli/screenshot.js';
 
 function getVersion(): string {
@@ -105,12 +102,7 @@ Global commands:
   browser launch     Launch Chrome (detached — stays alive after exit)
   browser status     Show Chrome connection status, PID, and profile path
   browser close      Kill Chrome and clean up
-  search             Search stored posts (FTS + structured filters)
-  stats              Show storage statistics
-  rebuild            Rebuild search index (Phase 2)
-  clean              Delete stored items by filter (interactive)
   screenshot         Take a screenshot of a site's browser tab
-  harness            Diagnostic harness (run / capture / promote / status)
   help               Show this help message
 
 Environment:
@@ -129,11 +121,6 @@ async function run(): Promise<boolean> {
 
   // Discover plugins for dynamic CLI dispatch
   const plugins = await discoverPlugins();
-  for (const plugin of plugins) {
-    if (plugin.displaySchema) {
-      registerDisplaySchema(plugin.name, plugin.displaySchema);
-    }
-  }
   const runtimeManager = new SiteRuntimeManager(plugins);
   const siteCommands = generateCliCommands(plugins, runtimeManager);
   const siteNames = new Set(siteCommands.map(c => c.site));
@@ -166,22 +153,6 @@ async function run(): Promise<boolean> {
           console.log(BROWSER_HELP);
           process.exit(1);
       }
-      break;
-    }
-
-    case 'search':
-    case 'stats':
-    case 'rebuild':
-      await runKnowledgeCli(command, args.slice(1));
-      break;
-
-    case 'clean':
-      await runCleanCli(args.slice(1));
-      break;
-
-    case 'harness': {
-      const { runHarnessCli } = await import('./cli/harness.js');
-      await runHarnessCli(args.slice(1));
       break;
     }
 

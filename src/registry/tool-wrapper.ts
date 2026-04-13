@@ -1,20 +1,9 @@
-import { z, type ZodType } from 'zod';
+import type { ZodType } from 'zod';
 import type { SiteRuntime } from '../runtime/types.js';
 import { SiteUseError, BrowserDisconnected, RateLimited, DailyLimitExceeded } from '../errors.js';
 import { resolveHint } from './default-descriptions.js';
 import { Trace, type TraceData } from '../trace.js';
 
-const IngestItemSchema = z.object({
-  site: z.string(), id: z.string(), text: z.string(), author: z.string(),
-  timestamp: z.string(), url: z.string(), rawJson: z.string(),
-  metrics: z.array(z.object({
-    metric: z.string(), numValue: z.number().optional(),
-    realValue: z.number().optional(), strValue: z.string().optional(),
-  })).optional(),
-  mentions: z.array(z.string()).optional(),
-  hashtags: z.array(z.string()).optional(),
-  sourceTabs: z.array(z.string()).optional(),
-});
 
 export interface ToolResult {
   [key: string]: unknown;
@@ -35,10 +24,6 @@ export interface WrapOptions {
   paramsSchema?: ZodType;
   resultSchema?: ZodType;
   onBrowserDisconnected?: () => void;
-  autoIngest?: {
-    storeAdapter: { toIngestItems: (items: any[], context?: Record<string, unknown>) => any[] };
-    siteName: string;
-  };
   actionOpts?: ActionOpts;
 }
 
@@ -84,12 +69,12 @@ export function wrapToolHandler(opts: WrapOptions): (params: Record<string, unkn
       const result = await runtime.mutex.run(async () => {
         // Action workflows: dailyLimitCheck + execute + logAction all inside mutex
         if (opts.actionOpts) {
-          const { getDailyActionCount, logAction } = await import('../storage/action-log.js');
-          const { getConfig, getKnowledgeDbPath } = await import('../config.js');
-          const { initializeDatabase } = await import('../storage/schema.js');
+          const { getDailyActionCount, logAction, openActionLogDb } = await import('../action-log/index.js');
+          const { getConfig } = await import('../config.js');
+          const path = await import('node:path');
           const cfg = getConfig();
-          const dbPath = getKnowledgeDbPath(cfg.dataDir);
-          const db = initializeDatabase(dbPath);
+          const dbPath = path.join(cfg.dataDir, 'data', 'action-log.db');
+          const db = openActionLogDb(dbPath);
           try {
             // 1. Daily limit check
             if (opts.actionOpts.dailyLimit) {
@@ -145,28 +130,6 @@ export function wrapToolHandler(opts: WrapOptions): (params: Record<string, unkn
             `Plugin "${opts.siteName}" returned invalid result: ${resultParse.error.message}`,
             { retryable: false },
           );
-        }
-      }
-
-      if (opts.autoIngest) {
-        const feedResult = result as { items?: unknown[] };
-        if (feedResult.items && feedResult.items.length > 0) {
-          try {
-            const { createStore } = await import('../storage/index.js');
-            const { getConfig, getKnowledgeDbPath } = await import('../config.js');
-            const cfg = getConfig();
-            const dbPath = getKnowledgeDbPath(cfg.dataDir);
-            const store = createStore(dbPath);
-            const ingestItems = opts.autoIngest.storeAdapter
-              .toIngestItems(feedResult.items, parsedParams)
-              .map((item: any) => ({ ...item, site: opts.autoIngest!.siteName }));
-            z.array(IngestItemSchema).parse(ingestItems);
-            await store.ingest(ingestItems);
-          } catch (err) {
-            console.warn(
-              `[site-use] autoIngest failed for ${opts.siteName}: ${err instanceof Error ? err.message : String(err)}`,
-            );
-          }
         }
       }
 
