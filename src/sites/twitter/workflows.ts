@@ -485,6 +485,7 @@ export async function getTweetDetail(
     let graphqlFailures = 0;
 
     let anchor: RawTweetData | null = null;
+    let ancestors: RawTweetData[] = [];
     let hasCursor = false;
     const collector = createDataCollector<RawTweetData>();
     let dumpIndex = 0;
@@ -501,6 +502,7 @@ export async function getTweetDetail(
           const parsed = parseTweetDetail(response.body);
           if (parsed.anchor && !anchor) {
             anchor = parsed.anchor;
+            ancestors = parsed.ancestors;
           }
           hasCursor = parsed.hasCursor;
           if (parsed.replies.length > 0) {
@@ -538,12 +540,19 @@ export async function getTweetDetail(
       const meta = buildFeedMeta(finalTweets);
       const items = finalTweets.map(tweetToFeedItem);
 
+      const ancestorItems = ancestors
+        .map(parseTweet)
+        .filter((t) => !t.isAd)
+        .map(tweetToFeedItem);
+
       rootSpan.set('rawRepliesBeforeFilter', collector.length);
       rootSpan.set('itemsReturned', items.length);
       rootSpan.set('hasAnchor', anchor !== null);
+      rootSpan.set('ancestorCount', ancestorItems.length);
 
       return {
         items,
+        ...(ancestorItems.length > 0 && { ancestors: ancestorItems }),
         meta: {
           coveredUsers: meta.coveredUsers,
           timeRange: { from: meta.timeRange.from, to: meta.timeRange.to },

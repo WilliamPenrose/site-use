@@ -721,6 +721,82 @@ describe('getTweetDetail', () => {
     expect(result.meta.timeRange.to).toBeTruthy();
   });
 
+  it('returns ancestors when viewing a reply tweet', { timeout: 15000 }, async () => {
+    const fixtureBody = fs.readFileSync(
+      path.join(__dirname, 'fixtures/golden/tweet-detail-with-ancestors.json'), 'utf-8',
+    );
+
+    let interceptHandler: ((response: { url: string; status: number; body: string }) => void) | null = null;
+
+    const primitives = createMockPrimitives({
+      interceptRequest: vi.fn().mockImplementation(async (_pattern: RegExp, handler: any) => {
+        interceptHandler = handler;
+        return () => {};
+      }),
+      navigate: vi.fn().mockImplementation(async () => {
+        if (interceptHandler) {
+          setTimeout(() => {
+            interceptHandler!({
+              url: 'https://x.com/i/api/graphql/abc/TweetDetail',
+              status: 200,
+              body: fixtureBody,
+            });
+          }, 50);
+        }
+      }),
+      evaluate: vi.fn().mockResolvedValue('https://x.com/suvendu2805/status/2043242212197323042'),
+    });
+
+    const result = await getTweetDetail(primitives, {
+      url: 'https://x.com/suvendu2805/status/2043242212197323042',
+      count: 20,
+    });
+
+    // items[0] is the target tweet (anchor)
+    expect(result.items[0].author.handle).toBe('suvendu2805');
+
+    // ancestors present, oldest first
+    expect(result.ancestors).toBeDefined();
+    expect(result.ancestors!).toHaveLength(2);
+    expect(result.ancestors![0].author.handle).toBe('narendramodi');
+    expect(result.ancestors![1].author.handle).toBe('Sultan_analysis');
+  });
+
+  it('omits ancestors field for non-reply tweets', { timeout: 15000 }, async () => {
+    const fixtureBody = fs.readFileSync(
+      path.join(__dirname, 'fixtures/tweet-detail-initial.json'), 'utf-8',
+    );
+
+    let interceptHandler: ((response: { url: string; status: number; body: string }) => void) | null = null;
+
+    const primitives = createMockPrimitives({
+      interceptRequest: vi.fn().mockImplementation(async (_pattern: RegExp, handler: any) => {
+        interceptHandler = handler;
+        return () => {};
+      }),
+      navigate: vi.fn().mockImplementation(async () => {
+        if (interceptHandler) {
+          setTimeout(() => {
+            interceptHandler!({
+              url: 'https://x.com/i/api/graphql/abc/TweetDetail',
+              status: 200,
+              body: fixtureBody,
+            });
+          }, 50);
+        }
+      }),
+      evaluate: vi.fn().mockResolvedValue('https://x.com/shawn_pana/status/2037688071144317428'),
+    });
+
+    const result = await getTweetDetail(primitives, {
+      url: 'https://x.com/shawn_pana/status/2037688071144317428',
+      count: 20,
+    });
+
+    // No ancestors for a non-reply tweet
+    expect(result.ancestors).toBeUndefined();
+  });
+
   it('filters out ads from replies', { timeout: 15000 }, async () => {
     const fixtureBody = fs.readFileSync(
       path.join(__dirname, 'fixtures/tweet-detail-initial.json'), 'utf-8',

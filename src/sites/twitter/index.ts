@@ -72,8 +72,9 @@ export const plugin: SitePlugin = {
       kind: 'collection' as const,
       name: 'tweet_detail',
       description:
-        'Get a tweet with its replies. Returns the original tweet (with full text) as items[0] ' +
-        'and replies as items[1..n].',
+        'Get a tweet with its replies and ancestor conversation chain. ' +
+        'items[0] is the target tweet, items[1..n] are replies. ' +
+        'ancestors is the conversation thread leading to items[0], oldest first.',
       params: TweetDetailParamsSchema,
       execute: (primitives: Primitives, params: unknown, trace?: Trace) =>
         getTweetDetail(primitives, params as Parameters<typeof getTweetDetail>[1], trace),

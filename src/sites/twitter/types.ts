@@ -210,6 +210,7 @@ export const TwitterSearchParamsSchema = z.object({
 // --- TweetDetailParsed (extractor output) ---
 
 export interface TweetDetailParsed {
+  ancestors: RawTweetData[];
   anchor: RawTweetData | null;
   replies: RawTweetData[];
   hasCursor: boolean;

@@ -450,7 +450,7 @@ export function parseTweetDetail(body: string): TweetDetailParsed {
   try {
     data = JSON.parse(body);
   } catch {
-    return { anchor: null, replies: [], hasCursor: false };
+    return { ancestors: [], anchor: null, replies: [], hasCursor: false };
   }
 
   const instructions =
@@ -459,9 +459,9 @@ export function parseTweetDetail(body: string): TweetDetailParsed {
   const addEntries = instructions.find(
     (i: any) => i.type === 'TimelineAddEntries',
   );
-  if (!addEntries) return { anchor: null, replies: [], hasCursor: false };
+  if (!addEntries) return { ancestors: [], anchor: null, replies: [], hasCursor: false };
 
-  let anchor: RawTweetData | null = null;
+  const tweetEntries: RawTweetData[] = [];
   const replies: RawTweetData[] = [];
   let hasCursor = false;
 
@@ -469,13 +469,13 @@ export function parseTweetDetail(body: string): TweetDetailParsed {
     const entryId: string = entry.entryId ?? '';
 
     if (entryId.startsWith('tweet-')) {
-      // Anchor tweet
+      // Collect all tweet- entries; last one is anchor, rest are ancestors
       const itemContent = entry.content?.itemContent;
       if (itemContent?.__typename === 'TimelineTweet') {
         const tweetResult = itemContent.tweet_results?.result;
         if (tweetResult) {
           const extracted = extractFromTweetResult(tweetResult);
-          if (extracted) anchor = extracted;
+          if (extracted) tweetEntries.push(extracted);
         }
       }
     } else if (entryId.startsWith('conversationthread-')) {
@@ -494,7 +494,10 @@ export function parseTweetDetail(body: string): TweetDetailParsed {
     // tweetdetailrelatedtweets-* and other entries are silently skipped
   }
 
-  return { anchor, replies, hasCursor };
+  const ancestors = tweetEntries.slice(0, -1);
+  const anchor = tweetEntries.length > 0 ? tweetEntries[tweetEntries.length - 1] : null;
+
+  return { ancestors, anchor, replies, hasCursor };
 }
 
 /**

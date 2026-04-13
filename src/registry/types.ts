@@ -71,6 +71,7 @@ export interface FeedMeta {
 
 export interface FeedResult {
   items: FeedItem[];
+  ancestors?: FeedItem[];
   meta: FeedMeta;
 }
 

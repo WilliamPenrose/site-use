@@ -997,12 +997,13 @@ describe('parseGraphQLTimeline (edge cases)', () => {
 
 describe('parseTweetDetail', () => {
 
-  it('extracts anchor and replies from initial response', () => {
+  it('extracts anchor and replies from initial response (no ancestors)', () => {
     const body = fs.readFileSync(
       path.join(__dirname, 'fixtures/tweet-detail-initial.json'), 'utf-8',
     );
     const result = parseTweetDetail(body);
 
+    expect(result.ancestors).toEqual([]);
     expect(result.anchor).not.toBeNull();
     expect(result.anchor!.authorHandle).toBe('shawn_pana');
     expect(result.replies.length).toBeGreaterThan(0);
@@ -1012,6 +1013,29 @@ describe('parseTweetDetail', () => {
     expect(result.hasCursor).toBe(true);
   });
 
+  it('extracts ancestors when viewing a reply tweet', () => {
+    const body = fs.readFileSync(
+      path.join(__dirname, 'fixtures/golden/tweet-detail-with-ancestors.json'), 'utf-8',
+    );
+    const result = parseTweetDetail(body);
+
+    // Anchor is the last tweet- entry (the reply you opened)
+    expect(result.anchor).not.toBeNull();
+    expect(result.anchor!.authorHandle).toBe('suvendu2805');
+    expect(result.anchor!.inReplyTo).toEqual({ handle: 'Sultan_analysis', tweetId: '2043215277643493721' });
+
+    // Ancestors are the preceding tweet- entries, oldest first
+    expect(result.ancestors).toHaveLength(2);
+    expect(result.ancestors[0].authorHandle).toBe('narendramodi');
+    expect(result.ancestors[0].inReplyTo).toBeUndefined();
+    expect(result.ancestors[1].authorHandle).toBe('Sultan_analysis');
+    expect(result.ancestors[1].inReplyTo).toEqual({ handle: 'narendramodi', tweetId: '2043184271767298261' });
+
+    // Replies are from conversationthread- entries, not mixed with ancestors
+    expect(result.replies.every(r => r.url !== result.anchor!.url)).toBe(true);
+    expect(result.ancestors.every(a => !result.replies.some(r => r.url === a.url))).toBe(true);
+  });
+
   it('returns null anchor for incremental response', () => {
     const body = fs.readFileSync(
       path.join(__dirname, 'fixtures/tweet-detail-incremental.json'), 'utf-8',
@@ -1019,6 +1043,7 @@ describe('parseTweetDetail', () => {
     const result = parseTweetDetail(body);
 
     expect(result.anchor).toBeNull();
+    expect(result.ancestors).toEqual([]);
     expect(result.replies.length).toBeGreaterThan(0);
   });
 
@@ -1036,6 +1061,7 @@ describe('parseTweetDetail', () => {
 
   it('returns empty result for malformed body', () => {
     const result = parseTweetDetail('{}');
+    expect(result.ancestors).toEqual([]);
     expect(result.anchor).toBeNull();
     expect(result.replies).toEqual([]);
     expect(result.hasCursor).toBe(false);
