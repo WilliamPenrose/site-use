@@ -71,4 +71,49 @@ describe('writeOutput', () => {
     expect(fs.existsSync(outputPath)).toBe(true);
     consoleSpy.mockRestore();
   });
+
+  it('--fields filters item fields, always keeps id', () => {
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const data = {
+      items: [
+        { id: '1', author: { handle: 'alice' }, text: 'hello', url: 'http://x.com/1', timestamp: '2026-04-13T10:00:00Z' },
+      ],
+      meta: {},
+    };
+    writeOutput(data, { stdout: true, fields: ['author', 'text'], siteName: 'twitter', workflowName: 'feed' });
+    const output = JSON.parse(consoleSpy.mock.calls[0][0]);
+    expect(output.items[0].author).toEqual({ handle: 'alice' });
+    expect(output.items[0].text).toBe('hello');
+    expect(output.items[0].id).toBe('1');
+    expect(output.items[0].url).toBeUndefined();
+    expect(output.items[0].timestamp).toBeUndefined();
+    consoleSpy.mockRestore();
+  });
+
+  it('--fields does not affect non-items data (meta preserved)', () => {
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const data = {
+      items: [{ id: '1', text: 'hello', url: 'http://x.com/1' }],
+      meta: { coveredUsers: ['alice'], timeRange: { from: '2026-04-13', to: '2026-04-13' } },
+    };
+    writeOutput(data, { stdout: true, fields: ['text'], siteName: 'twitter', workflowName: 'feed' });
+    const output = JSON.parse(consoleSpy.mock.calls[0][0]);
+    expect(output.meta.coveredUsers).toEqual(['alice']);
+    expect(output.items[0].url).toBeUndefined();
+    consoleSpy.mockRestore();
+  });
+
+  it('--fields with file output filters before writing', () => {
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const outputPath = path.join(tmpDir, 'fields-output.json');
+    const data = {
+      items: [{ id: '1', author: 'alice', text: 'hello', url: 'http://x.com/1' }],
+    };
+    writeOutput(data, { stdout: false, outputPath, fields: ['text'], siteName: 'twitter', workflowName: 'feed' });
+    const written = JSON.parse(fs.readFileSync(outputPath, 'utf-8'));
+    expect(written.items[0].text).toBe('hello');
+    expect(written.items[0].id).toBe('1');
+    expect(written.items[0].author).toBeUndefined();
+    consoleSpy.mockRestore();
+  });
 });

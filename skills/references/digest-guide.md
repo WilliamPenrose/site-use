@@ -14,7 +14,7 @@ A digest is a summarized briefing of recent social media activity, organized by 
 ### Step 1: Collect fresh data
 
 ```bash
-site-use twitter feed --count 50 --tab following --stdout
+site-use twitter feed --count 50 --tab following --stdout --fields author,text,url,timestamp
 ```
 
 Adjust `--tab` and `--count` based on user preferences in Memory. If the user prefers specific Lists (once multi-feed is supported), collect from those too.

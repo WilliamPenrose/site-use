@@ -26,6 +26,28 @@ describe('stripOutputFlags', () => {
     const result = stripOutputFlags(['--count', '20', '--tab', 'for_you']);
     expect(result.stdoutFlag).toBe(false);
     expect(result.outputPath).toBeUndefined();
+    expect(result.fields).toBeUndefined();
     expect(result.pluginArgs).toEqual(['--count', '20', '--tab', 'for_you']);
+  });
+
+  it('extracts --fields with comma-separated list', () => {
+    const result = stripOutputFlags(['--fields', 'author,text,url', '--count', '20']);
+    expect(result.fields).toEqual(['author', 'text', 'url']);
+    expect(result.pluginArgs).toEqual(['--count', '20']);
+  });
+
+  it('throws if --fields has no value', () => {
+    expect(() => stripOutputFlags(['--fields'])).toThrow('--fields requires');
+  });
+
+  it('throws if --fields value looks like a flag', () => {
+    expect(() => stripOutputFlags(['--fields', '--count'])).toThrow('--fields requires');
+  });
+
+  it('combines --stdout and --fields', () => {
+    const result = stripOutputFlags(['--stdout', '--fields', 'author,text']);
+    expect(result.stdoutFlag).toBe(true);
+    expect(result.fields).toEqual(['author', 'text']);
+    expect(result.pluginArgs).toEqual([]);
   });
 });

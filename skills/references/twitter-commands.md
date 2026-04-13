@@ -14,6 +14,7 @@ site-use twitter feed [options]
                        or Community (case-insensitive).
   --stdout             Full JSON output to stdout (default: write to file)
   --output <path>      Write output to specific file path
+  --fields <list>      Comma-separated fields to keep on each item (e.g. author,text,url)
   --dump-raw [dir]     Dump raw GraphQL responses to a directory
                        (default: ~/.site-use/dump/{site}/). See "Raw dumps" tip.
   --debug              Include diagnostic trace
@@ -36,6 +37,7 @@ site-use twitter search [options]
   --count <n>          Number of tweets, 1-100 (default: 20)
   --stdout             Full JSON output to stdout (default: write to file)
   --output <path>      Write output to specific file path
+  --fields <list>      Comma-separated fields to keep on each item (e.g. author,text,url)
   --dump-raw [dir]     Dump raw GraphQL responses to a directory
                        (default: ~/.site-use/dump/{site}/). See "Raw dumps" tip.
   --debug              Include diagnostic trace
@@ -51,6 +53,7 @@ site-use twitter tweet_detail [options]
   --count <n>          Max replies, 1-100 (default: 20)
   --stdout             Full JSON output to stdout (default: write to file)
   --output <path>      Write output to specific file path
+  --fields <list>      Comma-separated fields to keep on each item (e.g. author,text,url)
   --dump-raw [dir]     Dump raw GraphQL responses to a directory
                        (default: ~/.site-use/dump/{site}/). See "Raw dumps" tip.
   --debug              Include diagnostic trace
@@ -134,6 +137,7 @@ When the user doesn't specify a time range, default to the last 24 hours.
 
 ## Tips
 
+- **Use `--fields` to control output size.** Full tweet JSON includes media, links, siteMeta, metrics — easily 30KB+ for 50 tweets. Always pass `--fields author,text,url` (or whichever fields needed) to keep output compact for LLM consumption.
 - **Collection commands default to file output.** `feed`, `search`, `tweet_detail` write results to `~/.site-use/output/{site}/` and print a summary `{"count":N,"file":"..."}` to stdout. Use `--stdout` to get full JSON to stdout instead. Use `--output <path>` to specify a custom file path.
 - **Use `--debug` when troubleshooting.** Adds diagnostic trace. On errors, trace is always included regardless of `--debug`.
 - **Raw dumps for fields the parser doesn't expose.** The raw GraphQL responses contain richer data than the structured output (e.g. user `followers_count`, full profile bio, full media metadata). Pass `--dump-raw <fresh-dir>` to `feed` / `search` / `tweet_detail`, then walk the JSON for the field you need. Use a fresh directory each time — the default location only keeps the 2-3 most recent responses.
@@ -143,14 +147,14 @@ When the user doesn't specify a time range, default to the last 24 hours.
 ### Daily hot topics briefing
 
 ```bash
-# Fetch fresh timeline (full JSON to stdout for summarization)
-site-use twitter feed --count 50 --tab for_you --stdout
+# Fetch fresh timeline with compact output for summarization
+site-use twitter feed --count 50 --tab for_you --stdout --fields author,text,url
 ```
 
 ### Search for a topic
 
 ```bash
-site-use twitter search --query "Claude Code" --count 30 --stdout
+site-use twitter search --query "Claude Code" --count 30 --stdout --fields author,text,url
 ```
 
 ### Inspect a conversation thread

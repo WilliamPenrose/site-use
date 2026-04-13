@@ -24,6 +24,7 @@ export interface WriteOutputOptions {
   outputPath?: string;
   siteName: string;
   workflowName: string;
+  fields?: string[];
 }
 
 /**
@@ -33,7 +34,11 @@ export interface WriteOutputOptions {
  * - Otherwise: write to file, print summary to stdout
  */
 export function writeOutput(data: unknown, opts: WriteOutputOptions): void {
-  const localized = localizeTimestamps(data);
+  let localized = localizeTimestamps(data) as Record<string, unknown>;
+
+  if (opts.fields && opts.fields.length > 0 && Array.isArray(localized.items)) {
+    localized = { ...localized, items: filterFields(localized.items as Record<string, unknown>[], opts.fields) };
+  }
 
   if (opts.stdout) {
     console.log(JSON.stringify(localized, null, 2));
@@ -47,6 +52,19 @@ export function writeOutput(data: unknown, opts: WriteOutputOptions): void {
   const items = (localized as Record<string, unknown>).items;
   const count = Array.isArray(items) ? items.length : 0;
   console.log(JSON.stringify({ count, file: outputPath }));
+}
+
+const ALWAYS_KEEP = new Set(['id', 'site']);
+
+function filterFields(items: Record<string, unknown>[], fields: string[]): Record<string, unknown>[] {
+  const keep = new Set([...ALWAYS_KEEP, ...fields]);
+  return items.map((item) => {
+    const filtered: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(item)) {
+      if (keep.has(key)) filtered[key] = val;
+    }
+    return filtered;
+  });
 }
 
 function defaultOutputPath(siteName: string, workflowName: string): string {

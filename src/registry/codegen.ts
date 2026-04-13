@@ -110,7 +110,7 @@ export function generateCliCommands(
               if (dumpRawDir && isDefaultDir) rotateDumpFiles(dumpRawDir);
             }
 
-            const { stdoutFlag, outputPath, pluginArgs } = stripOutputFlags(remainingArgs);
+            const { stdoutFlag, outputPath, fields, pluginArgs } = stripOutputFlags(remainingArgs);
             const params = parseCliArgs(pluginArgs, wf.params);
 
             if (dumpRawDir) {
@@ -125,6 +125,7 @@ export function generateCliCommands(
             writeOutput(data, {
               stdout: stdoutFlag,
               outputPath,
+              fields,
               siteName: plugin.name,
               workflowName: wf.name,
             });
@@ -185,9 +186,10 @@ function rotateDumpFiles(dir: string): void {
 
 export function stripOutputFlags(
   args: string[],
-): { stdoutFlag: boolean; outputPath?: string; pluginArgs: string[] } {
+): { stdoutFlag: boolean; outputPath?: string; fields?: string[]; pluginArgs: string[] } {
   let stdoutFlag = false;
   let outputPath: string | undefined;
+  let fields: string[] | undefined;
   const pluginArgs: string[] = [];
 
   let i = 0;
@@ -206,12 +208,21 @@ export function stripOutputFlags(
         i += 2;
         break;
       }
+      case '--fields': {
+        const val = args[i + 1];
+        if (!val || val.startsWith('--')) {
+          throw new Error('--fields requires a comma-separated list (e.g. --fields author,text,url)');
+        }
+        fields = val.split(',').map(f => f.trim()).filter(Boolean);
+        i += 2;
+        break;
+      }
       default:
         pluginArgs.push(arg);
         i++;
     }
   }
-  return { stdoutFlag, outputPath, pluginArgs };
+  return { stdoutFlag, outputPath, fields, pluginArgs };
 }
 
 function buildWorkflowHelp(
@@ -237,6 +248,7 @@ function buildWorkflowHelp(
     lines.push('Output options:');
     lines.push('  --stdout               Full JSON output to stdout');
     lines.push('  --output <path>        Write output to specific file path');
+    lines.push('  --fields <list>        Comma-separated fields to keep on each item (e.g. author,text,url)');
     lines.push('');
   }
 
