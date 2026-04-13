@@ -17,7 +17,7 @@ Dependency flows downward only:
 ```
 CLI (index.ts, cli/)
   ├── Registry (registry/)        — multi-site plugin discovery
-  ├── Storage (storage/)          — SQLite persistence & search
+  ├── Action-Log (action-log/)    — standalone daily action limits (SQLite)
   └── Sites (sites/twitter/)
        ├── Ops (ops/)
        └── Primitives (primitives/)
@@ -28,6 +28,7 @@ CLI (index.ts, cli/)
 - **Ops** are reusable action compositions extracted from sites' repeated use of primitives (e.g. ensure-state, data-collector). They emerge bottom-up — when multiple sites share the same primitive sequences, that pattern gets extracted into ops.
 - **Primitives** are site-agnostic browser actions (click, scroll, type, throttle). They know nothing about Twitter or any specific site.
 - **Browser** manages Chrome lifecycle only (launch, connect, reconnect).
+- **Action-Log** tracks daily action counts (follow/unfollow) for rate limiting. Standalone SQLite DB (`action-log.db`), no dependency on the removed storage layer.
 
 ## Workflow
 

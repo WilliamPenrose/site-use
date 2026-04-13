@@ -12,10 +12,10 @@ site-use twitter feed [options]
   --tab <name>         Feed tab (default: for_you). Supports for_you,
                        following, or the exact name of any pinned List
                        or Community (case-insensitive).
-  --fields <list>      Comma-separated: author,text,url,timestamp,links,mentions,media
+  --stdout             Full JSON output to stdout (default: write to file)
+  --output <path>      Write output to specific file path
   --dump-raw [dir]     Dump raw GraphQL responses to a directory
                        (default: ~/.site-use/dump/{site}/). See "Raw dumps" tip.
-  --quiet, -q          Suppress JSON output, show one-line summary only
   --debug              Include diagnostic trace
 ```
 
@@ -34,10 +34,10 @@ site-use twitter search [options]
   --query <text>       Search query (required, supports Twitter operators)
   --tab <name>         top | latest (default: top)
   --count <n>          Number of tweets, 1-100 (default: 20)
-  --fields <list>      Comma-separated: author,text,url,timestamp,links,mentions,media
+  --stdout             Full JSON output to stdout (default: write to file)
+  --output <path>      Write output to specific file path
   --dump-raw [dir]     Dump raw GraphQL responses to a directory
                        (default: ~/.site-use/dump/{site}/). See "Raw dumps" tip.
-  --quiet, -q          Suppress JSON output, show one-line summary only
   --debug              Include diagnostic trace
 ```
 
@@ -49,10 +49,10 @@ Get a specific tweet and its replies.
 site-use twitter tweet_detail [options]
   --url <url>          Tweet URL (required)
   --count <n>          Max replies, 1-100 (default: 20)
-  --fields <list>      Comma-separated: author,text,url,timestamp,links,mentions,media
+  --stdout             Full JSON output to stdout (default: write to file)
+  --output <path>      Write output to specific file path
   --dump-raw [dir]     Dump raw GraphQL responses to a directory
                        (default: ~/.site-use/dump/{site}/). See "Raw dumps" tip.
-  --quiet, -q          Suppress JSON output, show one-line summary only
   --debug              Include diagnostic trace
 ```
 
@@ -134,7 +134,7 @@ When the user doesn't specify a time range, default to the last 24 hours.
 
 ## Tips
 
-- **Always use `--fields` to control output size.** Output exceeding ~30KB gets truncated to a temp file. Always pass `--fields author,text,url` (or whichever fields needed) to keep output compact.
+- **Collection commands default to file output.** `feed`, `search`, `tweet_detail` write results to `~/.site-use/output/{site}/` and print a summary `{"count":N,"file":"..."}` to stdout. Use `--stdout` to get full JSON to stdout instead. Use `--output <path>` to specify a custom file path.
 - **Use `--debug` when troubleshooting.** Adds diagnostic trace. On errors, trace is always included regardless of `--debug`.
 - **Raw dumps for fields the parser doesn't expose.** The raw GraphQL responses contain richer data than the structured output (e.g. user `followers_count`, full profile bio, full media metadata). Pass `--dump-raw <fresh-dir>` to `feed` / `search` / `tweet_detail`, then walk the JSON for the field you need. Use a fresh directory each time — the default location only keeps the 2-3 most recent responses.
 
@@ -143,14 +143,14 @@ When the user doesn't specify a time range, default to the last 24 hours.
 ### Daily hot topics briefing
 
 ```bash
-# Fetch fresh timeline
-site-use twitter feed --count 50 --tab for_you --fields author,text,url
+# Fetch fresh timeline (full JSON to stdout for summarization)
+site-use twitter feed --count 50 --tab for_you --stdout
 ```
 
 ### Search for a topic
 
 ```bash
-site-use twitter search --query "Claude Code" --count 30 --fields author,text,url
+site-use twitter search --query "Claude Code" --count 30 --stdout
 ```
 
 ### Inspect a conversation thread
