@@ -295,6 +295,7 @@ export async function getSearch(
 }
 
 const MAX_STALE_ROUNDS = 3;
+const MAX_TRAVERSAL_ROUNDS = 40;
 const SCROLL_WAIT_MS = 2000;
 
 /**
@@ -317,9 +318,10 @@ export async function collectData(
 
   console.error(`[site-use] scrolling to collect ${count} items...`);
   let staleRounds = 0;
+  let traversalRounds = 0;
   let round = 0;
 
-  while (staleRounds < MAX_STALE_ROUNDS) {
+  while (staleRounds < MAX_STALE_ROUNDS && traversalRounds < MAX_TRAVERSAL_ROUNDS) {
     if (collector.length >= count) break;
 
     round++;
@@ -345,10 +347,20 @@ export async function collectData(
 
       if (satisfied) {
         staleRounds = 0;
+        traversalRounds = 0;
         console.error(`[site-use] scroll ${round}: collected ${collector.length}/${count} items`);
       } else {
-        staleRounds++;
-        console.error(`[site-use] scroll ${round}: no new data (stale ${staleRounds}/${MAX_STALE_ROUNDS})`);
+        const atBottom = await primitives.evaluate<boolean>(
+          `window.scrollY + document.documentElement.clientHeight >= document.documentElement.scrollHeight - 200`,
+        );
+        if (atBottom) {
+          staleRounds++;
+          traversalRounds = 0;
+          console.error(`[site-use] scroll ${round}: no new data at bottom (stale ${staleRounds}/${MAX_STALE_ROUNDS})`);
+        } else {
+          traversalRounds++;
+          console.error(`[site-use] scroll ${round}: no new data yet, still scrolling (${traversalRounds}/${MAX_TRAVERSAL_ROUNDS})`);
+        }
       }
     });
   }
@@ -473,6 +485,7 @@ export async function getTweetDetail(
     let graphqlFailures = 0;
 
     let anchor: RawTweetData | null = null;
+    let ancestors: RawTweetData[] = [];
     let hasCursor = false;
     const collector = createDataCollector<RawTweetData>();
     let dumpIndex = 0;
@@ -489,6 +502,7 @@ export async function getTweetDetail(
           const parsed = parseTweetDetail(response.body);
           if (parsed.anchor && !anchor) {
             anchor = parsed.anchor;
+            ancestors = parsed.ancestors;
           }
           hasCursor = parsed.hasCursor;
           if (parsed.replies.length > 0) {
@@ -526,12 +540,19 @@ export async function getTweetDetail(
       const meta = buildFeedMeta(finalTweets);
       const items = finalTweets.map(tweetToFeedItem);
 
+      const ancestorItems = ancestors
+        .map(parseTweet)
+        .filter((t) => !t.isAd)
+        .map(tweetToFeedItem);
+
       rootSpan.set('rawRepliesBeforeFilter', collector.length);
       rootSpan.set('itemsReturned', items.length);
       rootSpan.set('hasAnchor', anchor !== null);
+      rootSpan.set('ancestorCount', ancestorItems.length);
 
       return {
         items,
+        ...(ancestorItems.length > 0 && { ancestors: ancestorItems }),
         meta: {
           coveredUsers: meta.coveredUsers,
           timeRange: { from: meta.timeRange.from, to: meta.timeRange.to },

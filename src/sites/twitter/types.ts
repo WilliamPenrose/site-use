@@ -30,6 +30,8 @@ export const SurfaceReasonSchema = z.enum(['original', 'retweet', 'quote', 'repl
 export const InReplyToSchema = z.object({
   handle: z.string(),
   tweetId: z.string(),
+  text: z.string().optional()
+    .describe('Text of the replied-to tweet. Available when the API provides conversation context (e.g. profile --replies). May be absent in other contexts.'),
 });
 
 // --- Tweet ---
@@ -57,7 +59,7 @@ export interface Tweet {
   surfaceReason: 'original' | 'retweet' | 'quote' | 'reply';
   surfacedBy?: string;
   quotedTweet?: Tweet;
-  inReplyTo?: { handle: string; tweetId: string };
+  inReplyTo?: { handle: string; tweetId: string; text?: string };
 }
 
 export const TweetSchema: z.ZodType<Tweet> = z.object({
@@ -110,7 +112,7 @@ export interface RawTweetData {
   surfaceReason: 'original' | 'retweet' | 'quote' | 'reply';
   surfacedBy?: string;
   quotedTweet?: RawTweetData;
-  inReplyTo?: { handle: string; tweetId: string };
+  inReplyTo?: { handle: string; tweetId: string; text?: string };
 }
 
 export const RawTweetDataSchema: z.ZodType<RawTweetData> = z.object({
@@ -208,6 +210,7 @@ export const TwitterSearchParamsSchema = z.object({
 // --- TweetDetailParsed (extractor output) ---
 
 export interface TweetDetailParsed {
+  ancestors: RawTweetData[];
   anchor: RawTweetData | null;
   replies: RawTweetData[];
   hasCursor: boolean;
@@ -278,6 +281,16 @@ export const ProfileResultSchema = z.object({
 
 export type ProfileResult = z.infer<typeof ProfileResultSchema>;
 
+// --- ProfileWithTimelineResult ---
+
+import type { FeedItem } from '../../registry/types.js';
+
+export interface ProfileWithTimelineResult extends ProfileResult {
+  posts?: FeedItem[];
+  replies?: FeedItem[];
+  errors?: string[];
+}
+
 // --- FollowListResult ---
 
 export const FollowListResultSchema = z.object({
@@ -302,14 +315,24 @@ export const TwitterProfileParamsSchema = z.object({
     .describe('List accounts this user follows'),
   followers: z.boolean().default(false)
     .describe('List accounts that follow this user'),
+  posts: z.boolean().default(false)
+    .describe('Include user\'s recent tweets'),
+  replies: z.boolean().default(false)
+    .describe('Include user\'s replies'),
   count: z.number().min(1).max(500).default(20)
-    .describe('Number of users to return (only with --following or --followers)'),
+    .describe('Number of items to return (with --following/--followers/--posts/--replies)'),
   debug: z.boolean().default(false)
     .describe('Include diagnostic info'),
 }).refine(
   d => !(d.following && d.followers),
   { message: '--following and --followers are mutually exclusive' },
 ).refine(
+  d => !(d.following || d.followers) || !(d.posts || d.replies),
+  { message: '--following/--followers cannot be combined with --posts/--replies' },
+).refine(
   d => d.following || d.followers || d.handle || d.url,
   { message: 'Either --handle/--url is required, or use --following/--followers to query self' },
+).refine(
+  d => !(d.posts || d.replies) || (d.handle || d.url),
+  { message: '--posts/--replies require --handle or --url' },
 );

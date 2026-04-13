@@ -55,6 +55,12 @@ export interface FeedItem {
   links: string[];
   /** Site-specific fields (metrics, categories, etc.) */
   siteMeta: Record<string, unknown>;
+  /** Reply target — present when this item is a reply to another post. */
+  inReplyTo?: {
+    handle: string;
+    id: string;
+    text?: string;
+  };
 }
 
 export interface FeedMeta {
@@ -65,6 +71,7 @@ export interface FeedMeta {
 
 export interface FeedResult {
   items: FeedItem[];
+  ancestors?: FeedItem[];
   meta: FeedMeta;
 }
 

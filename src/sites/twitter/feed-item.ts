@@ -15,7 +15,7 @@ export const TwitterSiteMetaSchema = z.object({
   surfaceReason: z.enum(['original', 'retweet', 'quote', 'reply']),
   surfacedBy: z.string().optional(),
   quotedTweet: z.unknown().optional(),
-  inReplyTo: z.object({ handle: z.string(), tweetId: z.string() }).optional(),
+  inReplyTo: z.object({ handle: z.string(), tweetId: z.string(), text: z.string().optional() }).optional(),
 });
 
 export type TwitterSiteMeta = z.infer<typeof TwitterSiteMetaSchema>;
@@ -48,5 +48,12 @@ export function tweetToFeedItem(tweet: Tweet): FeedItem {
     media: tweet.media,
     links: tweet.links,
     siteMeta,
+    ...(tweet.inReplyTo !== undefined && {
+      inReplyTo: {
+        handle: tweet.inReplyTo.handle,
+        id: tweet.inReplyTo.tweetId,
+        ...(tweet.inReplyTo.text !== undefined && { text: tweet.inReplyTo.text }),
+      },
+    }),
   };
 }
