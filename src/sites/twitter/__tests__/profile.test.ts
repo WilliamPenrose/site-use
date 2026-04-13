@@ -298,15 +298,12 @@ describe('getProfile — timeline dispatch', () => {
     expect(result.posts).toBeDefined();
     expect(result.posts!.length).toBeLessThanOrEqual(5);
     expect(result.posts!.length).toBeGreaterThan(0);
-    // Posts should not include ads
-    for (const post of result.posts!) {
-      expect(post.isAd).toBe(false);
-    }
-    // Each post has the expected structure
+    // Each post is a FeedItem with expected structure
     for (const post of result.posts!) {
       expect(post.id).toBeDefined();
       expect(post.author).toBeDefined();
       expect(post.text).toBeDefined();
+      expect(post.siteMeta).toBeDefined();
     }
   });
 
@@ -377,10 +374,12 @@ describe('getProfile — timeline dispatch', () => {
     expect(result.replies!.length).toBeGreaterThan(0);
     expect(result.replies!.length).toBeLessThanOrEqual(5);
 
-    // All replies should be by the target user
+    // All replies should be by the target user with inReplyTo at top level
     for (const reply of result.replies!) {
       expect(reply.author.handle.toLowerCase()).toBe('hwwaanng');
       expect(reply.inReplyTo).toBeDefined();
+      expect(reply.inReplyTo!.id).toBeTruthy();     // generic field name (not tweetId)
+      expect(reply.inReplyTo!.handle).toBeTruthy();
     }
 
     // At least one reply should have inReplyTo.text enriched from the tweet map

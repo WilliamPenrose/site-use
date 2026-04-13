@@ -282,13 +282,13 @@ export type ProfileResult = z.infer<typeof ProfileResultSchema>;
 
 // --- ProfileWithTimelineResult ---
 
-export const ProfileWithTimelineSchema = ProfileResultSchema.extend({
-  posts: z.array(TweetSchema).optional(),
-  replies: z.array(TweetSchema).optional(),
-  errors: z.array(z.string()).optional(),
-});
+import type { FeedItem } from '../../registry/types.js';
 
-export type ProfileWithTimelineResult = z.infer<typeof ProfileWithTimelineSchema>;
+export interface ProfileWithTimelineResult extends ProfileResult {
+  posts?: FeedItem[];
+  replies?: FeedItem[];
+  errors?: string[];
+}
 
 // --- FollowListResult ---
 

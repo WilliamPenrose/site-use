@@ -18,7 +18,7 @@ import {
   GRAPHQL_USER_TWEETS_AND_REPLIES_PATTERN,
 } from '../extractors.js';
 import type { RawTweetData, UserProfile, ProfileResult } from '../types.js';
-import { InReplyToSchema, ProfileWithTimelineSchema } from '../types.js';
+import { InReplyToSchema } from '../types.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -1246,38 +1246,6 @@ describe('InReplyToSchema', () => {
   });
 });
 
-describe('ProfileWithTimelineSchema', () => {
-  it('accepts posts and replies arrays', () => {
-    const result = ProfileWithTimelineSchema.parse({
-      user: {
-        userId: '1', handle: 'test', displayName: 'Test', bio: '',
-        followersCount: 0, followingCount: 0, tweetsCount: 0, likesCount: 0,
-        verified: false, createdAt: '2020-01-01',
-      },
-      relationship: null,
-      posts: [],
-      replies: [],
-      errors: ['replies timed out'],
-    });
-    expect(result.posts).toEqual([]);
-    expect(result.replies).toEqual([]);
-    expect(result.errors).toEqual(['replies timed out']);
-  });
-
-  it('posts/replies/errors are optional', () => {
-    const result = ProfileWithTimelineSchema.parse({
-      user: {
-        userId: '1', handle: 'test', displayName: 'Test', bio: '',
-        followersCount: 0, followingCount: 0, tweetsCount: 0, likesCount: 0,
-        verified: false, createdAt: '2020-01-01',
-      },
-      relationship: null,
-    });
-    expect(result.posts).toBeUndefined();
-    expect(result.replies).toBeUndefined();
-    expect(result.errors).toBeUndefined();
-  });
-});
 
 describe('GRAPHQL_USER_TWEETS_PATTERN', () => {
   it('matches UserTweets endpoint', () => {
