@@ -1,5 +1,7 @@
 import type { Primitives } from '../../primitives/types.js';
 import type { ProfileResult, ProfileWithTimelineResult, FollowListResult, Tweet } from './types.js';
+import type { FeedItem } from '../../registry/types.js';
+import { tweetToFeedItem } from './feed-item.js';
 import { resolveHandle, checkLoginRedirect, checkProfileError, getSelfHandle } from './navigate.js';
 import { parseProfileResponse, parseGraphQLTimeline, parseTweet, GRAPHQL_PROFILE_PATTERN, GRAPHQL_USER_TWEETS_PATTERN, GRAPHQL_USER_TWEETS_AND_REPLIES_PATTERN } from './extractors.js';
 import { SiteUseError } from '../../errors.js';
@@ -214,7 +216,8 @@ async function getProfileWithTimeline(
           const posts = [...tweetsCollector.items]
             .map(parseTweet)
             .filter(t => !t.isAd)
-            .slice(0, count);
+            .slice(0, count)
+            .map(tweetToFeedItem);
 
           result.posts = posts;
           rootSpan.set('postsReturned', posts.length);
@@ -255,7 +258,7 @@ async function collectReplies(
   handle: string,
   count: number,
   span: import('../../trace.js').SpanHandle,
-): Promise<Tweet[]> {
+): Promise<FeedItem[]> {
   const repliesCollector = createDataCollector<import('./types.js').RawTweetData>();
 
   const cleanup = await primitives.interceptRequest(
@@ -374,8 +377,9 @@ async function collectReplies(
       }
     }
 
-    span.set('repliesReturned', targetReplies.length);
-    return targetReplies;
+    const feedItems = targetReplies.map(tweetToFeedItem);
+    span.set('repliesReturned', feedItems.length);
+    return feedItems;
   } finally {
     cleanup();
   }
