@@ -295,6 +295,7 @@ export async function getSearch(
 }
 
 const MAX_STALE_ROUNDS = 3;
+const MAX_TRAVERSAL_ROUNDS = 40;
 const SCROLL_WAIT_MS = 2000;
 
 /**
@@ -317,9 +318,10 @@ export async function collectData(
 
   console.error(`[site-use] scrolling to collect ${count} items...`);
   let staleRounds = 0;
+  let traversalRounds = 0;
   let round = 0;
 
-  while (staleRounds < MAX_STALE_ROUNDS) {
+  while (staleRounds < MAX_STALE_ROUNDS && traversalRounds < MAX_TRAVERSAL_ROUNDS) {
     if (collector.length >= count) break;
 
     round++;
@@ -345,10 +347,20 @@ export async function collectData(
 
       if (satisfied) {
         staleRounds = 0;
+        traversalRounds = 0;
         console.error(`[site-use] scroll ${round}: collected ${collector.length}/${count} items`);
       } else {
-        staleRounds++;
-        console.error(`[site-use] scroll ${round}: no new data (stale ${staleRounds}/${MAX_STALE_ROUNDS})`);
+        const atBottom = await primitives.evaluate<boolean>(
+          `window.scrollY + document.documentElement.clientHeight >= document.documentElement.scrollHeight - 200`,
+        );
+        if (atBottom) {
+          staleRounds++;
+          traversalRounds = 0;
+          console.error(`[site-use] scroll ${round}: no new data at bottom (stale ${staleRounds}/${MAX_STALE_ROUNDS})`);
+        } else {
+          traversalRounds++;
+          console.error(`[site-use] scroll ${round}: no new data yet, still scrolling (${traversalRounds}/${MAX_TRAVERSAL_ROUNDS})`);
+        }
       }
     });
   }

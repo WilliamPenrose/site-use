@@ -509,12 +509,13 @@ describe('collectData', () => {
     expect(result.scrollRounds).toBeGreaterThan(0);
   });
 
-  it('exits after MAX_STALE_ROUNDS with no new data', { timeout: 15000 }, async () => {
+  it('exits after MAX_STALE_ROUNDS with no new data at bottom', { timeout: 15000 }, async () => {
     const collector = createDataCollector<any>();
     collector.push({ id: '1' });
 
     const primitives = createMockPrimitives({
       scroll: vi.fn().mockResolvedValue(undefined),
+      evaluate: vi.fn().mockResolvedValue(true), // at bottom
     });
 
     const result = await collectData(primitives, collector, { count: 100, t0: Date.now() });
@@ -534,11 +535,67 @@ describe('collectData', () => {
           collector.push({ id: `s${scrollCount}` });
         }
       }),
+      evaluate: vi.fn().mockResolvedValue(true), // at bottom
     });
 
     const result = await collectData(primitives, collector, { count: 100, t0: Date.now() });
 
     expect(result.scrollRounds).toBe(6);
+  });
+
+  it('does not count stale rounds while still scrolling to bottom', { timeout: 25000 }, async () => {
+    const collector = createDataCollector<any>();
+    let scrollCount = 0;
+
+    const primitives = createMockPrimitives({
+      scroll: vi.fn().mockResolvedValue(undefined),
+      evaluate: vi.fn().mockImplementation(async () => {
+        scrollCount++;
+        // Not at bottom for first 5 scrolls, then at bottom
+        return scrollCount > 5;
+      }),
+    });
+
+    const result = await collectData(primitives, collector, { count: 100, t0: Date.now() });
+
+    // 5 traversal rounds (not at bottom, no stale increment)
+    // + 3 stale rounds at bottom = 8 total
+    expect(result.scrollRounds).toBe(8);
+  });
+
+  it('exits after MAX_TRAVERSAL_ROUNDS of consecutive traversal', { timeout: 120000 }, async () => {
+    const collector = createDataCollector<any>();
+
+    const primitives = createMockPrimitives({
+      scroll: vi.fn().mockResolvedValue(undefined),
+      evaluate: vi.fn().mockResolvedValue(false), // never at bottom
+    });
+
+    const result = await collectData(primitives, collector, { count: 100, t0: Date.now() });
+
+    // Should stop after 40 traversal rounds (MAX_TRAVERSAL_ROUNDS)
+    expect(result.scrollRounds).toBe(40);
+  });
+
+  it('resets traversalRounds when new data arrives', { timeout: 150000 }, async () => {
+    const collector = createDataCollector<any>();
+    let scrollCount = 0;
+
+    const primitives = createMockPrimitives({
+      scroll: vi.fn().mockImplementation(async () => {
+        scrollCount++;
+        // Push data on scroll 15 (resets traversal counter mid-way)
+        if (scrollCount === 15) {
+          collector.push({ id: `s${scrollCount}` });
+        }
+      }),
+      evaluate: vi.fn().mockResolvedValue(false), // never at bottom
+    });
+
+    const result = await collectData(primitives, collector, { count: 100, t0: Date.now() });
+
+    // 14 traversal + 1 data (resets) + 40 traversal = 55
+    expect(result.scrollRounds).toBe(55);
   });
 });
 
