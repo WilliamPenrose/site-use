@@ -35,7 +35,7 @@ Then follow up based on their answer — dig deeper into what they said, don't s
 
 Directly attempt to collect data. Let errors guide the setup flow — don't ask the user about browser state.
 
-1. Run `site-use twitter feed --fetch --count 30 --tab following --fields author,text,url`
+1. Run `site-use twitter feed --count 30 --tab following --fields author,text,url`
 2. If it fails:
    - `BrowserNotRunning` → run `site-use browser launch`, then tell the user: "A Chrome window just opened — please log in to Twitter there, let me know when you're done"
    - `SessionExpired` → tell the user: "Please log in to Twitter in the Chrome window, let me know when you're done"

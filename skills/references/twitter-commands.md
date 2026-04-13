@@ -1,22 +1,10 @@
 # Twitter Commands Reference
 
-## Intent Freshness
-
-Determine whether to fetch fresh data or use cache based on the user's intent.
-
-| Freshness | Signal | Example intents | Strategy |
-|-----------|--------|-----------------|----------|
-| **High** | User explicitly asks for "now/today/latest/trending/breaking" | "what's trending", "latest news on X" | Always `--fetch` |
-| **Medium** | No explicit time, but topic is time-sensitive | "any updates on Claude Code", "what happened with the outage" | Prefer `--fetch` |
-| **Low** | Retrospective or analysis, references past time | "analyze last week's AI discussions", "what did we collect yesterday" | `--local` or default cache |
-
-**Default:** When freshness is ambiguous, prefer fetch. The cost of missing breaking news outweighs an extra fetch.
-
 ## Commands
 
 ### twitter feed
 
-Collect tweets from the home timeline. Results are auto-stored in the local knowledge base.
+Collect tweets from the home timeline.
 
 ```
 site-use twitter feed [options]
@@ -24,9 +12,6 @@ site-use twitter feed [options]
   --tab <name>         Feed tab (default: for_you). Supports for_you,
                        following, or the exact name of any pinned List
                        or Community (case-insensitive).
-  --local              Force local cache query (no browser)
-  --fetch              Force fetch from browser (skip freshness check)
-  --max-age <minutes>  Max cache age before auto-fetching (default: 120)
   --fields <list>      Comma-separated: author,text,url,timestamp,links,mentions,media
   --dump-raw [dir]     Dump raw GraphQL responses to a directory
                        (default: ~/.site-use/dump/{site}/). See "Raw dumps" tip.
@@ -71,7 +56,7 @@ site-use twitter tweet_detail [options]
   --debug              Include diagnostic trace
 ```
 
-Returns JSON with `items[0]` as the anchor tweet, `items[1..n]` as replies. Each reply has `siteMeta.inReplyTo` for threading. Quoted tweets are nested under `siteMeta.quotedTweet`.
+Returns JSON with `items[0]` as the anchor tweet, `items[1..n]` as replies. Each reply has `siteMeta.inReplyTo` for threading. Quoted tweets are nested under `siteMeta.quotedTweet`. If the anchor tweet is itself a reply, the response includes an `ancestors` array — the full conversation chain leading to the anchor, ordered from root to parent.
 
 ### twitter check-login
 
@@ -83,18 +68,29 @@ No options. Returns `{ loggedIn: boolean }`. Reserve for when the user explicitl
 
 ### twitter profile
 
-View a user profile and your follow relationship to them.
+View a user profile, their posts, replies, following, or followers.
 
 ```
 site-use twitter profile [options]
   --handle <user>      Twitter handle (with or without @)
   --url <url>          Profile URL (alternative to --handle)
+  --posts              Include user's recent tweets
+  --replies            Include user's replies
+  --following           List accounts this user follows
+  --followers           List accounts that follow this user
+  --count <n>          Number of items, 1-500 (default: 20)
   --debug              Include diagnostic trace
 ```
 
-Returns `{ user, relationship }`. The `user` object includes `followersCount`, `followingCount`, `tweetsCount`, `bio`, `verified`, `createdAt`, `location`, `website`. The `relationship` object includes `youFollowThem`, `theyFollowYou`, `blocking`, `muting`.
+Without `--posts`/`--replies`/`--following`/`--followers`, returns `{ user, relationship }`. The `user` object includes `followersCount`, `followingCount`, `tweetsCount`, `bio`, `verified`, `createdAt`, `location`, `website`. The `relationship` object includes `youFollowThem`, `theyFollowYou`, `blocking`, `muting`.
 
-Use this to verify follower counts and bios when filtering candidate accounts (e.g. "find builders with 1k–15k followers"), or to check whether you already follow someone before deciding to engage.
+With `--posts` or `--replies`, returns `FeedItem[]` — the same format as `twitter feed`. Each reply item has a top-level `inReplyTo` field. `--posts` and `--replies` can be combined.
+
+With `--following` or `--followers`, returns a list of user profiles.
+
+Omitting `--handle` queries the logged-in user's own profile (e.g. `twitter profile --following` lists who you follow).
+
+Use this to verify follower counts and bios when filtering candidate accounts (e.g. "find builders with 1k-15k followers"), or to check whether you already follow someone before deciding to engage.
 
 ### twitter follow / unfollow
 
@@ -106,28 +102,6 @@ site-use twitter unfollow --handle <user>
 ```
 
 Both accept `--handle` or `--url`. Returns the resulting relationship state. Idempotent: re-following someone you already follow is a no-op.
-
-### search (local knowledge base)
-
-Query the local knowledge base. Does NOT fetch new data.
-
-```
-site-use search [query] [options]
-
-Filters:
-  --author <name>         Filter by author (@ prefix optional)
-  --start-date <date>     Start date (local time, flexible format)
-  --end-date <date>       End date (local time, flexible format)
-  --hashtag <tag>         Filter by hashtag
-  --mention <handle>      Filter by mentioned handle (@ prefix optional)
-  --surface-reason <r>    original | retweet | quote | reply
-  --min-likes <n>         Minimum likes
-  --min-retweets <n>      Minimum retweets
-
-Output:
-  --max-results <n>       Max results (default: 20)
-  --fields <list>         Comma-separated: author,text,url,timestamp,links,mentions,media
-```
 
 ### Browser management
 
@@ -146,28 +120,11 @@ site-use screenshot --site twitter
 
 Then use the Read tool to view the image file.
 
-### Stats
-
-```bash
-site-use stats              # Show storage statistics
-```
-
 ## Field Semantics
 
 | Field | Meaning |
 |-------|---------|
 | `author.following` | The author **follows you** (the logged-in user), not "you follow the author" |
-
-## Smart Cache
-
-`twitter feed` has smart caching (default 120 min):
-
-| Flag | Behavior |
-|------|----------|
-| (none) | Check cache freshness; fetch if stale (> `--max-age`) |
-| `--local` | Force local cache only — no browser needed |
-| `--fetch` | Force fresh fetch — skip freshness check |
-| `--max-age <min>` | Custom staleness threshold (default: 120) |
 
 ## Time Convention
 
@@ -178,43 +135,38 @@ When the user doesn't specify a time range, default to the last 24 hours.
 ## Tips
 
 - **Always use `--fields` to control output size.** Output exceeding ~30KB gets truncated to a temp file. Always pass `--fields author,text,url` (or whichever fields needed) to keep output compact.
-- **Prefer `search` over re-fetching.** If tweets were collected recently, search the cache instead. Saves time and avoids rate limits.
-- **Use `--local` for offline analysis.** When the browser isn't running or you want speed, `--local` reads from cache without touching the browser.
 - **Use `--debug` when troubleshooting.** Adds diagnostic trace. On errors, trace is always included regardless of `--debug`.
-- **Short search queries are slow.** Full-text search needs 3+ characters. Shorter queries fall back to a full table scan.
-- **Combine filters for precision.** `search "AI" --min-likes 500 --start-date "yesterday"` is more useful than a broad search.
 - **Raw dumps for fields the parser doesn't expose.** The raw GraphQL responses contain richer data than the structured output (e.g. user `followers_count`, full profile bio, full media metadata). Pass `--dump-raw <fresh-dir>` to `feed` / `search` / `tweet_detail`, then walk the JSON for the field you need. Use a fresh directory each time — the default location only keeps the 2-3 most recent responses.
 
 ## Examples
 
-### Daily hot topics briefing (High freshness)
+### Daily hot topics briefing
 
 ```bash
-# 1. Fetch fresh timeline
-site-use twitter feed --fetch --count 50 --tab for_you --fields author,text,url
-
-# 2. Filter high-engagement posts from cache
-site-use search --start-date "today" --min-likes 100 --fields author,text,url
+# Fetch fresh timeline
+site-use twitter feed --count 50 --tab for_you --fields author,text,url
 ```
 
-User says "what's hot today" → freshness is high, always fetch first, then filter.
-
-### Breaking news search (High freshness)
+### Search for a topic
 
 ```bash
 site-use twitter search --query "Claude Code" --count 30 --fields author,text,url
 ```
 
-Topic is actively unfolding → always fetch. Do NOT rely on cache for breaking events.
-
-### Retrospective analysis (Low freshness)
+### Inspect a conversation thread
 
 ```bash
-# Pure cache query, no browser needed
-site-use search "AI agent" --start-date "2026-03-24" --end-date "2026-03-28" --min-likes 50 --fields author,text,url
-
-# Or explicitly local
-site-use twitter feed --local --tab for_you --fields author,text,url
+site-use twitter tweet_detail --url "https://x.com/user/status/123" --count 30
 ```
 
-User asks about past data → use cache. No reason to fetch.
+Returns the anchor tweet, its ancestor chain (if it's a reply), and replies.
+
+### Explore a user's activity
+
+```bash
+# Profile overview + recent posts
+site-use twitter profile --handle elonmusk --posts --count 10
+
+# Who does this user follow?
+site-use twitter profile --handle elonmusk --following --count 50
+```
