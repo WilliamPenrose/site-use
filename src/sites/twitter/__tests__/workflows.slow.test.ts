@@ -21,7 +21,7 @@ function createMockPrimitives(overrides: Partial<Primitives> = {}): Primitives {
     evaluate: vi.fn().mockResolvedValue(undefined),
     screenshot: vi.fn().mockResolvedValue('base64png'),
     interceptRequest: vi.fn().mockResolvedValue(() => {}),
-    interceptRequestWithControl: vi.fn().mockResolvedValue({ cleanup: () => {}, reset: () => {} }),
+    interceptRequestWithControl: vi.fn().mockResolvedValue({ cleanup: () => {}, reset: () => {}, hasPending: () => false }),
     getRawPage: vi.fn().mockResolvedValue({}),
     ...overrides,
   };
@@ -136,6 +136,7 @@ describe('getFeed', () => {
           return {
             cleanup: vi.fn(),
             reset: vi.fn(),
+            hasPending: vi.fn().mockReturnValue(false),
           };
         },
       ),
@@ -217,6 +218,7 @@ describe('getFeed', () => {
           return {
             cleanup: vi.fn(),
             reset: vi.fn(),
+            hasPending: vi.fn().mockReturnValue(false),
           };
         },
       ),
@@ -273,6 +275,7 @@ describe('getFeed', () => {
           return {
             cleanup: vi.fn(),
             reset: vi.fn(),
+            hasPending: vi.fn().mockReturnValue(false),
           };
         },
       ),
@@ -485,25 +488,36 @@ describe('collectData', () => {
     collector.push({ id: '1' }, { id: '2' }, { id: '3' });
 
     const primitives = createMockPrimitives();
-    const result = await collectData(primitives, collector, { count: 2, t0: Date.now() });
+    const result = await collectData(primitives, collector, {
+      count: 2, t0: Date.now(),
+      hasInflightRequest: () => false,
+    });
 
     expect(result.scrollRounds).toBe(0);
-    expect(result.waits).toHaveLength(0);
     expect(primitives.scroll).not.toHaveBeenCalled();
   });
 
   it('scrolls and collects until count reached', async () => {
     const collector = createDataCollector<any>();
     let scrollCount = 0;
+    let pendingRequest = false;
 
     const primitives = createMockPrimitives({
       scroll: vi.fn().mockImplementation(async () => {
         scrollCount++;
-        collector.push({ id: `scroll-${scrollCount}` });
+        pendingRequest = true;
+        setTimeout(() => {
+          pendingRequest = false;
+          collector.push({ id: `scroll-${scrollCount}` });
+        }, 50);
       }),
+      evaluate: vi.fn().mockResolvedValue(false), // not at bottom
     });
 
-    const result = await collectData(primitives, collector, { count: 3, t0: Date.now() });
+    const result = await collectData(primitives, collector, {
+      count: 3, t0: Date.now(),
+      hasInflightRequest: () => pendingRequest,
+    });
 
     expect(collector.length).toBeGreaterThanOrEqual(3);
     expect(result.scrollRounds).toBeGreaterThan(0);
@@ -518,84 +532,146 @@ describe('collectData', () => {
       evaluate: vi.fn().mockResolvedValue(true), // at bottom
     });
 
-    const result = await collectData(primitives, collector, { count: 100, t0: Date.now() });
+    const result = await collectData(primitives, collector, {
+      count: 100, t0: Date.now(),
+      hasInflightRequest: () => false,
+    });
 
-    expect(result.scrollRounds).toBe(3);
-    expect(result.waits.every((w) => !w.satisfied)).toBe(true);
+    // Phase 1 exits immediately (atBottom), stale check runs 3 times
+    expect(result.scrollRounds).toBe(0);
   });
 
-  it('resets staleRounds when new data arrives', { timeout: 15000 }, async () => {
+  it('exits after MAX_PHASE1_SCROLLS * MAX_FAILED_ROUNDS when no request fires', { timeout: 30000 }, async () => {
+    const collector = createDataCollector<any>();
+
+    const primitives = createMockPrimitives({
+      scroll: vi.fn().mockResolvedValue(undefined),
+      evaluate: vi.fn().mockResolvedValue(false), // never at bottom
+    });
+
+    const result = await collectData(primitives, collector, {
+      count: 100, t0: Date.now(),
+      hasInflightRequest: () => false,
+    });
+
+    // Phase 1 scrolls 20 times (MAX_PHASE1_SCROLLS), no request -> Phase 2 timeout
+    // failedRounds=1, forceScroll -> Phase 1 scrolls 20 more -> Phase 2 timeout
+    // failedRounds=2 -> Phase 1 scrolls 20 more -> Phase 2 timeout
+    // failedRounds=3 = MAX_FAILED_ROUNDS -> break
+    expect(result.scrollRounds).toBe(60);
+  });
+
+  it('recovers via forceScroll after Phase 2 timeout', { timeout: 30000 }, async () => {
     const collector = createDataCollector<any>();
     let scrollCount = 0;
+    let pendingRequest = false;
 
     const primitives = createMockPrimitives({
       scroll: vi.fn().mockImplementation(async () => {
         scrollCount++;
-        if (scrollCount === 1 || scrollCount === 3) {
-          collector.push({ id: `s${scrollCount}` });
+        // First batch: no request fires for 20 scrolls -> Phase 2 timeout
+        // Second batch: request fires on scroll 25, data arrives
+        if (scrollCount === 25) {
+          pendingRequest = true;
+          setTimeout(() => {
+            pendingRequest = false;
+            for (let i = 0; i < 100; i++) {
+              collector.push({ id: `item-${i}` });
+            }
+          }, 50);
         }
       }),
-      evaluate: vi.fn().mockResolvedValue(true), // at bottom
+      evaluate: vi.fn().mockResolvedValue(false), // never at bottom
     });
 
-    const result = await collectData(primitives, collector, { count: 100, t0: Date.now() });
+    const result = await collectData(primitives, collector, {
+      count: 50, t0: Date.now(),
+      hasInflightRequest: () => pendingRequest,
+    });
 
-    expect(result.scrollRounds).toBe(6);
+    expect(collector.length).toBeGreaterThanOrEqual(50);
+    expect(result.scrollRounds).toBe(25);
   });
 
-  it('does not count stale rounds while still scrolling to bottom', { timeout: 25000 }, async () => {
+  it('continues scrolling when inflight request never resolves (forceScroll)', { timeout: 15000 }, async () => {
     const collector = createDataCollector<any>();
     let scrollCount = 0;
+    let stuckRequest = false;
 
     const primitives = createMockPrimitives({
-      scroll: vi.fn().mockResolvedValue(undefined),
+      scroll: vi.fn().mockImplementation(async () => {
+        scrollCount++;
+        if (scrollCount === 3) stuckRequest = true;
+      }),
       evaluate: vi.fn().mockImplementation(async () => {
-        scrollCount++;
-        // Not at bottom for first 5 scrolls, then at bottom
-        return scrollCount > 5;
+        return scrollCount >= 10;
       }),
     });
 
-    const result = await collectData(primitives, collector, { count: 100, t0: Date.now() });
-
-    // 5 traversal rounds (not at bottom, no stale increment)
-    // + 3 stale rounds at bottom = 8 total
-    expect(result.scrollRounds).toBe(8);
-  });
-
-  it('exits after MAX_TRAVERSAL_ROUNDS of consecutive traversal', { timeout: 120000 }, async () => {
-    const collector = createDataCollector<any>();
-
-    const primitives = createMockPrimitives({
-      scroll: vi.fn().mockResolvedValue(undefined),
-      evaluate: vi.fn().mockResolvedValue(false), // never at bottom
+    const result = await collectData(primitives, collector, {
+      count: 100, t0: Date.now(),
+      hasInflightRequest: () => stuckRequest,
     });
 
-    const result = await collectData(primitives, collector, { count: 100, t0: Date.now() });
-
-    // Should stop after 40 traversal rounds (MAX_TRAVERSAL_ROUNDS)
-    expect(result.scrollRounds).toBe(40);
+    expect(result.scrollRounds).toBeGreaterThan(0);
   });
 
-  it('resets traversalRounds when new data arrives', { timeout: 150000 }, async () => {
+  it('exits cleanly when responses contain no data', { timeout: 15000 }, async () => {
     const collector = createDataCollector<any>();
     let scrollCount = 0;
+    let pendingRequest = false;
 
     const primitives = createMockPrimitives({
       scroll: vi.fn().mockImplementation(async () => {
         scrollCount++;
-        // Push data on scroll 15 (resets traversal counter mid-way)
-        if (scrollCount === 15) {
-          collector.push({ id: `s${scrollCount}` });
+        if (scrollCount % 3 === 0) {
+          pendingRequest = true;
+          setTimeout(() => {
+            pendingRequest = false;
+            // Push nothing — empty response
+          }, 50);
         }
       }),
-      evaluate: vi.fn().mockResolvedValue(false), // never at bottom
+      evaluate: vi.fn().mockImplementation(async () => scrollCount >= 12),
     });
 
-    const result = await collectData(primitives, collector, { count: 100, t0: Date.now() });
+    const result = await collectData(primitives, collector, {
+      count: 50, t0: Date.now(),
+      hasInflightRequest: () => pendingRequest,
+    });
 
-    // 14 traversal + 1 data (resets) + 40 traversal = 55
-    expect(result.scrollRounds).toBe(55);
+    expect(collector.length).toBe(0);
+    expect(result.scrollRounds).toBeGreaterThan(0);
+  });
+
+  it('handles multiple inflight requests naturally', { timeout: 15000 }, async () => {
+    const collector = createDataCollector<any>();
+    let scrollCount = 0;
+    let pendingRequests = 0;
+
+    const primitives = createMockPrimitives({
+      scroll: vi.fn().mockImplementation(async () => {
+        scrollCount++;
+        if (scrollCount <= 2) {
+          pendingRequests++;
+          const idx = scrollCount;
+          setTimeout(() => {
+            pendingRequests--;
+            collector.push(
+              ...Array.from({ length: 25 }, (_, i) => ({ id: `batch${idx}-${i}` })),
+            );
+          }, 50 * idx);
+        }
+      }),
+      evaluate: vi.fn().mockResolvedValue(false),
+    });
+
+    const result = await collectData(primitives, collector, {
+      count: 50, t0: Date.now(),
+      hasInflightRequest: () => pendingRequests > 0,
+    });
+
+    expect(collector.length).toBeGreaterThanOrEqual(50);
   });
 });
 

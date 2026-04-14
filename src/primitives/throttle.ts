@@ -46,8 +46,11 @@ export function createThrottledPrimitives(
     click: (uid) => throttledAndCounted(() => inner.click(uid)),
     // Note: options.delay is per-keystroke delay inside keyboard.type — stacks with throttle delay above.
     type: (uid, text, options) => throttledAndCounted(() => inner.type(uid, text, options)),
-    scroll: (options) => throttledAndCounted(() => inner.scroll(options)),
-    scrollIntoView: (uid) => throttledAndCounted(() => inner.scrollIntoView(uid)),
+    // Exempt — humanScroll internals already provide humanization (bell curve,
+    // jitter, step delays). Throttle on top makes continuous browsing scroll
+    // unnaturally slow. Callers add their own inter-scroll pauses when needed.
+    scroll: (options) => inner.scroll(options),
+    scrollIntoView: (uid) => inner.scrollIntoView(uid),
 
     // Throttled but NOT counted
     takeSnapshot: () => inner.takeSnapshot(),

@@ -31,7 +31,7 @@ function createMockPrimitives(overrides: Partial<Primitives> = {}): Primitives {
     evaluate: vi.fn().mockResolvedValue(null),
     screenshot: vi.fn().mockResolvedValue('base64png'),
     interceptRequest: vi.fn().mockResolvedValue(() => {}),
-    interceptRequestWithControl: vi.fn().mockResolvedValue({ cleanup: () => {}, reset: () => {} }),
+    interceptRequestWithControl: vi.fn().mockResolvedValue({ cleanup: () => {}, reset: () => {}, hasPending: () => false }),
     getRawPage: vi.fn().mockResolvedValue({}),
     ...overrides,
   };
@@ -279,10 +279,14 @@ describe('getProfile — timeline dispatch', () => {
       interceptRequest: vi.fn().mockImplementation(async (pattern: RegExp, handler: any) => {
         if (pattern.source.includes('UserByScreenName')) {
           handlers.set('profile', handler);
-        } else if (pattern.source.includes('UserTweets')) {
-          handlers.set('tweets', handler);
         }
         return () => {};
+      }),
+      interceptRequestWithControl: vi.fn().mockImplementation(async (pattern: RegExp, handler: any) => {
+        if (pattern.source.includes('UserTweets')) {
+          handlers.set('tweets', handler);
+        }
+        return { cleanup: () => {}, reset: () => {}, hasPending: () => false };
       }),
       evaluate: vi.fn()
         .mockResolvedValueOnce('https://x.com/hwwaanng')  // checkLoginRedirect
@@ -334,12 +338,14 @@ describe('getProfile — timeline dispatch', () => {
       interceptRequest: vi.fn().mockImplementation(async (pattern: RegExp, handler: any) => {
         if (pattern.source.includes('UserByScreenName')) {
           handlers.set('profile', handler);
-        } else if (pattern.source.includes('UserTweetsAndReplies')) {
-          handlers.set('replies', handler);
-        } else if (pattern.source.includes('UserTweets')) {
-          handlers.set('tweets', handler);
         }
         return () => {};
+      }),
+      interceptRequestWithControl: vi.fn().mockImplementation(async (pattern: RegExp, handler: any) => {
+        if (pattern.source.includes('UserTweetsAndReplies')) {
+          handlers.set('replies', handler);
+        }
+        return { cleanup: () => {}, reset: () => {}, hasPending: () => false };
       }),
       evaluate: vi.fn()
         .mockResolvedValueOnce('https://x.com/hwwaanng')  // checkLoginRedirect
@@ -412,12 +418,16 @@ describe('getProfile — timeline dispatch', () => {
       interceptRequest: vi.fn().mockImplementation(async (pattern: RegExp, handler: any) => {
         if (pattern.source.includes('UserByScreenName')) {
           handlers.set('profile', handler);
-        } else if (pattern.source.includes('UserTweetsAndReplies')) {
+        }
+        return () => {};
+      }),
+      interceptRequestWithControl: vi.fn().mockImplementation(async (pattern: RegExp, handler: any) => {
+        if (pattern.source.includes('UserTweetsAndReplies')) {
           handlers.set('replies', handler);
         } else if (pattern.source.includes('UserTweets')) {
           handlers.set('tweets', handler);
         }
-        return () => {};
+        return { cleanup: () => {}, reset: () => {}, hasPending: () => false };
       }),
       evaluate: vi.fn()
         .mockResolvedValueOnce('https://x.com/hwwaanng')  // checkLoginRedirect
@@ -463,10 +473,15 @@ describe('getProfile — timeline dispatch', () => {
         interceptedPatterns.push(pattern.source);
         if (pattern.source.includes('UserByScreenName')) {
           handlers.set('profile', handler);
-        } else if (pattern.source.includes('UserTweetsAndReplies')) {
-          handlers.set('replies', handler);
         }
         return () => {};
+      }),
+      interceptRequestWithControl: vi.fn().mockImplementation(async (pattern: RegExp, handler: any) => {
+        interceptedPatterns.push(pattern.source);
+        if (pattern.source.includes('UserTweetsAndReplies')) {
+          handlers.set('replies', handler);
+        }
+        return { cleanup: () => {}, reset: () => {}, hasPending: () => false };
       }),
       evaluate: vi.fn()
         .mockResolvedValueOnce('https://x.com/hwwaanng')  // checkLoginRedirect
@@ -494,7 +509,7 @@ describe('getProfile — timeline dispatch', () => {
     const { getProfile } = await import('../profile.js');
     const result = await getProfile(primitives, { handle: 'hwwaanng', replies: true, count: 5 }) as ProfileWithTimelineResult;
 
-    // Should NOT have intercepted UserTweets pattern
+    // Should NOT have intercepted UserTweets pattern (on either interceptRequest or interceptRequestWithControl)
     const hasUserTweets = interceptedPatterns.some(p => p.includes('UserTweets') && !p.includes('UserTweetsAnd'));
     expect(hasUserTweets).toBe(false);
 

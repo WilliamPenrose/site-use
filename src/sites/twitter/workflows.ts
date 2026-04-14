@@ -235,7 +235,7 @@ export async function getSearch(
     const collector = createDataCollector<RawTweetData>();
     let dumpIndex = 0;
 
-    const cleanup = await primitives.interceptRequest(
+    const intercept = await primitives.interceptRequestWithControl(
       GRAPHQL_SEARCH_PATTERN,
       (response) => {
         try {
@@ -262,7 +262,10 @@ export async function getSearch(
 
       if (collector.length < count) {
         await rootSpan.span('collectData', async (s) => {
-          await collectData(primitives, collector, { count, t0 }, s);
+          await collectData(primitives, collector, {
+            count, t0,
+            hasInflightRequest: intercept.hasPending,
+          }, s);
         });
       }
 
@@ -289,83 +292,122 @@ export async function getSearch(
         },
       };
     } finally {
-      cleanup();
+      intercept.cleanup();
     }
   });
 }
 
 const MAX_STALE_ROUNDS = 3;
-const MAX_TRAVERSAL_ROUNDS = 40;
+const MAX_PHASE1_SCROLLS = 20;
+const MAX_FAILED_ROUNDS = 3;
 const SCROLL_WAIT_MS = 2000;
+const PHASE1_PAUSE_MIN_MS = 50;
+const PHASE1_PAUSE_MAX_MS = 150;
+const BOTTOM_WAIT_MS = 500;
 
 /**
  * Scroll timeline and collect data until count is reached or no more data arrives.
+ *
+ * Two-phase design:
+ * - Phase 1: fast scroll until a matching API request fires or page bottom reached
+ * - Phase 2: request is in-flight, wait for response data to arrive in collector
  */
 export async function collectData(
   primitives: Primitives,
   collector: DataCollector<RawTweetData>,
-  opts: { count: number; t0: number },
+  opts: { count: number; t0: number; hasInflightRequest: () => boolean },
   span: SpanHandle = NOOP_SPAN,
 ): Promise<CollectDataResult> {
-  const { count, t0 } = opts;
-  const waits: Array<WaitRecord & { round: number }> = [];
+  const { count, t0, hasInflightRequest } = opts;
 
   // Fast path: already have enough data
   if (collector.length >= count) {
     console.error(`[site-use] already have ${collector.length}/${count} items, skipping scroll`);
-    return { scrollRounds: 0, waits };
+    return { scrollRounds: 0, waits: [] };
   }
 
   console.error(`[site-use] scrolling to collect ${count} items...`);
   let staleRounds = 0;
-  let traversalRounds = 0;
-  let round = 0;
+  let failedRounds = 0;
+  let forceScroll = false;
+  let totalScrolls = 0;
 
-  while (staleRounds < MAX_STALE_ROUNDS && traversalRounds < MAX_TRAVERSAL_ROUNDS) {
-    if (collector.length >= count) break;
+  const checkAtBottom = () =>
+    primitives.evaluate<boolean>(
+      `window.scrollY + document.documentElement.clientHeight >= document.documentElement.scrollHeight - 200`,
+    );
 
-    round++;
+  while (collector.length < count) {
     const prevTotal = collector.length;
 
-    await span.span(`scroll_${round}`, async (s) => {
-      await primitives.scroll({ direction: 'down' });
+    // Phase 1: fast scroll until request fires or at bottom
+    let phase1Scrolls = 0;
+    await span.span(`phase1_${totalScrolls}`, async (s) => {
+      while (phase1Scrolls < MAX_PHASE1_SCROLLS) {
+        const atBottom = await checkAtBottom();
+        if (atBottom) {
+          s.set('exitReason', 'atBottom');
+          break;
+        }
+        if (!forceScroll && hasInflightRequest()) {
+          s.set('exitReason', 'requestFired');
+          break;
+        }
+        forceScroll = false;
 
+        await primitives.scroll({ direction: 'down', amount: 1200 });
+        phase1Scrolls++;
+        totalScrolls++;
+
+        const pause = PHASE1_PAUSE_MIN_MS + Math.random() * (PHASE1_PAUSE_MAX_MS - PHASE1_PAUSE_MIN_MS);
+        await new Promise((r) => setTimeout(r, pause));
+      }
+      if (phase1Scrolls >= MAX_PHASE1_SCROLLS) {
+        s.set('exitReason', 'maxScrolls');
+      }
+      s.set('scrolls', phase1Scrolls);
+    });
+    forceScroll = false;
+
+    // Stale check: at bottom with no pending request
+    const atBottom = await checkAtBottom();
+    if (atBottom && !hasInflightRequest()) {
+      await new Promise((r) => setTimeout(r, BOTTOM_WAIT_MS));
+      if (hasInflightRequest()) {
+        console.error(`[site-use] request fired during bottom wait, continuing`);
+        continue;
+      }
+      staleRounds++;
+      console.error(`[site-use] at bottom, no request (stale ${staleRounds}/${MAX_STALE_ROUNDS})`);
+      if (staleRounds >= MAX_STALE_ROUNDS) break;
+      continue;
+    }
+
+    // Phase 2: request is out, wait for data
+    staleRounds = 0;
+    const satisfied = await span.span(`phase2_${totalScrolls}`, async (s) => {
       const startedAt = Date.now() - t0;
-      const satisfied = await collector.waitUntil(() => collector.length > prevTotal, SCROLL_WAIT_MS);
-      waits.push({
-        round,
-        purpose: `scroll_${round}`,
-        startedAt,
-        resolvedAt: Date.now() - t0,
-        satisfied,
-        dataCount: collector.length,
-      });
-
-      s.set('satisfied', satisfied);
+      const ok = await collector.waitUntil(() => collector.length > prevTotal, SCROLL_WAIT_MS);
+      s.set('satisfied', ok);
+      s.set('startedAt', startedAt);
+      s.set('resolvedAt', Date.now() - t0);
       s.set('dataCount', collector.length);
       s.set('newItems', collector.length - prevTotal);
-
-      if (satisfied) {
-        staleRounds = 0;
-        traversalRounds = 0;
-        console.error(`[site-use] scroll ${round}: collected ${collector.length}/${count} items`);
-      } else {
-        const atBottom = await primitives.evaluate<boolean>(
-          `window.scrollY + document.documentElement.clientHeight >= document.documentElement.scrollHeight - 200`,
-        );
-        if (atBottom) {
-          staleRounds++;
-          traversalRounds = 0;
-          console.error(`[site-use] scroll ${round}: no new data at bottom (stale ${staleRounds}/${MAX_STALE_ROUNDS})`);
-        } else {
-          traversalRounds++;
-          console.error(`[site-use] scroll ${round}: no new data yet, still scrolling (${traversalRounds}/${MAX_TRAVERSAL_ROUNDS})`);
-        }
-      }
+      return ok;
     });
+
+    if (satisfied) {
+      failedRounds = 0;
+      console.error(`[site-use] collected ${collector.length}/${count} items`);
+    } else {
+      failedRounds++;
+      forceScroll = true;
+      console.error(`[site-use] phase2 timeout (failed ${failedRounds}/${MAX_FAILED_ROUNDS})`);
+      if (failedRounds >= MAX_FAILED_ROUNDS) break;
+    }
   }
 
-  return { scrollRounds: round, waits };
+  return { scrollRounds: totalScrolls, waits: [] };
 }
 
 export async function getFeed(
@@ -427,7 +469,10 @@ export async function getFeed(
       });
 
       await rootSpan.span('collectData', async (s) => {
-        await collectData(primitives, collector, { count, t0 }, s);
+        await collectData(primitives, collector, {
+          count, t0,
+          hasInflightRequest: intercept.hasPending,
+        }, s);
       });
 
       const tweets = [...collector.items]
@@ -490,7 +535,7 @@ export async function getTweetDetail(
     const collector = createDataCollector<RawTweetData>();
     let dumpIndex = 0;
 
-    const cleanup = await primitives.interceptRequest(
+    const intercept = await primitives.interceptRequestWithControl(
       GRAPHQL_TWEET_DETAIL_PATTERN,
       (response) => {
         try {
@@ -524,7 +569,10 @@ export async function getTweetDetail(
 
       if (collector.length < count && hasCursor) {
         await rootSpan.span('collectData', async (s) => {
-          await collectData(primitives, collector, { count, t0 }, s);
+          await collectData(primitives, collector, {
+            count, t0,
+            hasInflightRequest: intercept.hasPending,
+          }, s);
         });
       }
 
@@ -559,7 +607,7 @@ export async function getTweetDetail(
         },
       };
     } finally {
-      cleanup();
+      intercept.cleanup();
     }
   });
 }

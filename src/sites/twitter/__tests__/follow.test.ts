@@ -13,7 +13,7 @@ function createMockPrimitives(overrides: Partial<Primitives> = {}): Primitives {
     evaluate: vi.fn().mockResolvedValue(undefined),
     screenshot: vi.fn().mockResolvedValue('base64png'),
     interceptRequest: vi.fn().mockResolvedValue(() => {}),
-    interceptRequestWithControl: vi.fn().mockResolvedValue({ cleanup: () => {}, reset: () => {} }),
+    interceptRequestWithControl: vi.fn().mockResolvedValue({ cleanup: () => {}, reset: () => {}, hasPending: () => false }),
     getRawPage: vi.fn().mockResolvedValue({}),
     ...overrides,
   };

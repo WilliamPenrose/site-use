@@ -70,7 +70,7 @@ function interceptSchemeI(
   page: MockPage,
   urlPattern: RegExp,
   handler: InterceptHandler,
-): InterceptControl {
+): InterceptControl & { hasPending: () => boolean } {
   let validRequests = new Set<object>();
 
   const requestListener = (request: any) => {
@@ -79,10 +79,16 @@ function interceptSchemeI(
 
   const responseListener = async (response: any) => {
     if (!urlPattern.test(response.url())) return;
-    const body = await response.text();
-    // Check AFTER await
-    if (!validRequests.has(response.request())) return;
-    handler({ url: response.url(), status: response.status(), body });
+    try {
+      const body = await response.text();
+      // Check AFTER await
+      const req = response.request();
+      if (!validRequests.has(req)) return;
+      validRequests.delete(req);
+      handler({ url: response.url(), status: response.status(), body });
+    } catch {
+      validRequests.delete(response.request());
+    }
   };
 
   page.on('request', requestListener);
@@ -94,6 +100,7 @@ function interceptSchemeI(
       page.off('response', responseListener);
     },
     reset: () => { validRequests = new Set(); },
+    hasPending: () => validRequests.size > 0,
   };
 }
 
@@ -238,5 +245,53 @@ describe('Path Y: response event fires AFTER handler swap / reset', () => {
     // Path X: listener entered before reset, but body resolved after.
     // Check is AFTER await → R1 request not in new Set → rejected
     expect(collected).toHaveLength(0);
+  });
+});
+
+describe('hasPending: tracks in-flight requests', () => {
+
+  it('returns false when no requests are tracked', () => {
+    const page = new MockPage();
+    const intercept = interceptSchemeI(page, TIMELINE_PATTERN, () => {});
+    expect(intercept.hasPending()).toBe(false);
+  });
+
+  it('returns true after request fires, false after response resolves', async () => {
+    const page = new MockPage();
+    const intercept = interceptSchemeI(page, TIMELINE_PATTERN, () => {});
+
+    const req = { url: () => '/i/api/graphql/xyz/HomeTimeline' };
+    page.emitRequest(req);
+    expect(intercept.hasPending()).toBe(true);
+
+    page.emitResponse(makeResponse(req, '/i/api/graphql/xyz/HomeTimeline', 'data'));
+    await new Promise(r => setTimeout(r, 10));
+
+    expect(intercept.hasPending()).toBe(false);
+  });
+
+  it('clears pending when response.text() throws', async () => {
+    const page = new MockPage();
+    const collected: string[] = [];
+    const intercept = interceptSchemeI(page, TIMELINE_PATTERN, (r) => {
+      collected.push(r.body);
+    });
+
+    const req = { url: () => '/i/api/graphql/xyz/HomeTimeline' };
+    page.emitRequest(req);
+    expect(intercept.hasPending()).toBe(true);
+
+    // Emit response whose text() rejects (e.g., redirect or consumed body)
+    page.emitResponse({
+      request: () => req,
+      url: () => '/i/api/graphql/xyz/HomeTimeline',
+      status: () => 302,
+      text: () => Promise.reject(new Error('Response body is unavailable')),
+    });
+    await new Promise(r => setTimeout(r, 10));
+
+    // Must clear: handler should NOT be called, and hasPending must return false
+    expect(collected).toHaveLength(0);
+    expect(intercept.hasPending()).toBe(false);
   });
 });
