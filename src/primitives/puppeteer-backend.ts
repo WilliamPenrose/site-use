@@ -684,7 +684,9 @@ export class PuppeteerBackend implements Primitives {
           body,
         });
       } catch {
-        // Response body may be unavailable (e.g., already consumed or redirect)
+        // Response body may be unavailable (e.g., already consumed or redirect).
+        // Still must remove request from tracking so hasPending() doesn't stick.
+        validRequests.delete(response.request());
       }
     };
 
