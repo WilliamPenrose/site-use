@@ -48,6 +48,8 @@ export interface InterceptControl {
    * even if the response event fires or body resolves after reset().
    */
   reset: () => void;
+  /** True if any tracked request has not yet received a response. */
+  hasPending: () => boolean;
 }
 
 // --- Throttle config ---

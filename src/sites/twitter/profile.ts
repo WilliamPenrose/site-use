@@ -149,8 +149,8 @@ async function getProfileWithTimeline(
       ? createDataCollector<import('./types.js').RawTweetData>()
       : null;
 
-    const cleanupTweets = tweetsCollector
-      ? await primitives.interceptRequest(
+    const tweetsIntercept = tweetsCollector
+      ? await primitives.interceptRequestWithControl(
           GRAPHQL_USER_TWEETS_PATTERN,
           (response) => {
             try {
@@ -159,7 +159,7 @@ async function getProfileWithTimeline(
             } catch { /* non-fatal */ }
           },
         )
-      : () => {};
+      : null;
 
     try {
       await primitives.navigate(`https://x.com/${handle}`);
@@ -210,7 +210,10 @@ async function getProfileWithTimeline(
           // Scroll for more if needed
           const t0 = Date.now();
           if (tweetsCollector.length < count) {
-            await collectData(primitives, tweetsCollector, { count, t0 }, rootSpan);
+            await collectData(primitives, tweetsCollector, {
+              count, t0,
+              hasInflightRequest: tweetsIntercept!.hasPending,
+            }, rootSpan);
           }
 
           const posts = [...tweetsCollector.items]
@@ -244,7 +247,7 @@ async function getProfileWithTimeline(
       return result;
     } finally {
       cleanupProfile();
-      cleanupTweets();
+      tweetsIntercept?.cleanup();
     }
   });
 }
@@ -261,7 +264,7 @@ async function collectReplies(
 ): Promise<FeedItem[]> {
   const repliesCollector = createDataCollector<import('./types.js').RawTweetData>();
 
-  const cleanup = await primitives.interceptRequest(
+  const intercept = await primitives.interceptRequestWithControl(
     GRAPHQL_USER_TWEETS_AND_REPLIES_PATTERN,
     (response) => {
       try {
@@ -334,7 +337,10 @@ async function collectReplies(
 
     while (true) {
       if (repliesCollector.length < rawTarget) {
-        await collectData(primitives, repliesCollector, { count: rawTarget, t0 }, span);
+        await collectData(primitives, repliesCollector, {
+          count: rawTarget, t0,
+          hasInflightRequest: intercept.hasPending,
+        }, span);
       }
 
       // Check: enough target-user replies in raw data?
@@ -381,6 +387,6 @@ async function collectReplies(
     span.set('repliesReturned', feedItems.length);
     return feedItems;
   } finally {
-    cleanup();
+    intercept.cleanup();
   }
 }

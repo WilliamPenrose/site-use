@@ -697,6 +697,7 @@ export class PuppeteerBackend implements Primitives {
         page.off('response', responseListener);
       },
       reset: () => { validRequests = new Set(); },
+      hasPending: () => validRequests.size > 0,
     };
   }
 
