@@ -1,6 +1,6 @@
 {
   "name": "site-use",
-  "version": "2026.4.13",
+  "version": "2026.4.15",
   "description": "Site-level browser automation — deterministic CLI workflows for Chrome, optimized for LLM agent consumption.",
   "repository": {
     "type": "git",
@@ -46,9 +46,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "dev": "tsc --watch",
-    "test": "vitest run --exclude 'tests/integration/diagnose-*.test.ts' --exclude '**/*.slow.test.ts'",
-    "test:all": "vitest run --exclude 'tests/integration/diagnose-*.test.ts'",
-    "test:slow": "vitest run --include '**/*.slow.test.ts'",
+    "test": "vitest run --exclude 'tests/integration/diagnose-*.test.ts'",
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",
     "test:contract": "vitest run tests/contract",
