@@ -112,10 +112,11 @@ export async function ensureTimeline(
     tab: string;
     t0: number;
     reRegisterInterceptor: () => Promise<void>;
+    waitMs?: number;
   },
   span: SpanHandle = NOOP_SPAN,
 ): Promise<EnsureTimelineResult> {
-  const { tab, t0, reRegisterInterceptor } = opts;
+  const { tab, t0, reRegisterInterceptor, waitMs } = opts;
   const ensure = makeEnsureState(primitives);
   let navAction: 'already_there' | 'transitioned' = 'already_there';
   let tabAction: 'already_there' | 'transitioned' = 'already_there';
@@ -135,6 +136,7 @@ export async function ensureTimeline(
   const result = await ensurePage(primitives, {
     collector,
     t0,
+    waitMs,
     label: `timeline/${tab}`,
     navigate: async (p) => {
       const navResult = await ensure({ url: TWITTER_HOME });
@@ -166,12 +168,13 @@ export interface EnsureTweetDetailResult {
 export async function ensureTweetDetail(
   primitives: Primitives,
   collector: DataCollector<RawTweetData>,
-  opts: { url: string; t0: number },
+  opts: { url: string; t0: number; waitMs?: number },
   span: SpanHandle = NOOP_SPAN,
 ): Promise<EnsureTweetDetailResult> {
   return ensurePage(primitives, {
     collector,
     t0: opts.t0,
+    waitMs: opts.waitMs,
     label: 'tweet-detail',
     navigate: (p) => p.navigate(opts.url),
     afterNavigate: (p, s) => checkLoginRedirect(p, s),
@@ -190,7 +193,7 @@ export interface EnsureSearchResult {
 export async function ensureSearch(
   primitives: Primitives,
   collector: DataCollector<RawTweetData>,
-  opts: { query: string; tab: SearchTab; t0: number },
+  opts: { query: string; tab: SearchTab; t0: number; waitMs?: number },
   span: SpanHandle = NOOP_SPAN,
 ): Promise<EnsureSearchResult> {
   const tabParam = opts.tab === 'latest' ? '&f=live' : '';
@@ -199,6 +202,7 @@ export async function ensureSearch(
   return ensurePage(primitives, {
     collector,
     t0: opts.t0,
+    waitMs: opts.waitMs,
     label: `search/${opts.query}`,
     navigate: (p) => p.navigate(searchUrl),
     afterNavigate: (p, s) => checkLoginRedirect(p, s),
@@ -305,6 +309,13 @@ const PHASE1_PAUSE_MIN_MS = 50;
 const PHASE1_PAUSE_MAX_MS = 150;
 const BOTTOM_WAIT_MS = 500;
 
+export interface CollectDataTiming {
+  scrollWaitMs?: number;
+  phase1PauseMinMs?: number;
+  phase1PauseMaxMs?: number;
+  bottomWaitMs?: number;
+}
+
 /**
  * Scroll timeline and collect data until count is reached or no more data arrives.
  *
@@ -315,10 +326,14 @@ const BOTTOM_WAIT_MS = 500;
 export async function collectData(
   primitives: Primitives,
   collector: DataCollector<RawTweetData>,
-  opts: { count: number; t0: number; hasInflightRequest: () => boolean },
+  opts: { count: number; t0: number; hasInflightRequest: () => boolean; timing?: CollectDataTiming },
   span: SpanHandle = NOOP_SPAN,
 ): Promise<CollectDataResult> {
   const { count, t0, hasInflightRequest } = opts;
+  const scrollWaitMs = opts.timing?.scrollWaitMs ?? SCROLL_WAIT_MS;
+  const phase1PauseMinMs = opts.timing?.phase1PauseMinMs ?? PHASE1_PAUSE_MIN_MS;
+  const phase1PauseMaxMs = opts.timing?.phase1PauseMaxMs ?? PHASE1_PAUSE_MAX_MS;
+  const bottomWaitMs = opts.timing?.bottomWaitMs ?? BOTTOM_WAIT_MS;
 
   // Fast path: already have enough data
   if (collector.length >= count) {
@@ -359,7 +374,7 @@ export async function collectData(
         phase1Scrolls++;
         totalScrolls++;
 
-        const pause = PHASE1_PAUSE_MIN_MS + Math.random() * (PHASE1_PAUSE_MAX_MS - PHASE1_PAUSE_MIN_MS);
+        const pause = phase1PauseMinMs + Math.random() * (phase1PauseMaxMs - phase1PauseMinMs);
         await new Promise((r) => setTimeout(r, pause));
       }
       if (phase1Scrolls >= MAX_PHASE1_SCROLLS) {
@@ -372,7 +387,7 @@ export async function collectData(
     // Stale check: at bottom with no pending request
     const atBottom = await checkAtBottom();
     if (atBottom && !hasInflightRequest()) {
-      await new Promise((r) => setTimeout(r, BOTTOM_WAIT_MS));
+      await new Promise((r) => setTimeout(r, bottomWaitMs));
       if (hasInflightRequest()) {
         console.error(`[site-use] request fired during bottom wait, continuing`);
         continue;
@@ -387,7 +402,7 @@ export async function collectData(
     staleRounds = 0;
     const satisfied = await span.span(`phase2_${totalScrolls}`, async (s) => {
       const startedAt = Date.now() - t0;
-      const ok = await collector.waitUntil(() => collector.length > prevTotal, SCROLL_WAIT_MS);
+      const ok = await collector.waitUntil(() => collector.length > prevTotal, scrollWaitMs);
       s.set('satisfied', ok);
       s.set('startedAt', startedAt);
       s.set('resolvedAt', Date.now() - t0);
