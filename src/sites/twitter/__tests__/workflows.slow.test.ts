@@ -9,16 +9,6 @@ import type { RawTweetData } from '../types.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-/** Fast timing for unit tests — eliminates real-timer waits */
-const FAST_TIMING = {
-  scrollWaitMs: 60,
-  phase1PauseMinMs: 0,
-  phase1PauseMaxMs: 0,
-  bottomWaitMs: 10,
-};
-
-const FAST_WAIT_MS = 50;
-
 function createMockPrimitives(overrides: Partial<Primitives> = {}): Primitives {
   return {
     navigate: vi.fn().mockResolvedValue(undefined),
@@ -350,7 +340,6 @@ describe('ensureTimeline', () => {
       tab: 'for_you',
       t0: Date.now(),
       reRegisterInterceptor: vi.fn(),
-      waitMs: FAST_WAIT_MS,
     });
 
     expect(result.navAction).toBe('already_there');
@@ -391,7 +380,6 @@ describe('ensureTimeline', () => {
       reRegisterInterceptor: vi.fn().mockImplementation(async () => {
         collector.clear();
       }),
-      waitMs: FAST_WAIT_MS,
     });
 
     expect(result.tabAction).toBe('transitioned');
@@ -399,7 +387,7 @@ describe('ensureTimeline', () => {
     expect(collector.items.some((d: any) => d.id === 'correct_tab')).toBe(true);
   });
 
-  it('reload fallback when tab switch produces no data', { timeout: 5000 }, async () => {
+  it('reload fallback when tab switch produces no data', { timeout: 15000 }, async () => {
     const collector = createDataCollector<any>();
 
     let navigateCount = 0;
@@ -428,14 +416,13 @@ describe('ensureTimeline', () => {
       tab: 'following',
       t0: Date.now(),
       reRegisterInterceptor: vi.fn(),
-      waitMs: FAST_WAIT_MS,
     });
 
     expect(result.reloaded).toBe(true);
     expect(collector.length).toBeGreaterThan(0);
   });
 
-  it('does not reload twice', { timeout: 5000 }, async () => {
+  it('does not reload twice', { timeout: 30000 }, async () => {
     const collector = createDataCollector<any>();
 
     const primitives = createMockPrimitives({
@@ -458,7 +445,6 @@ describe('ensureTimeline', () => {
       tab: 'following',
       t0: Date.now(),
       reRegisterInterceptor: vi.fn(),
-      waitMs: FAST_WAIT_MS,
     });
 
     expect(result.reloaded).toBe(true);
@@ -483,7 +469,6 @@ describe('ensureTimeline', () => {
       tab: 'for_you',
       t0: Date.now(),
       reRegisterInterceptor: vi.fn(),
-      waitMs: FAST_WAIT_MS,
     });
 
     expect(result.waits.length).toBeGreaterThan(0);
@@ -506,7 +491,6 @@ describe('collectData', () => {
     const result = await collectData(primitives, collector, {
       count: 2, t0: Date.now(),
       hasInflightRequest: () => false,
-      timing: FAST_TIMING,
     });
 
     expect(result.scrollRounds).toBe(0);
@@ -533,14 +517,13 @@ describe('collectData', () => {
     const result = await collectData(primitives, collector, {
       count: 3, t0: Date.now(),
       hasInflightRequest: () => pendingRequest,
-      timing: FAST_TIMING,
     });
 
     expect(collector.length).toBeGreaterThanOrEqual(3);
     expect(result.scrollRounds).toBeGreaterThan(0);
   });
 
-  it('exits after MAX_STALE_ROUNDS with no new data at bottom', { timeout: 5000 }, async () => {
+  it('exits after MAX_STALE_ROUNDS with no new data at bottom', { timeout: 15000 }, async () => {
     const collector = createDataCollector<any>();
     collector.push({ id: '1' });
 
@@ -552,14 +535,13 @@ describe('collectData', () => {
     const result = await collectData(primitives, collector, {
       count: 100, t0: Date.now(),
       hasInflightRequest: () => false,
-      timing: FAST_TIMING,
     });
 
     // Phase 1 exits immediately (atBottom), stale check runs 3 times
     expect(result.scrollRounds).toBe(0);
   });
 
-  it('exits after MAX_PHASE1_SCROLLS * MAX_FAILED_ROUNDS when no request fires', { timeout: 5000 }, async () => {
+  it('exits after MAX_PHASE1_SCROLLS * MAX_FAILED_ROUNDS when no request fires', { timeout: 30000 }, async () => {
     const collector = createDataCollector<any>();
 
     const primitives = createMockPrimitives({
@@ -570,7 +552,6 @@ describe('collectData', () => {
     const result = await collectData(primitives, collector, {
       count: 100, t0: Date.now(),
       hasInflightRequest: () => false,
-      timing: FAST_TIMING,
     });
 
     // Phase 1 scrolls 20 times (MAX_PHASE1_SCROLLS), no request -> Phase 2 timeout
@@ -580,7 +561,7 @@ describe('collectData', () => {
     expect(result.scrollRounds).toBe(60);
   });
 
-  it('recovers via forceScroll after Phase 2 timeout', { timeout: 5000 }, async () => {
+  it('recovers via forceScroll after Phase 2 timeout', { timeout: 30000 }, async () => {
     const collector = createDataCollector<any>();
     let scrollCount = 0;
     let pendingRequest = false;
@@ -606,14 +587,13 @@ describe('collectData', () => {
     const result = await collectData(primitives, collector, {
       count: 50, t0: Date.now(),
       hasInflightRequest: () => pendingRequest,
-      timing: FAST_TIMING,
     });
 
     expect(collector.length).toBeGreaterThanOrEqual(50);
     expect(result.scrollRounds).toBe(25);
   });
 
-  it('continues scrolling when inflight request never resolves (forceScroll)', { timeout: 5000 }, async () => {
+  it('continues scrolling when inflight request never resolves (forceScroll)', { timeout: 15000 }, async () => {
     const collector = createDataCollector<any>();
     let scrollCount = 0;
     let stuckRequest = false;
@@ -631,13 +611,12 @@ describe('collectData', () => {
     const result = await collectData(primitives, collector, {
       count: 100, t0: Date.now(),
       hasInflightRequest: () => stuckRequest,
-      timing: FAST_TIMING,
     });
 
     expect(result.scrollRounds).toBeGreaterThan(0);
   });
 
-  it('exits cleanly when responses contain no data', { timeout: 5000 }, async () => {
+  it('exits cleanly when responses contain no data', { timeout: 15000 }, async () => {
     const collector = createDataCollector<any>();
     let scrollCount = 0;
     let pendingRequest = false;
@@ -659,14 +638,13 @@ describe('collectData', () => {
     const result = await collectData(primitives, collector, {
       count: 50, t0: Date.now(),
       hasInflightRequest: () => pendingRequest,
-      timing: FAST_TIMING,
     });
 
     expect(collector.length).toBe(0);
     expect(result.scrollRounds).toBeGreaterThan(0);
   });
 
-  it('handles multiple inflight requests naturally', { timeout: 5000 }, async () => {
+  it('handles multiple inflight requests naturally', { timeout: 15000 }, async () => {
     const collector = createDataCollector<any>();
     let scrollCount = 0;
     let pendingRequests = 0;
@@ -691,7 +669,6 @@ describe('collectData', () => {
     const result = await collectData(primitives, collector, {
       count: 50, t0: Date.now(),
       hasInflightRequest: () => pendingRequests > 0,
-      timing: FAST_TIMING,
     });
 
     expect(collector.length).toBeGreaterThanOrEqual(50);
@@ -724,7 +701,6 @@ describe('ensureTweetDetail', () => {
     const result = await ensureTweetDetail(primitives, collector, {
       url: 'https://x.com/author/status/100',
       t0: Date.now(),
-      waitMs: FAST_WAIT_MS,
     });
 
     expect(primitives.navigate).toHaveBeenCalledWith('https://x.com/author/status/100');
@@ -732,7 +708,7 @@ describe('ensureTweetDetail', () => {
     expect(collector.length).toBe(1);
   });
 
-  it('reloads when no data arrives within timeout', { timeout: 5000 }, async () => {
+  it('reloads when no data arrives within timeout', { timeout: 10000 }, async () => {
     const collector = createDataCollector<RawTweetData>();
     let navigateCount = 0;
     const primitives = createMockPrimitives({
@@ -756,7 +732,6 @@ describe('ensureTweetDetail', () => {
     const result = await ensureTweetDetail(primitives, collector, {
       url: 'https://x.com/author/status/100',
       t0: Date.now(),
-      waitMs: FAST_WAIT_MS,
     });
 
     expect(result.reloaded).toBe(true);
@@ -773,7 +748,6 @@ describe('ensureTweetDetail', () => {
       ensureTweetDetail(primitives, collector, {
         url: 'https://x.com/author/status/100',
         t0: Date.now(),
-        waitMs: FAST_WAIT_MS,
       }),
     ).rejects.toThrow('Not logged in');
   });
@@ -788,9 +762,9 @@ describe('getTweetDetail', () => {
     let interceptHandler: ((response: { url: string; status: number; body: string }) => void) | null = null;
 
     const primitives = createMockPrimitives({
-      interceptRequestWithControl: vi.fn().mockImplementation(async (_pattern: any, handler: any) => {
+      interceptRequest: vi.fn().mockImplementation(async (_pattern: RegExp, handler: any) => {
         interceptHandler = handler;
-        return { cleanup: vi.fn(), reset: vi.fn(), hasPending: vi.fn().mockReturnValue(false) };
+        return () => {};
       }),
       navigate: vi.fn().mockImplementation(async () => {
         // Simulate GraphQL response arriving after navigation
@@ -831,9 +805,9 @@ describe('getTweetDetail', () => {
     let interceptHandler: ((response: { url: string; status: number; body: string }) => void) | null = null;
 
     const primitives = createMockPrimitives({
-      interceptRequestWithControl: vi.fn().mockImplementation(async (_pattern: any, handler: any) => {
+      interceptRequest: vi.fn().mockImplementation(async (_pattern: RegExp, handler: any) => {
         interceptHandler = handler;
-        return { cleanup: vi.fn(), reset: vi.fn(), hasPending: vi.fn().mockReturnValue(false) };
+        return () => {};
       }),
       navigate: vi.fn().mockImplementation(async () => {
         if (interceptHandler) {
@@ -872,9 +846,9 @@ describe('getTweetDetail', () => {
     let interceptHandler: ((response: { url: string; status: number; body: string }) => void) | null = null;
 
     const primitives = createMockPrimitives({
-      interceptRequestWithControl: vi.fn().mockImplementation(async (_pattern: any, handler: any) => {
+      interceptRequest: vi.fn().mockImplementation(async (_pattern: RegExp, handler: any) => {
         interceptHandler = handler;
-        return { cleanup: vi.fn(), reset: vi.fn(), hasPending: vi.fn().mockReturnValue(false) };
+        return () => {};
       }),
       navigate: vi.fn().mockImplementation(async () => {
         if (interceptHandler) {
@@ -906,9 +880,9 @@ describe('getTweetDetail', () => {
 
     let interceptHandler: any = null;
     const primitives = createMockPrimitives({
-      interceptRequestWithControl: vi.fn().mockImplementation(async (_p: any, handler: any) => {
+      interceptRequest: vi.fn().mockImplementation(async (_p: any, handler: any) => {
         interceptHandler = handler;
-        return { cleanup: vi.fn(), reset: vi.fn(), hasPending: vi.fn().mockReturnValue(false) };
+        return () => {};
       }),
       navigate: vi.fn().mockImplementation(async () => {
         if (interceptHandler) {
