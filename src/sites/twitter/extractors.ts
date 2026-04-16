@@ -479,10 +479,11 @@ export function parseTweetDetail(body: string): TweetDetailParsed {
         }
       }
     } else if (entryId.startsWith('conversationthread-')) {
-      // Reply thread module — extract all items
+      // Reply thread module — extract replies, skip promoted/injected tweets
       for (const moduleItem of entry.content?.items ?? []) {
         const itemContent = moduleItem?.item?.itemContent;
         if (itemContent?.__typename !== 'TimelineTweet') continue;
+        if (itemContent.promotedMetadata) continue;
         const tweetResult = itemContent.tweet_results?.result;
         if (!tweetResult) continue;
         const extracted = extractFromTweetResult(tweetResult);

@@ -1059,6 +1059,80 @@ describe('parseTweetDetail', () => {
     expect(withInReplyTo[0].inReplyTo!.handle).toBe('shawn_pana');
   });
 
+  it('filters promoted tweets from replies', () => {
+    const makeTweetResult = (handle: string, replyTo?: string) => ({
+      __typename: 'Tweet',
+      rest_id: `${Date.now()}`,
+      core: {
+        user_results: {
+          result: {
+            __typename: 'User',
+            core: { screen_name: handle, name: handle, created_at: 'Mon Jan 01 00:00:00 +0000 2026' },
+            legacy: { description: '', followers_count: 0, friends_count: 0, statuses_count: 0, favourites_count: 0 },
+          },
+        },
+      },
+      legacy: {
+        full_text: `tweet by ${handle}`,
+        created_at: 'Mon Jan 01 00:00:00 +0000 2026',
+        id_str: `${Date.now()}`,
+        favorite_count: 0,
+        retweet_count: 0,
+        reply_count: 0,
+        entities: {},
+        ...(replyTo ? { in_reply_to_status_id_str: '123', in_reply_to_screen_name: replyTo } : {}),
+      },
+    });
+
+    const body = JSON.stringify({
+      data: {
+        threaded_conversation_with_injections_v2: {
+          instructions: [{
+            type: 'TimelineAddEntries',
+            entries: [
+              {
+                entryId: 'tweet-100',
+                content: {
+                  itemContent: { __typename: 'TimelineTweet', tweet_results: { result: makeTweetResult('anchor_user') } },
+                },
+              },
+              {
+                entryId: 'conversationthread-200',
+                content: {
+                  items: [
+                    // Legit reply
+                    { item: { itemContent: { __typename: 'TimelineTweet', tweet_results: { result: makeTweetResult('replier', 'anchor_user') } } } },
+                    // Promoted tweet (has promotedMetadata)
+                    { item: { itemContent: { __typename: 'TimelineTweet', promotedMetadata: { advertiser_results: {} }, tweet_results: { result: makeTweetResult('promoted_ad') } } } },
+                  ],
+                },
+              },
+              {
+                entryId: 'conversationthread-300',
+                content: {
+                  items: [
+                    // Another promoted tweet in its own thread
+                    { item: { itemContent: { __typename: 'TimelineTweet', promotedMetadata: { advertiser_results: {} }, tweet_results: { result: makeTweetResult('another_ad') } } } },
+                  ],
+                },
+              },
+            ],
+          }],
+        },
+      },
+    });
+
+    const result = parseTweetDetail(body);
+
+    expect(result.anchor).not.toBeNull();
+    expect(result.anchor!.authorHandle).toBe('anchor_user');
+    expect(result.replies).toHaveLength(1);
+    expect(result.replies[0].authorHandle).toBe('replier');
+    // Promoted tweets must not appear in replies
+    expect(result.replies.every(r => r.authorHandle !== 'promoted_ad')).toBe(true);
+    expect(result.replies.every(r => r.authorHandle !== 'another_ad')).toBe(true);
+  });
+
   it('returns empty result for malformed body', () => {
     const result = parseTweetDetail('{}');
     expect(result.ancestors).toEqual([]);
