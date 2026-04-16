@@ -3,6 +3,22 @@ import { SiteUseError } from '../../errors.js';
 
 const GRAPHQL_TIMELINE_PATTERN = /\/i\/api\/graphql\/.*\/(Home|HomeLatest|ListLatestTweets|CommunityTweets)Timeline/;
 
+const TIMELINE_PATTERNS: Record<string, RegExp> = {
+  for_you:   /\/i\/api\/graphql\/.*\/HomeTimeline(?=[?/]|$)/,
+  following: /\/i\/api\/graphql\/.*\/HomeLatestTimeline/,
+};
+const TIMELINE_PATTERN_OTHER = /\/i\/api\/graphql\/.*\/(CommunityTweets|ListLatestTweets)Timeline/;
+
+/**
+ * Return a narrow URL regex for the given tab.
+ * Well-known tabs (for_you, following) get a tab-specific pattern that rejects
+ * the other Home* endpoint. Unknown tabs (community, list) share a combined pattern.
+ */
+export function getTimelinePatternForTab(tab: string): RegExp {
+  const normalized = tab.normalize('NFC').toLowerCase().replace(/_/g, ' ').trim().replace(/ /g, '_');
+  return TIMELINE_PATTERNS[normalized] ?? TIMELINE_PATTERN_OTHER;
+}
+
 /** Decode common HTML entities found in Twitter GraphQL full_text. */
 const HTML_ENTITIES: Record<string, string> = {
   '&amp;': '&',

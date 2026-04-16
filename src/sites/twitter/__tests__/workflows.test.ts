@@ -331,6 +331,217 @@ describe('getFeed', () => {
 
 });
 
+describe('getFeed — narrow interceptor pattern (#13)', () => {
+  // Minimal GraphQL body that parseGraphQLTimeline can handle
+  const GRAPHQL_BODY = JSON.stringify({
+    data: {
+      home: {
+        home_timeline_urt: {
+          instructions: [{
+            type: 'TimelineAddEntries',
+            entries: [{
+              content: {
+                entryType: 'TimelineTimelineItem',
+                itemContent: {
+                  tweet_results: {
+                    result: {
+                      __typename: 'Tweet',
+                      rest_id: '200',
+                      legacy: {
+                        id_str: '200',
+                        full_text: 'Narrow test tweet',
+                        created_at: 'Mon Mar 18 23:49:31 +0000 2026',
+                        favorite_count: 1,
+                        retweet_count: 0,
+                        reply_count: 0,
+                      },
+                      core: {
+                        user_results: {
+                          result: {
+                            core: { screen_name: 'narrowuser', name: 'Narrow User' },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            }],
+          }],
+        },
+      },
+    },
+  });
+
+  /**
+   * Method A mock: interceptRequestWithControl that actually checks URL against
+   * the pattern before calling the handler. This exercises the narrow regex.
+   */
+  function makeFilteringIntercept() {
+    let activeHandler: ((resp: { url: string; status: number; body: string }) => void) | null = null;
+    let activePattern: RegExp | null = null;
+    const cleanup = vi.fn();
+    const reset = vi.fn();
+    const hasPending = vi.fn().mockReturnValue(false);
+
+    const interceptFn = vi.fn().mockImplementation(
+      async (pattern: RegExp, handler: (resp: { url: string; status: number; body: string }) => void) => {
+        activePattern = pattern;
+        activeHandler = handler;
+        return { cleanup, reset, hasPending };
+      },
+    );
+
+    /** Emit a response — only calls handler if URL matches the registered pattern */
+    function emit(url: string, body: string) {
+      if (activePattern && activePattern.test(url) && activeHandler) {
+        activeHandler({ url, status: 200, body });
+      }
+    }
+
+    return { interceptFn, emit, cleanup, reset, hasPending };
+  }
+
+  it('B1: following + already on tab — data preserved, no reload or scroll', { timeout: 15000 }, async () => {
+    const { interceptFn, emit } = makeFilteringIntercept();
+
+    const primitives = createMockPrimitives({
+      evaluate: mockEvaluate({ 'textContent': 'Following' }),
+      takeSnapshot: vi.fn().mockResolvedValue(
+        buildSnapshot([
+          { uid: '11', role: 'tab', name: 'Following', selected: true },
+        ]),
+      ),
+      interceptRequestWithControl: interceptFn,
+      navigate: vi.fn().mockImplementation(async () => {
+        // Twitter fires both endpoints on navigate(home)
+        emit('/i/api/graphql/abc/HomeTimeline?variables=xyz', GRAPHQL_BODY);
+        emit('/i/api/graphql/abc/HomeLatestTimeline?variables=xyz', GRAPHQL_BODY);
+      }),
+    });
+
+    const result = await getFeed(primitives, { count: 1, tab: 'following', debug: false });
+
+    // Data should be preserved — no reload needed
+    expect(result.items.length).toBeGreaterThanOrEqual(1);
+    expect(primitives.navigate).toHaveBeenCalledTimes(1); // no reload
+    expect(primitives.scroll).not.toHaveBeenCalled();
+  });
+
+  it('B2: for_you + already on tab — data preserved', { timeout: 15000 }, async () => {
+    const { interceptFn, emit } = makeFilteringIntercept();
+
+    const primitives = createMockPrimitives({
+      evaluate: mockEvaluate({ 'textContent': 'For you' }),
+      takeSnapshot: vi.fn().mockResolvedValue(
+        buildSnapshot([
+          { uid: '10', role: 'tab', name: 'For you', selected: true },
+        ]),
+      ),
+      interceptRequestWithControl: interceptFn,
+      navigate: vi.fn().mockImplementation(async () => {
+        emit('/i/api/graphql/abc/HomeTimeline?variables=xyz', GRAPHQL_BODY);
+      }),
+    });
+
+    const result = await getFeed(primitives, { count: 1, tab: 'for_you', debug: false });
+
+    expect(result.items.length).toBe(1);
+    expect(primitives.navigate).toHaveBeenCalledTimes(1);
+  });
+
+  it('B3: community — navigate HomeTimeline ignored, tab click data captured', { timeout: 15000 }, async () => {
+    const { interceptFn, emit } = makeFilteringIntercept();
+    const communityTabs = JSON.stringify([
+      { name: 'For you', index: 0 },
+      { name: 'Following', index: 1 },
+      { name: 'Life AI Community', index: 2 },
+    ]);
+
+    const primitives = createMockPrimitives({
+      evaluate: mockEvaluate({
+        'querySelectorAll': communityTabs,
+        'textContent': 'Life AI Community',
+      }),
+      takeSnapshot: vi.fn()
+        .mockResolvedValueOnce(buildSnapshot([
+          { uid: '20', role: 'tab', name: 'Life AI Community', selected: false },
+        ]))
+        .mockResolvedValueOnce(buildSnapshot([
+          { uid: '20', role: 'tab', name: 'Life AI Community', selected: false },
+        ]))
+        .mockResolvedValue(buildSnapshot([
+          { uid: '20', role: 'tab', name: 'Life AI Community', selected: true },
+        ])),
+      interceptRequestWithControl: interceptFn,
+      navigate: vi.fn().mockImplementation(async () => {
+        // navigate fires HomeTimeline (should be ignored by community pattern)
+        emit('/i/api/graphql/abc/HomeTimeline?variables=xyz', GRAPHQL_BODY);
+      }),
+      click: vi.fn().mockImplementation(async () => {
+        // tab click fires CommunityTweetsTimeline
+        setTimeout(() => emit('/i/api/graphql/abc/CommunityTweetsTimeline?variables=xyz', GRAPHQL_BODY), 10);
+      }),
+    });
+
+    const result = await getFeed(primitives, { count: 1, tab: 'Life AI Community', debug: false });
+    expect(result.items.length).toBe(1);
+  });
+
+  it('B4: for_you → following — HomeTimeline ignored, tab click HomeLatestTimeline captured', { timeout: 15000 }, async () => {
+    const { interceptFn, emit } = makeFilteringIntercept();
+
+    const primitives = createMockPrimitives({
+      evaluate: mockEvaluate({ 'textContent': 'Following' }),
+      takeSnapshot: vi.fn()
+        .mockResolvedValueOnce(buildSnapshot([
+          { uid: '11', role: 'tab', name: 'Following', selected: false },
+        ]))
+        .mockResolvedValueOnce(buildSnapshot([
+          { uid: '11', role: 'tab', name: 'Following', selected: false },
+        ]))
+        .mockResolvedValue(buildSnapshot([
+          { uid: '11', role: 'tab', name: 'Following', selected: true },
+        ])),
+      interceptRequestWithControl: interceptFn,
+      navigate: vi.fn().mockImplementation(async () => {
+        // navigate fires HomeTimeline (for_you) — not matching following's pattern
+        emit('/i/api/graphql/abc/HomeTimeline?variables=xyz', GRAPHQL_BODY);
+      }),
+      click: vi.fn().mockImplementation(async () => {
+        // tab click fires HomeLatestTimeline
+        setTimeout(() => emit('/i/api/graphql/abc/HomeLatestTimeline?variables=xyz', GRAPHQL_BODY), 10);
+      }),
+    });
+
+    const result = await getFeed(primitives, { count: 1, tab: 'following', debug: false });
+    expect(result.items.length).toBe(1);
+  });
+
+  it('B7: for_you + navigate fires both endpoints — only HomeTimeline captured', { timeout: 15000 }, async () => {
+    const { interceptFn, emit } = makeFilteringIntercept();
+
+    const primitives = createMockPrimitives({
+      evaluate: mockEvaluate({ 'textContent': 'For you' }),
+      takeSnapshot: vi.fn().mockResolvedValue(
+        buildSnapshot([
+          { uid: '10', role: 'tab', name: 'For you', selected: true },
+        ]),
+      ),
+      interceptRequestWithControl: interceptFn,
+      navigate: vi.fn().mockImplementation(async () => {
+        // Both endpoints fire; only HomeTimeline should match for_you
+        emit('/i/api/graphql/abc/HomeTimeline?variables=xyz', GRAPHQL_BODY);
+        emit('/i/api/graphql/abc/HomeLatestTimeline?variables=xyz', GRAPHQL_BODY);
+      }),
+    });
+
+    const result = await getFeed(primitives, { count: 1, tab: 'for_you', debug: false });
+    // Only 1 item from the single matching response (HomeTimeline)
+    expect(result.items.length).toBe(1);
+  });
+});
+
 describe('ensureTimeline', () => {
   it('navigates and waits for data when already on home', async () => {
     const collector = createDataCollector<any>();
@@ -349,7 +560,6 @@ describe('ensureTimeline', () => {
     const result = await ensureTimeline(primitives, collector, {
       tab: 'for_you',
       t0: Date.now(),
-      reRegisterInterceptor: vi.fn(),
       waitMs: FAST_WAIT_MS,
     });
 
@@ -359,9 +569,8 @@ describe('ensureTimeline', () => {
     expect(collector.length).toBeGreaterThan(0);
   });
 
-  it('switches tab and clears old data', async () => {
+  it('switches tab and collects data from click', async () => {
     const collector = createDataCollector<any>();
-    collector.push({ id: 'old' });
 
     const primitives = createMockPrimitives({
       evaluate: mockEvaluate({ 'textContent': 'Following' }),
@@ -375,9 +584,7 @@ describe('ensureTimeline', () => {
         .mockResolvedValue(buildSnapshot([
           { uid: '11', role: 'tab', name: 'Following', selected: true },
         ])),
-      navigate: vi.fn().mockImplementation(async () => {
-        collector.push({ id: 'wrong_tab' });
-      }),
+      navigate: vi.fn().mockResolvedValue(undefined),
       // Click triggers the target tab's GraphQL request.
       // Simulate R2 response arriving shortly after the click.
       click: vi.fn().mockImplementation(async () => {
@@ -388,14 +595,10 @@ describe('ensureTimeline', () => {
     const result = await ensureTimeline(primitives, collector, {
       tab: 'following',
       t0: Date.now(),
-      reRegisterInterceptor: vi.fn().mockImplementation(async () => {
-        collector.clear();
-      }),
       waitMs: FAST_WAIT_MS,
     });
 
     expect(result.tabAction).toBe('transitioned');
-    expect(collector.items.some((d: any) => d.id === 'old')).toBe(false);
     expect(collector.items.some((d: any) => d.id === 'correct_tab')).toBe(true);
   });
 
@@ -427,7 +630,6 @@ describe('ensureTimeline', () => {
     const result = await ensureTimeline(primitives, collector, {
       tab: 'following',
       t0: Date.now(),
-      reRegisterInterceptor: vi.fn(),
       waitMs: FAST_WAIT_MS,
     });
 
@@ -457,7 +659,6 @@ describe('ensureTimeline', () => {
     const result = await ensureTimeline(primitives, collector, {
       tab: 'following',
       t0: Date.now(),
-      reRegisterInterceptor: vi.fn(),
       waitMs: FAST_WAIT_MS,
     });
 
@@ -482,7 +683,6 @@ describe('ensureTimeline', () => {
     const result = await ensureTimeline(primitives, collector, {
       tab: 'for_you',
       t0: Date.now(),
-      reRegisterInterceptor: vi.fn(),
       waitMs: FAST_WAIT_MS,
     });
 

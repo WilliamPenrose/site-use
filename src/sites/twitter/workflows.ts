@@ -10,9 +10,9 @@ import {
   buildFeedMeta,
   parseTweetDetail,
   parseGraphQLSearch,
-  GRAPHQL_TIMELINE_PATTERN,
   GRAPHQL_TWEET_DETAIL_PATTERN,
   GRAPHQL_SEARCH_PATTERN,
+  getTimelinePatternForTab,
 } from './extractors.js';
 import { StateTransitionFailed, ElementNotFound } from '../../errors.js';
 import { resolveHandle, checkLoginRedirect, checkProfileError } from './navigate.js';
@@ -111,19 +111,17 @@ export async function ensureTimeline(
   opts: {
     tab: string;
     t0: number;
-    reRegisterInterceptor: () => Promise<void>;
     waitMs?: number;
   },
   span: SpanHandle = NOOP_SPAN,
 ): Promise<EnsureTimelineResult> {
-  const { tab, t0, reRegisterInterceptor, waitMs } = opts;
+  const { tab, t0, waitMs } = opts;
   const ensure = makeEnsureState(primitives);
   let navAction: 'already_there' | 'transitioned' = 'already_there';
   let tabAction: 'already_there' | 'transitioned' = 'already_there';
   let availableTabs: string[] = [];
 
   async function switchTab(s?: SpanHandle) {
-    await reRegisterInterceptor();
     const tabResult = await ensureTabNav(primitives, tab, TAB_SELECTOR, WELL_KNOWN_TABS);
     tabAction = tabResult.action;
     availableTabs = tabResult.availableTabs;
@@ -459,28 +457,17 @@ export async function getFeed(
       }
     };
 
-    // Single listener with request-level tracking. reset() invalidates all
-    // in-flight requests so stale responses (e.g. navigate(home)'s HomeTimeline)
-    // are silently discarded after a tab switch. Fixes issue #18.
+    // Narrow pattern: only the target tab's endpoint passes the URL check.
+    // Cross-tab data (e.g. navigate(home)'s HomeTimeline when targeting
+    // following) is rejected at the URL layer, eliminating the need for
+    // post-hoc clear/reset. Fixes #13; supersedes #18's reset() guard.
     const intercept = await primitives.interceptRequestWithControl(
-      GRAPHQL_TIMELINE_PATTERN, handler,
+      getTimelinePatternForTab(tab), handler,
     );
-
-    const reRegisterInterceptor = async () => {
-      // navigate(home) loads the default tab (for_you). When that IS the target,
-      // the navigate data is correct — clearing + resetting would discard it
-      // with no new request to replenish. For any other tab, we must clear stale
-      // data and reset request tracking so only R2 (the target tab's response)
-      // is accepted.
-      const normalizedTab = tab.normalize('NFC').toLowerCase().replace(/_/g, ' ').trim().replace(/ /g, '_');
-      if (WELL_KNOWN_TABS[normalizedTab] === 0) return;
-      collector.clear();
-      intercept.reset();
-    };
 
     try {
       const timelineResult = await rootSpan.span('ensureTimeline', async (s) => {
-        return await ensureTimeline(primitives, collector, { tab, t0, reRegisterInterceptor }, s);
+        return await ensureTimeline(primitives, collector, { tab, t0 }, s);
       });
 
       await rootSpan.span('collectData', async (s) => {

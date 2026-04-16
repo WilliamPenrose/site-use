@@ -16,6 +16,7 @@ import {
   GRAPHQL_FOLLOW_LIST_PATTERN,
   GRAPHQL_USER_TWEETS_PATTERN,
   GRAPHQL_USER_TWEETS_AND_REPLIES_PATTERN,
+  getTimelinePatternForTab,
 } from '../extractors.js';
 import type { RawTweetData, UserProfile, ProfileResult } from '../types.js';
 import { InReplyToSchema } from '../types.js';
@@ -1425,5 +1426,57 @@ describe('parseGraphQLTimeline — UserTweetsAndReplies', () => {
     expect(reply).toBeDefined();
     expect(reply!.inReplyTo!.handle).toBeTruthy();
     expect(reply!.inReplyTo!.tweetId).toBeTruthy();
+  });
+});
+
+describe('getTimelinePatternForTab', () => {
+  const HOME_TIMELINE_URL = '/i/api/graphql/abc/HomeTimeline?variables=...';
+  const HOME_LATEST_URL = '/i/api/graphql/abc/HomeLatestTimeline?variables=...';
+  const COMMUNITY_URL = '/i/api/graphql/abc/CommunityTweetsTimeline?variables=...';
+  const LIST_URL = '/i/api/graphql/abc/ListLatestTweetsTimeline?variables=...';
+
+  it('A1: for_you matches HomeTimeline', () => {
+    const re = getTimelinePatternForTab('for_you');
+    expect(re.test(HOME_TIMELINE_URL)).toBe(true);
+  });
+
+  it('A2: following matches HomeLatestTimeline', () => {
+    const re = getTimelinePatternForTab('following');
+    expect(re.test(HOME_LATEST_URL)).toBe(true);
+  });
+
+  it('A3: community tab matches CommunityTweetsTimeline', () => {
+    const re = getTimelinePatternForTab('Life AI Community');
+    expect(re.test(COMMUNITY_URL)).toBe(true);
+  });
+
+  it('A4: list tab matches ListLatestTweetsTimeline', () => {
+    const re = getTimelinePatternForTab('vibe coding');
+    expect(re.test(LIST_URL)).toBe(true);
+  });
+
+  it('A5: normalizes case, spaces, and underscores', () => {
+    const forYouRe = getTimelinePatternForTab('for_you');
+    expect(getTimelinePatternForTab('For You').source).toBe(forYouRe.source);
+    expect(getTimelinePatternForTab('FOR_YOU').source).toBe(forYouRe.source);
+
+    const followingRe = getTimelinePatternForTab('following');
+    expect(getTimelinePatternForTab('Following ').source).toBe(followingRe.source);
+  });
+
+  it('A6: for_you does NOT match HomeLatestTimeline', () => {
+    const re = getTimelinePatternForTab('for_you');
+    expect(re.test(HOME_LATEST_URL)).toBe(false);
+  });
+
+  it('A7: following does NOT match HomeTimeline', () => {
+    const re = getTimelinePatternForTab('following');
+    expect(re.test(HOME_TIMELINE_URL)).toBe(false);
+  });
+
+  it('A8: other does NOT match Home series endpoints', () => {
+    const re = getTimelinePatternForTab('vibe coding');
+    expect(re.test(HOME_TIMELINE_URL)).toBe(false);
+    expect(re.test(HOME_LATEST_URL)).toBe(false);
   });
 });
