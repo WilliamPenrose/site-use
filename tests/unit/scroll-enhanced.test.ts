@@ -11,11 +11,11 @@ function createMockPage(): Page {
 }
 
 describe('humanScroll', () => {
-  let humanScroll: typeof import('../../src/primitives/scroll-enhanced.js').humanScroll;
+  let humanScroll: typeof import('../../packages/runtime/src/internal/primitives/scroll-enhanced.js').humanScroll;
 
   beforeEach(async () => {
     vi.resetModules();
-    const mod = await import('../../src/primitives/scroll-enhanced.js');
+    const mod = await import('../../packages/runtime/src/internal/primitives/scroll-enhanced.js');
     humanScroll = mod.humanScroll;
   });
 
@@ -120,7 +120,7 @@ describe('humanScroll', () => {
 });
 
 describe('scrollElementIntoView', () => {
-  let scrollElementIntoView: typeof import('../../src/primitives/scroll-enhanced.js').scrollElementIntoView;
+  let scrollElementIntoView: typeof import('../../packages/runtime/src/internal/primitives/scroll-enhanced.js').scrollElementIntoView;
 
   function createMockCDPSession(boxModel: any, viewport: any = { innerWidth: 1280, innerHeight: 720, scrollY: 0, scrollX: 0 }) {
     return {
@@ -150,7 +150,7 @@ describe('scrollElementIntoView', () => {
 
   beforeEach(async () => {
     vi.resetModules();
-    const mod = await import('../../src/primitives/scroll-enhanced.js');
+    const mod = await import('../../packages/runtime/src/internal/primitives/scroll-enhanced.js');
     scrollElementIntoView = mod.scrollElementIntoView;
   });
 

@@ -6,7 +6,7 @@ import { ensureBrowser } from './browser/browser.js';
 import { BUILD_HASH, BUILD_DATE } from './build-info.js';
 import { discoverPlugins } from './registry/discovery.js';
 import { generateCliCommands } from './registry/codegen.js';
-import { SiteRuntimeManager } from './runtime/manager.js';
+import { createSiteRuntimeAccess } from './runtime/access.js';
 import { runScreenshotCli } from './cli/screenshot.js';
 
 function getVersion(): string {
@@ -121,8 +121,8 @@ async function run(): Promise<boolean> {
 
   // Discover plugins for dynamic CLI dispatch
   const plugins = await discoverPlugins();
-  const runtimeManager = new SiteRuntimeManager(plugins);
-  const siteCommands = generateCliCommands(plugins, runtimeManager);
+  const runtimeAccess = createSiteRuntimeAccess(plugins);
+  const siteCommands = generateCliCommands(plugins, runtimeAccess);
   const siteNames = new Set(siteCommands.map(c => c.site));
 
   switch (command) {

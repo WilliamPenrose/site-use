@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { generateBezierPath, applyJitter, isPositionStable, easeInOutCubic } from '../../src/primitives/click-enhanced.js';
+import {
+  generateBezierPath,
+  applyJitter,
+  isPositionStable,
+  easeInOutCubic,
+} from '../../packages/runtime/src/internal/primitives/click-enhanced.js';
 import { getClickEnhancementConfig } from '../../src/config.js';
 
 describe('generateBezierPath', () => {

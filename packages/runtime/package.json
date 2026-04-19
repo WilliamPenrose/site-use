@@ -1,5 +1,5 @@
 {
-  "name": "@site-use/core",
+  "name": "@site-use/runtime",
   "version": "0.0.0-private",
   "private": true,
   "type": "module",
@@ -10,10 +10,11 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./internal/primitives": {
+      "import": "./dist/internal/primitives/index.js",
+      "types": "./dist/internal/primitives/index.d.ts"
     }
-  },
-  "scripts": {
-    "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
     "puppeteer-core": "^24.39.1"

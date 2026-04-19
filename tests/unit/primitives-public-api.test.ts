@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Page } from 'puppeteer-core';
-import { createSecurePuppeteerPrimitives } from '../../packages/core/src/index.js';
+import { createSecurePuppeteerPrimitives } from '../../src/primitives/factory.js';
 
 function createMockPage(): Page {
   return {
@@ -29,7 +29,7 @@ function createMockPage(): Page {
   } as unknown as Page;
 }
 
-describe('@site-use/core public API', () => {
+describe('root primitives public API', () => {
   it('returns only the secure public primitives surface', () => {
     const primitives = createSecurePuppeteerPrimitives({
       page: createMockPage(),

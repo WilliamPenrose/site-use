@@ -1,4 +1,4 @@
-import type { Primitives, ThrottleConfig } from '../types.js';
+import type { Primitives, ThrottleConfig } from './types.js';
 import { SlidingWindowRateLimiter } from './rate-limiter.js';
 
 const DEFAULT_CONFIG: ThrottleConfig = {
@@ -45,9 +45,11 @@ export function createThrottledPrimitives(
     scrollIntoView: (uid) => inner.scrollIntoView(uid),
     takeSnapshot: () => inner.takeSnapshot(),
     evaluate: <T = unknown>(expression: string) => inner.evaluate<T>(expression),
+    interceptRequest: (pattern, handler) => inner.interceptRequest(pattern, handler),
     interceptRequestWithControl: (pattern, handler) =>
       inner.interceptRequestWithControl(pattern, handler),
     pressKey: (key) => inner.pressKey(key),
     screenshot: () => inner.screenshot(),
+    getRawPage: () => inner.getRawPage(),
   };
 }

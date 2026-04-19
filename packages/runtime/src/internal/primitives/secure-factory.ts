@@ -1,17 +1,33 @@
 import type { Page } from 'puppeteer-core';
-import type { Primitives, ThrottleConfig } from './types.js';
-import { PuppeteerPageBackend } from './internal/puppeteer-page-backend.js';
-import { createThrottledPrimitives } from './internal/throttle.js';
+import type { InterceptControl, ScrollOptions, Snapshot, ThrottleConfig } from './types.js';
+import { PuppeteerBackend } from './puppeteer-backend.js';
+import { createThrottledPrimitives } from './throttle.js';
 
 export interface CreateSecurePuppeteerPrimitivesOptions {
   page: Page;
   throttle?: Partial<ThrottleConfig>;
 }
 
+export interface SecurePrimitives {
+  navigate(url: string): Promise<void>;
+  takeSnapshot(): Promise<Snapshot>;
+  click(uid: string): Promise<void>;
+  type(uid: string, text: string, options?: { delay?: number }): Promise<void>;
+  pressKey(key: string): Promise<void>;
+  scroll(options: ScrollOptions): Promise<void>;
+  scrollIntoView(uid: string): Promise<void>;
+  evaluate<T = unknown>(expression: string): Promise<T>;
+  screenshot(): Promise<string>;
+  interceptRequestWithControl(
+    urlPattern: string | RegExp,
+    handler: (response: { url: string; status: number; body: string }) => void,
+  ): Promise<InterceptControl>;
+}
+
 export function createSecurePuppeteerPrimitives(
   options: CreateSecurePuppeteerPrimitivesOptions,
-): Primitives {
-  const raw = new PuppeteerPageBackend(options.page);
+): SecurePrimitives {
+  const raw = new PuppeteerBackend({ page: options.page });
   const safe = createThrottledPrimitives(raw, options.throttle);
 
   return {

@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { z } from 'zod';
 import { generateCliCommands } from '../../src/registry/codegen.js';
 import type { SitePlugin, QueryWorkflow } from '../../src/registry/types.js';
-import type { SiteRuntimeManager } from '../../src/runtime/manager.js';
+import type { SiteRuntimeAccess } from '../../src/runtime/access.js';
 
 function fakePlugin(overrides: Partial<SitePlugin> = {}): SitePlugin {
   return {
@@ -13,8 +13,13 @@ function fakePlugin(overrides: Partial<SitePlugin> = {}): SitePlugin {
   };
 }
 
-function fakeManager(): SiteRuntimeManager {
-  return { get: vi.fn() } as unknown as SiteRuntimeManager;
+function fakeAccess(): SiteRuntimeAccess {
+  return {
+    has: vi.fn(),
+    getSiteRuntime: vi.fn(),
+    clearSite: vi.fn(),
+    clearAll: vi.fn(),
+  };
 }
 
 describe('generateCliCommands', () => {
@@ -22,7 +27,7 @@ describe('generateCliCommands', () => {
     const plugin = fakePlugin({
       auth: { check: async () => ({ loggedIn: true }) },
     });
-    const cmds = generateCliCommands([plugin], fakeManager());
+    const cmds = generateCliCommands([plugin], fakeAccess());
     const entry = cmds.find(c => c.site === 'testsite' && c.command === 'check-login');
     expect(entry).toBeDefined();
   });
@@ -38,7 +43,7 @@ describe('generateCliCommands', () => {
         cache: { defaultMaxAge: 120 },
       }],
     });
-    const cmds = generateCliCommands([plugin], fakeManager());
+    const cmds = generateCliCommands([plugin], fakeAccess());
     const entry = cmds.find(c => c.site === 'testsite' && c.command === 'feed');
     expect(entry).toBeDefined();
   });
@@ -53,7 +58,7 @@ describe('generateCliCommands', () => {
         execute: async () => ({}),
       }],
     });
-    const cmds = generateCliCommands([plugin], fakeManager());
+    const cmds = generateCliCommands([plugin], fakeAccess());
     const entry = cmds.find(c => c.site === 'testsite' && c.command === 'trending');
     expect(entry).toBeDefined();
   });
@@ -65,7 +70,7 @@ describe('generateCliCommands', () => {
         expose: ['mcp'],
       },
     });
-    const cmds = generateCliCommands([plugin], fakeManager());
+    const cmds = generateCliCommands([plugin], fakeAccess());
     expect(cmds.find(c => c.command === 'check-login')).toBeUndefined();
   });
 
@@ -73,7 +78,7 @@ describe('generateCliCommands', () => {
     const cmds = generateCliCommands([
       fakePlugin({ name: 'twitter', domains: ['x.com'], auth: { check: async () => ({ loggedIn: true }) } }),
       fakePlugin({ name: 'reddit', domains: ['reddit.com'], auth: { check: async () => ({ loggedIn: true }) } }),
-    ], fakeManager());
+    ], fakeAccess());
     const sites = [...new Set(cmds.map(c => c.site))];
     expect(sites.sort()).toEqual(['reddit', 'twitter']);
   });
@@ -91,7 +96,7 @@ describe('generateCliCommands — help', () => {
         cli: { description: 'Collect feed', help: 'Feed help text' },
       }],
     });
-    const cmds = generateCliCommands([plugin], fakeManager());
+    const cmds = generateCliCommands([plugin], fakeAccess());
     const entry = cmds.find(c => c.command === 'feed')!;
     const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     await entry.handler(['--help']);
@@ -107,7 +112,7 @@ describe('generateCliCommands — help', () => {
     const plugin = fakePlugin({
       auth: { check: async () => ({ loggedIn: true }) },
     });
-    const cmds = generateCliCommands([plugin], fakeManager());
+    const cmds = generateCliCommands([plugin], fakeAccess());
     const entry = cmds.find(c => c.command === 'check-login')!;
     const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     await entry.handler(['--help']);
@@ -127,7 +132,7 @@ describe('generateCliCommands — query workflow', () => {
         execute: async () => ({ user: {}, relationship: null }),
       }],
     });
-    const cmds = generateCliCommands([plugin], fakeManager());
+    const cmds = generateCliCommands([plugin], fakeAccess());
     const entry = cmds.find(c => c.site === 'testsite' && c.command === 'profile');
     expect(entry).toBeDefined();
     expect(entry!.description).toBe('View profile');
@@ -150,8 +155,13 @@ describe('generateCliCommands — query workflow', () => {
         execute: async () => queryResult,
       }],
     });
-    const manager = { get: vi.fn().mockResolvedValue(mockRuntime) } as unknown as SiteRuntimeManager;
-    const cmds = generateCliCommands([plugin], manager);
+    const access = {
+      has: vi.fn(),
+      getSiteRuntime: vi.fn().mockResolvedValue(mockRuntime),
+      clearSite: vi.fn(),
+      clearAll: vi.fn(),
+    } as unknown as SiteRuntimeAccess;
+    const cmds = generateCliCommands([plugin], access);
     const entry = cmds.find(c => c.command === 'profile');
     expect(entry).toBeDefined();
 
@@ -178,7 +188,7 @@ describe('generateCliCommands — query workflow', () => {
         cli: { description: 'View profile', help: 'Options:\n  --handle <user>' },
       }],
     });
-    const cmds = generateCliCommands([plugin], fakeManager());
+    const cmds = generateCliCommands([plugin], fakeAccess());
     const entry = cmds.find(c => c.command === 'profile');
     expect(entry).toBeDefined();
     // Trigger help output

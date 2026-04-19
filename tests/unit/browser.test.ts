@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 
 // In-memory store for chrome.json written by launchAndDetach
 let chromeJsonStore: Record<string, string> = {};
+let alivePids = new Set<number>();
 
 // Mock puppeteer-core before importing browser module
 const mockPage = { url: () => 'about:blank', close: vi.fn(), goto: vi.fn(), authenticate: vi.fn() };
@@ -44,7 +45,17 @@ const mockSpawnProcess = {
   pid: 12345,
   unref: vi.fn(),
 };
-const mockSpawn = vi.fn().mockReturnValue(mockSpawnProcess);
+const mockSpawn = vi.fn().mockImplementation(() => {
+  alivePids.add(mockSpawnProcess.pid);
+  return mockSpawnProcess;
+});
+
+const mockProcessKill = vi.spyOn(process, 'kill').mockImplementation(((pid: number) => {
+  if (typeof pid === 'number') {
+    alivePids.delete(pid);
+  }
+  return true;
+}) as typeof process.kill);
 
 vi.mock('node:child_process', () => ({
   spawn: (...args: unknown[]) => mockSpawn(...args),
@@ -111,8 +122,7 @@ vi.mock('../../src/browser/welcome.js', () => ({
 
 vi.mock('../../src/lock.js', () => ({
   isPidAlive: vi.fn((pid: number) => {
-    // Only current process PID is "alive" in tests
-    return pid === 12345 || pid === process.pid;
+    return pid === process.pid || alivePids.has(pid);
   }),
 }));
 
@@ -145,12 +155,23 @@ describe('browser', () => {
   beforeEach(async () => {
     await closeBrowser();
     chromeJsonStore = {};
+    alivePids = new Set<number>();
     mockLaunch.mockClear();
     mockLaunch.mockResolvedValue(mockBrowser);
     mockConnect.mockClear();
     mockConnect.mockResolvedValue(mockConnectedBrowser);
     mockSpawn.mockClear();
-    mockSpawn.mockReturnValue(mockSpawnProcess);
+    mockSpawn.mockImplementation(() => {
+      alivePids.add(mockSpawnProcess.pid);
+      return mockSpawnProcess;
+    });
+    mockProcessKill.mockClear();
+    mockProcessKill.mockImplementation(((pid: number) => {
+      if (typeof pid === 'number') {
+        alivePids.delete(pid);
+      }
+      return true;
+    }) as typeof process.kill);
     mockSpawnProcess.unref.mockClear();
     mockBrowser.on.mockClear();
     mockBrowser.connected = true;

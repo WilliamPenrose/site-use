@@ -1,15 +1,21 @@
 import type { Browser, Page, KeyInput } from 'puppeteer-core';
-import { safePages } from '../browser/browser.js';
-import { ElementNotFound, NavigationFailed, CdpThrottled } from '../errors.js';
-import { getClickEnhancementConfig } from '../config.js';
-import { humanScroll, scrollElementIntoView } from './scroll-enhanced.js';
+import { safePages } from '../../browser-lifecycle.js';
 import {
-  applyJitter,
-  checkOcclusion,
-  waitForElementStable,
-  clickWithTrajectory,
-  injectCoordFix,
+  humanScroll as defaultHumanScroll,
+  scrollElementIntoView as defaultScrollElementIntoView,
+} from './scroll-enhanced.js';
+import {
+  applyJitter as defaultApplyJitter,
+  checkOcclusion as defaultCheckOcclusion,
+  waitForElementStable as defaultWaitForElementStable,
+  clickWithTrajectory as defaultClickWithTrajectory,
+  injectCoordFix as defaultInjectCoordFix,
 } from './click-enhanced.js';
+import {
+  createRuntimePrimitivesError,
+  getResolvedClickEnhancementConfig,
+  type RuntimePrimitivesHooks,
+} from './hooks.js';
 import type {
   Primitives,
   Snapshot,
@@ -49,6 +55,7 @@ export class PuppeteerBackend implements Primitives {
   private rateLimitDetector: RateLimitDetector | null;
   private listenedPages: WeakSet<Page> = new WeakSet();
   private loggedPageHit: Set<string> = new Set();
+  private readonly hooks: RuntimePrimitivesHooks;
 
   // Internal: uid -> backendDOMNodeId mapping from last takeSnapshot
   private uidToBackendNodeId: Map<string, number> = new Map();
@@ -57,7 +64,9 @@ export class PuppeteerBackend implements Primitives {
     browserOrOptions: Browser | PuppeteerBackendOptions,
     siteDomains?: Record<string, string[]> | PuppeteerBackendOptions,
     rateLimitDetector?: RateLimitDetector,
+    hooks: RuntimePrimitivesHooks = {},
   ) {
+    this.hooks = hooks;
     if (browserOrOptions && typeof browserOrOptions === 'object' && 'newPage' in browserOrOptions) {
       // Old signature: (browser, siteDomains?, rateLimitDetector?)
       this.browser = browserOrOptions as Browser;
@@ -71,11 +80,10 @@ export class PuppeteerBackend implements Primitives {
       this.rateLimitDetector = opts.rateLimitDetector ?? null;
 
       if (opts.page) {
-        const siteName = Object.keys(this.siteDomains)[0];
-        if (siteName) {
-          this.pages.set(siteName, opts.page);
-          this.currentSite = siteName;
-        }
+        const siteName = Object.keys(this.siteDomains)[0] ?? DEFAULT_SITE;
+        this.siteDomains[siteName] ??= [];
+        this.pages.set(siteName, opts.page);
+        this.currentSite = siteName;
       }
     }
   }
@@ -145,7 +153,9 @@ export class PuppeteerBackend implements Primitives {
       result = await action();
     }
     if (result === 'throttled') {
-      throw new CdpThrottled(
+      throw createRuntimePrimitivesError(
+        'CdpThrottled',
+        this.hooks.CdpThrottled,
         `CDP input events are throttled — ${step} failed after recovery attempts`,
         { step },
       );
@@ -317,7 +327,7 @@ export class PuppeteerBackend implements Primitives {
             if (pageUrl === 'about:blank' || pageUrl.startsWith('data:')) continue;
             const hostname = new URL(pageUrl).hostname;
             if (domains.some(d => hostname === d || hostname.endsWith('.' + d))) {
-              await injectCoordFix(p);
+              await (this.hooks.injectCoordFix ?? defaultInjectCoordFix)(p);
               this.pages.set(key, p);
               this.currentSite = key;
               this.installResponseListener(p, key);
@@ -338,7 +348,7 @@ export class PuppeteerBackend implements Primitives {
       throw new Error('PuppeteerBackend: no browser and no pre-assigned page for site');
     }
     const page = await this.browser.newPage();
-    await injectCoordFix(page);
+    await (this.hooks.injectCoordFix ?? defaultInjectCoordFix)(page);
     this.pages.set(key, page);
     this.currentSite = key;
     this.installResponseListener(page, key);
@@ -366,7 +376,9 @@ export class PuppeteerBackend implements Primitives {
     try {
       await page.goto(url, { waitUntil: 'load', timeout: 30_000 });
     } catch (err) {
-      throw new NavigationFailed(
+      throw createRuntimePrimitivesError(
+        'NavigationFailed',
+        this.hooks.NavigationFailed,
         `Failed to navigate to ${url}: ${err instanceof Error ? err.message : String(err)}`,
         { url, step: 'navigate', retryable: true },
       );
@@ -485,7 +497,9 @@ export class PuppeteerBackend implements Primitives {
    */
   private async resolveUid(uid: string, step: string): Promise<{ page: Page; backendNodeId: number }> {
     if (this.uidToBackendNodeId.size === 0) {
-      throw new ElementNotFound(
+      throw createRuntimePrimitivesError(
+        'ElementNotFound',
+        this.hooks.ElementNotFound,
         `No snapshot available. Call takeSnapshot() before ${step}().`,
         { step, retryable: false, hint: 'Take a snapshot first to populate the element map, then retry.' },
       );
@@ -493,7 +507,12 @@ export class PuppeteerBackend implements Primitives {
 
     const backendNodeId = this.uidToBackendNodeId.get(uid);
     if (backendNodeId == null) {
-      throw new ElementNotFound(`Element with uid "${uid}" not found in snapshot`, { step });
+      throw createRuntimePrimitivesError(
+        'ElementNotFound',
+        this.hooks.ElementNotFound,
+        `Element with uid "${uid}" not found in snapshot`,
+        { step },
+      );
     }
 
     const page = await this.getPage();
@@ -504,18 +523,25 @@ export class PuppeteerBackend implements Primitives {
     this.checkRateLimit('click');
     const { page, backendNodeId } = await this.resolveUid(uid, 'click');
     await this.ensureWindowVisible(page);
-    const config = getClickEnhancementConfig();
+    const config = getResolvedClickEnhancementConfig(this.hooks);
 
     // Step 1: Wait for element position to stabilize (CSS animations)
     // These use DOM/AX APIs (not input events), so they work even when
     // Chrome is in the background.
-    const { center, box: elementBox } = await waitForElementStable(page, backendNodeId);
+    const { center, box: elementBox } = await (
+      this.hooks.waitForElementStable ?? defaultWaitForElementStable
+    )(page, backendNodeId);
     let centerX = center.x;
     let centerY = center.y;
 
     // Step 2: Check for occlusion
     if (config.occlusionCheck) {
-      const result = await checkOcclusion(page, centerX, centerY, backendNodeId);
+      const result = await (this.hooks.checkOcclusion ?? defaultCheckOcclusion)(
+        page,
+        centerX,
+        centerY,
+        backendNodeId,
+      );
       if (result.occluded && result.fallback) {
         centerX = result.fallback.x;
         centerY = result.fallback.y;
@@ -524,13 +550,19 @@ export class PuppeteerBackend implements Primitives {
 
     // Step 3: Compute click target, then click
     const clickTarget = config.jitter
-      ? applyJitter(centerX, centerY, 3, elementBox)
+      ? (this.hooks.applyJitter ?? defaultApplyJitter)(centerX, centerY, 3, elementBox)
       : { x: centerX, y: centerY };
 
     if (config.trajectory) {
       await this.withThrottleRecovery(
         page,
-        () => clickWithTrajectory(page, clickTarget.x, clickTarget.y, { box: elementBox }),
+        () =>
+          (this.hooks.clickWithTrajectory ?? defaultClickWithTrajectory)(
+            page,
+            clickTarget.x,
+            clickTarget.y,
+            { box: elementBox },
+          ),
         'click',
       );
     } else {
@@ -550,7 +582,9 @@ export class PuppeteerBackend implements Primitives {
     try {
       await client.send('DOM.focus', { backendNodeId });
     } catch (err) {
-      throw new ElementNotFound(
+      throw createRuntimePrimitivesError(
+        'ElementNotFound',
+        this.hooks.ElementNotFound,
         `Failed to focus element with uid "${uid}": ${err instanceof Error ? err.message : String(err)}`,
         { step: 'type', retryable: true, hint: 'The DOM may have changed since takeSnapshot(). Try taking a new snapshot and retrying.' },
       );
@@ -588,7 +622,7 @@ export class PuppeteerBackend implements Primitives {
 
     await this.withThrottleRecovery(
       page,
-      () => humanScroll(page, 0, totalDelta),
+      () => (this.hooks.humanScroll ?? defaultHumanScroll)(page, 0, totalDelta),
       'scroll',
     );
   }
@@ -597,7 +631,7 @@ export class PuppeteerBackend implements Primitives {
     this.checkRateLimit('scrollIntoView');
     const { page, backendNodeId } = await this.resolveUid(uid, 'scrollIntoView');
     await this.ensureWindowVisible(page);
-    await scrollElementIntoView(page, backendNodeId);
+    await (this.hooks.scrollElementIntoView ?? defaultScrollElementIntoView)(page, backendNodeId);
   }
 
   async evaluate<T = unknown>(expression: string): Promise<T> {
