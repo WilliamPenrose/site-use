@@ -23,6 +23,9 @@ function run(cmd, label) {
   execSync(cmd, { cwd: ROOT, stdio: 'inherit' });
 }
 
+// Step 0: Build workspace packages needed by the root package exports
+run('npx tsc -p packages/core/tsconfig.json', 'tsc (packages/core)');
+
 // Step 1: Main TypeScript compilation
 run('npx tsc', 'tsc (main)');
 
