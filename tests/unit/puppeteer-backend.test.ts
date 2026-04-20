@@ -129,6 +129,7 @@ describe('PuppeteerBackend', () => {
     function createWindowStateMock(windowState: string) {
       return {
         send: vi.fn().mockImplementation((method: string) => {
+          if (method === 'Page.getFrameTree') return Promise.resolve({ frameTree: { frame: { id: 'main', url: 'https://example.com', securityOrigin: 'https://example.com' } } });
           if (method === 'Browser.getWindowForTarget') return Promise.resolve({ windowId: 1 });
           if (method === 'Browser.getWindowBounds') return Promise.resolve({ bounds: { windowState } });
           if (method === 'Accessibility.getFullAXTree') {
@@ -311,7 +312,14 @@ describe('PuppeteerBackend', () => {
     // Helper: build a mock CDP session that returns a fake AX tree
     function mockCDPSessionWithAXTree(nodes: any[]) {
       const session = {
-        send: vi.fn().mockImplementation((method: string) => {
+        send: vi.fn().mockImplementation((method: string, params?: any) => {
+          if (method === 'Page.getFrameTree') {
+            return Promise.resolve({
+              frameTree: {
+                frame: { id: 'main', url: 'https://example.com', securityOrigin: 'https://example.com' },
+              },
+            });
+          }
           if (method === 'Accessibility.getFullAXTree') {
             return Promise.resolve({ nodes });
           }
@@ -478,6 +486,7 @@ describe('PuppeteerBackend', () => {
     function setupClickMocks() {
       const session = {
         send: vi.fn().mockImplementation((method: string, _params?: any) => {
+          if (method === 'Page.getFrameTree') return Promise.resolve({ frameTree: { frame: { id: 'main', url: 'https://example.com', securityOrigin: 'https://example.com' } } });
           if (method === 'Accessibility.getFullAXTree') {
             return Promise.resolve({
               nodes: [
@@ -557,6 +566,7 @@ describe('PuppeteerBackend', () => {
 
       const cdpSession = {
         send: vi.fn().mockImplementation((method: string) => {
+          if (method === 'Page.getFrameTree') return Promise.resolve({ frameTree: { frame: { id: 'main', url: 'https://example.com', securityOrigin: 'https://example.com' } } });
           if (method === 'Accessibility.getFullAXTree') {
             return Promise.resolve({ nodes: [{ nodeId: 'ax-1', role: { value: 'button' }, name: { value: 'Follow' }, backendDOMNodeId: 101, ignored: false, properties: [] }] });
           }
@@ -597,6 +607,7 @@ describe('PuppeteerBackend', () => {
 
       const cdpSession = {
         send: vi.fn().mockImplementation((method: string) => {
+          if (method === 'Page.getFrameTree') return Promise.resolve({ frameTree: { frame: { id: 'main', url: 'https://example.com', securityOrigin: 'https://example.com' } } });
           if (method === 'Accessibility.getFullAXTree') {
             return Promise.resolve({ nodes: [{ nodeId: 'ax-1', role: { value: 'button' }, name: { value: 'Follow' }, backendDOMNodeId: 101, ignored: false, properties: [] }] });
           }
@@ -634,6 +645,7 @@ describe('PuppeteerBackend', () => {
 
       const cdpSession = {
         send: vi.fn().mockImplementation((method: string) => {
+          if (method === 'Page.getFrameTree') return Promise.resolve({ frameTree: { frame: { id: 'main', url: 'https://example.com', securityOrigin: 'https://example.com' } } });
           if (method === 'Browser.getWindowForTarget') return Promise.resolve({ windowId: 1 });
           if (method === 'Browser.setWindowBounds') return Promise.resolve({});
           if (method === 'Accessibility.getFullAXTree') {
@@ -676,6 +688,7 @@ describe('PuppeteerBackend', () => {
       let pageVisible = false;
       const cdpSession = {
         send: vi.fn().mockImplementation((method: string, params?: any) => {
+          if (method === 'Page.getFrameTree') return Promise.resolve({ frameTree: { frame: { id: 'main', url: 'https://example.com', securityOrigin: 'https://example.com' } } });
           if (method === 'Accessibility.getFullAXTree') {
             return Promise.resolve({ nodes: [{ nodeId: 'ax-1', role: { value: 'button' }, name: { value: 'Follow' }, backendDOMNodeId: 101, ignored: false, properties: [] }] });
           }
@@ -732,6 +745,7 @@ describe('PuppeteerBackend', () => {
 
       const cdpSession = {
         send: vi.fn().mockImplementation((method: string) => {
+          if (method === 'Page.getFrameTree') return Promise.resolve({ frameTree: { frame: { id: 'main', url: 'https://example.com', securityOrigin: 'https://example.com' } } });
           if (method === 'Accessibility.getFullAXTree') {
             return Promise.resolve({ nodes: [{ nodeId: 'ax-1', role: { value: 'button' }, name: { value: 'Follow' }, backendDOMNodeId: 101, ignored: false, properties: [] }] });
           }
@@ -770,6 +784,7 @@ describe('PuppeteerBackend', () => {
 
       const cdpSession = {
         send: vi.fn().mockImplementation((method: string) => {
+          if (method === 'Page.getFrameTree') return Promise.resolve({ frameTree: { frame: { id: 'main', url: 'https://example.com', securityOrigin: 'https://example.com' } } });
           if (method === 'Accessibility.getFullAXTree') {
             return Promise.resolve({ nodes: [{ nodeId: 'ax-1', role: { value: 'button' }, name: { value: 'Follow' }, backendDOMNodeId: 101, ignored: false, properties: [] }] });
           }
@@ -1087,6 +1102,7 @@ describe('PuppeteerBackend', () => {
     function setupTypeMocks() {
       const session = {
         send: vi.fn().mockImplementation((method: string) => {
+          if (method === 'Page.getFrameTree') return Promise.resolve({ frameTree: { frame: { id: 'main', url: 'https://example.com', securityOrigin: 'https://example.com' } } });
           if (method === 'Accessibility.getFullAXTree') {
             return Promise.resolve({
               nodes: [
@@ -1142,6 +1158,7 @@ describe('PuppeteerBackend', () => {
     it('wraps DOM.focus failure as ElementNotFound', async () => {
       const session = {
         send: vi.fn().mockImplementation((method: string) => {
+          if (method === 'Page.getFrameTree') return Promise.resolve({ frameTree: { frame: { id: 'main', url: 'https://example.com', securityOrigin: 'https://example.com' } } });
           if (method === 'Accessibility.getFullAXTree') {
             return Promise.resolve({
               nodes: [{
@@ -1375,6 +1392,7 @@ describe('PuppeteerBackend', () => {
     function setupScrollIntoViewMocks() {
       const session = {
         send: vi.fn().mockImplementation((method: string) => {
+          if (method === 'Page.getFrameTree') return Promise.resolve({ frameTree: { frame: { id: 'main', url: 'https://example.com', securityOrigin: 'https://example.com' } } });
           if (method === 'Accessibility.getFullAXTree') {
             return Promise.resolve({
               nodes: [

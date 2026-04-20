@@ -15,6 +15,8 @@ export interface SnapshotNode {
   expanded?: boolean;
   selected?: boolean;
   level?: number;
+  /** URL of the containing frame. Only set for iframe nodes; undefined for main frame. */
+  frameUrl?: string;
 }
 
 export interface Snapshot {
