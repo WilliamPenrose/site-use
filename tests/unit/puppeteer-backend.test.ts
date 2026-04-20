@@ -707,6 +707,87 @@ describe('PuppeteerBackend', () => {
       });
       expect(clickWithTrajectory).toHaveBeenCalledTimes(2);
     });
+
+    it('recovers from CDP ProtocolError timeout as if throttled (click)', async () => {
+      setupClickMocks();
+      const page = createMockPage();
+      mockNewPage.mockResolvedValue(page);
+
+      const { getClickEnhancementConfig } = await import('../../src/config.js');
+      vi.mocked(getClickEnhancementConfig).mockReturnValue({
+        trajectory: true,
+        jitter: false,
+        occlusionCheck: false,
+      });
+
+      // Simulate a CDP timeout (ProtocolError with 'timed out' message)
+      const { ProtocolError } = await import('puppeteer-core');
+      const timeoutErr = new ProtocolError();
+      timeoutErr.message = 'Input.dispatchMouseEvent timed out. Increase the \'protocolTimeout\' setting in launch/connect calls for a higher timeout if needed.';
+
+      const { clickWithTrajectory } = await import('../../packages/runtime/src/internal/primitives/click-enhanced.js');
+      vi.mocked(clickWithTrajectory)
+        .mockRejectedValueOnce(timeoutErr)
+        .mockResolvedValueOnce('ok');
+
+      const cdpSession = {
+        send: vi.fn().mockImplementation((method: string) => {
+          if (method === 'Accessibility.getFullAXTree') {
+            return Promise.resolve({ nodes: [{ nodeId: 'ax-1', role: { value: 'button' }, name: { value: 'Follow' }, backendDOMNodeId: 101, ignored: false, properties: [] }] });
+          }
+          if (method === 'DOM.describeNode') return Promise.resolve({ node: { nodeId: 10 } });
+          if (method === 'DOM.getBoxModel') return Promise.resolve({ model: { content: [100, 200, 200, 200, 200, 240, 100, 240] } });
+          if (method === 'Runtime.evaluate') return Promise.resolve({ result: { value: 'visible' } });
+          return Promise.resolve({});
+        }),
+        detach: vi.fn().mockResolvedValue(undefined),
+      };
+      mockCreateCDPSession.mockResolvedValue(cdpSession);
+
+      const backend = new PuppeteerBackend(mockBrowser as any);
+      await backend.takeSnapshot();
+      await backend.click('1');
+
+      // Should have recovered: level 1 DOM.enable, then retry succeeded
+      expect(cdpSession.send).toHaveBeenCalledWith('DOM.enable');
+      expect(clickWithTrajectory).toHaveBeenCalledTimes(2);
+    });
+
+    it('rethrows non-timeout errors without entering recovery (click)', async () => {
+      setupClickMocks();
+      const page = createMockPage();
+      mockNewPage.mockResolvedValue(page);
+
+      const { getClickEnhancementConfig } = await import('../../src/config.js');
+      vi.mocked(getClickEnhancementConfig).mockReturnValue({
+        trajectory: true,
+        jitter: false,
+        occlusionCheck: false,
+      });
+
+      const { clickWithTrajectory } = await import('../../packages/runtime/src/internal/primitives/click-enhanced.js');
+      vi.mocked(clickWithTrajectory).mockRejectedValueOnce(new Error('Connection lost'));
+
+      const cdpSession = {
+        send: vi.fn().mockImplementation((method: string) => {
+          if (method === 'Accessibility.getFullAXTree') {
+            return Promise.resolve({ nodes: [{ nodeId: 'ax-1', role: { value: 'button' }, name: { value: 'Follow' }, backendDOMNodeId: 101, ignored: false, properties: [] }] });
+          }
+          if (method === 'DOM.describeNode') return Promise.resolve({ node: { nodeId: 10 } });
+          if (method === 'DOM.getBoxModel') return Promise.resolve({ model: { content: [100, 200, 200, 200, 200, 240, 100, 240] } });
+          return Promise.resolve({});
+        }),
+        detach: vi.fn().mockResolvedValue(undefined),
+      };
+      mockCreateCDPSession.mockResolvedValue(cdpSession);
+
+      const backend = new PuppeteerBackend(mockBrowser as any);
+      await backend.takeSnapshot();
+
+      await expect(backend.click('1')).rejects.toThrow('Connection lost');
+      // Recovery should NOT have been attempted
+      expect(cdpSession.send).not.toHaveBeenCalledWith('DOM.enable');
+    });
   });
 
   describe('scroll', () => {
@@ -853,6 +934,56 @@ describe('PuppeteerBackend', () => {
         bounds: { windowState: 'normal' },
       });
       expect(humanScroll).toHaveBeenCalledTimes(2);
+    });
+
+    it('recovers from CDP ProtocolError timeout as if throttled (scroll)', async () => {
+      const page = createMockPage();
+      mockNewPage.mockResolvedValue(page);
+
+      const { ProtocolError } = await import('puppeteer-core');
+      const timeoutErr = new ProtocolError();
+      timeoutErr.message = 'Input.dispatchMouseEvent timed out. Increase the \'protocolTimeout\' setting in launch/connect calls for a higher timeout if needed.';
+
+      const { humanScroll } = await import('../../packages/runtime/src/internal/primitives/scroll-enhanced.js');
+      vi.mocked(humanScroll)
+        .mockRejectedValueOnce(timeoutErr)
+        .mockResolvedValueOnce('ok');
+
+      const cdpSession = {
+        send: vi.fn().mockImplementation((method: string) => {
+          if (method === 'Runtime.evaluate') return Promise.resolve({ result: { value: 'visible' } });
+          return Promise.resolve({});
+        }),
+        detach: vi.fn().mockResolvedValue(undefined),
+      };
+      mockCreateCDPSession.mockResolvedValue(cdpSession);
+
+      const backend = new PuppeteerBackend(mockBrowser as any);
+      await backend.scroll({ direction: 'down' });
+
+      // Should have recovered: level 1 DOM.enable, then retry succeeded
+      expect(cdpSession.send).toHaveBeenCalledWith('DOM.enable');
+      expect(humanScroll).toHaveBeenCalledTimes(2);
+    });
+
+    it('rethrows non-timeout errors without entering recovery (scroll)', async () => {
+      const page = createMockPage();
+      mockNewPage.mockResolvedValue(page);
+
+      const { humanScroll } = await import('../../packages/runtime/src/internal/primitives/scroll-enhanced.js');
+      vi.mocked(humanScroll).mockRejectedValueOnce(new Error('Session closed'));
+
+      const cdpSession = {
+        send: vi.fn().mockResolvedValue({}),
+        detach: vi.fn().mockResolvedValue(undefined),
+      };
+      mockCreateCDPSession.mockResolvedValue(cdpSession);
+
+      const backend = new PuppeteerBackend(mockBrowser as any);
+
+      await expect(backend.scroll({ direction: 'down' })).rejects.toThrow('Session closed');
+      // Recovery should NOT have been attempted
+      expect(cdpSession.send).not.toHaveBeenCalledWith('DOM.enable');
     });
   });
 

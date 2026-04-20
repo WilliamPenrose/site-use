@@ -1,4 +1,5 @@
 import type { Browser, Page, KeyInput } from 'puppeteer-core';
+import { ProtocolError } from 'puppeteer-core';
 import { safePages } from '../../browser-lifecycle.js';
 import {
   humanScroll as defaultHumanScroll,
@@ -126,15 +127,31 @@ export class PuppeteerBackend implements Primitives {
 
   /**
    * Execute an action with throttle recovery.
-   * If the action returns 'throttled', escalate through recovery levels (1→2→3),
-   * checking visibility before each retry to avoid false negatives.
+   * If the action returns 'throttled' (or throws a CDP protocol timeout),
+   * escalate through recovery levels (1→2→3), checking visibility before
+   * each retry to avoid false negatives.
    */
   private async withThrottleRecovery(
     page: Page,
     action: () => Promise<'ok' | 'throttled'>,
     step: string,
   ): Promise<void> {
-    let result = await action();
+    // Wrap action to treat CDP timeouts as 'throttled' instead of letting them crash.
+    // This handles mid-operation timeouts (e.g., wheel event #15 of 20 hangs for 30s)
+    // that bypass the first-event throttle probe.
+    const safeAction = async (): Promise<'ok' | 'throttled'> => {
+      try {
+        return await action();
+      } catch (err) {
+        if (err instanceof ProtocolError && err.message.includes('timed out')) {
+          console.error(`[site-use] CDP timeout during ${step} — treating as throttled`);
+          return 'throttled';
+        }
+        throw err;
+      }
+    };
+
+    let result = await safeAction();
     for (const level of [1, 2, 3] as const) {
       if (result !== 'throttled') break;
       await this.recoverFromThrottle(page, level);
@@ -150,7 +167,7 @@ export class PuppeteerBackend implements Primitives {
 
       console.error(`[site-use] page visible — waiting ${COMPOSITOR_SETTLE_MS}ms for compositor`);
       await new Promise((r) => setTimeout(r, COMPOSITOR_SETTLE_MS));
-      result = await action();
+      result = await safeAction();
     }
     if (result === 'throttled') {
       throw createRuntimePrimitivesError(

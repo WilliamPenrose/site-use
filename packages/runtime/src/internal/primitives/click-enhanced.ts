@@ -399,7 +399,8 @@ export async function clickWithTrajectory(
 
     // Phase 2: Correction curve back to actual target
     const correctionPath = generateBezierPath(overshootPt.x, overshootPt.y, finalTarget.x, finalTarget.y);
-    await movePath(page, correctionPath, stepDelayMs);
+    const correctionResult = await movePath(page, correctionPath, stepDelayMs);
+    if (correctionResult === 'throttled') return 'throttled';
   } else {
     // Direct path (short distance or overshoot disabled)
     const path = generateBezierPath(startX, startY, finalTarget.x, finalTarget.y);
