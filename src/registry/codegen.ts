@@ -1,6 +1,6 @@
 import { z, type ZodType } from 'zod';
 import type { SitePlugin, ActionWorkflow } from './types.js';
-import type { SiteRuntimeManager } from '../runtime/manager.js';
+import type { SiteRuntimeAccess } from '../runtime/access.js';
 import { wrapToolHandler } from './tool-wrapper.js';
 import path from 'node:path';
 import os from 'node:os';
@@ -24,7 +24,7 @@ export interface GeneratedCliCommand {
 
 export function generateCliCommands(
   plugins: SitePlugin[],
-  runtimeManager: SiteRuntimeManager,
+  runtimeAccess: SiteRuntimeAccess,
 ): GeneratedCliCommand[] {
   const commands: GeneratedCliCommand[] = [];
 
@@ -36,8 +36,8 @@ export function generateCliCommands(
       const wrappedAuth = wrapToolHandler({
         siteName: plugin.name,
         toolName: `${plugin.name}_check_login`,
-        getRuntime: () => runtimeManager.get(plugin.name),
-        onBrowserDisconnected: () => runtimeManager.clearAll(),
+        getRuntime: () => runtimeAccess.getSiteRuntime(plugin.name),
+        onBrowserDisconnected: () => void runtimeAccess.clearAll(),
         handler: async (_params, runtime, _trace) => authCheck(runtime.primitives),
       });
       commands.push({
@@ -68,8 +68,8 @@ export function generateCliCommands(
         const wrappedWf = wrapToolHandler({
           siteName: plugin.name,
           toolName: `${plugin.name}_${wf.name}`,
-          getRuntime: () => runtimeManager.get(plugin.name),
-          onBrowserDisconnected: () => runtimeManager.clearAll(),
+          getRuntime: () => runtimeAccess.getSiteRuntime(plugin.name),
+          onBrowserDisconnected: () => void runtimeAccess.clearAll(),
           paramsSchema: wf.params,
           handler: async (params, runtime, trace) => {
             return await wf.execute(runtime.primitives, params, trace);

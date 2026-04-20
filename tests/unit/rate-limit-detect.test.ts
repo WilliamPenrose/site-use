@@ -1,5 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
-import { defaultDetect, RateLimitDetector } from '../../src/primitives/rate-limit-detect.js';
+import {
+  defaultDetect,
+  RateLimitDetector,
+} from '../../packages/runtime/src/internal/primitives/rate-limit-detect.js';
 import { RateLimited } from '../../src/errors.js';
 import { twitterDetect } from '../../src/sites/twitter/site.js';
 
@@ -51,19 +54,19 @@ describe('defaultDetect', () => {
 
 describe('RateLimitDetector', () => {
   it('checkAndThrow does nothing when no signal exists', () => {
-    const detector = new RateLimitDetector();
+    const detector = new RateLimitDetector(undefined, { RateLimited });
     expect(() => detector.checkAndThrow('navigate', 'twitter')).not.toThrow();
   });
 
   it('throws RateLimited after a 429 response', () => {
-    const detector = new RateLimitDetector();
+    const detector = new RateLimitDetector(undefined, { RateLimited });
     detector.onResponse(makeResponse({ status: 429 }), 'twitter');
     expect(() => detector.checkAndThrow('navigate', 'twitter')).toThrow(RateLimited);
   });
 
   it('includes reset time (epoch seconds) in error hint when resetAt is present', () => {
     const epoch = 1700000000;
-    const detector = new RateLimitDetector();
+    const detector = new RateLimitDetector(undefined, { RateLimited });
     detector.onResponse(
       makeResponse({ status: 429, headers: { 'x-rate-limit-reset': String(epoch) } }),
       'twitter',
@@ -84,20 +87,20 @@ describe('RateLimitDetector', () => {
       url: 'https://custom.example.com',
       reason: 'custom-detect-fired',
     });
-    const detector = new RateLimitDetector({ mysite: customDetect });
+    const detector = new RateLimitDetector({ mysite: customDetect }, { RateLimited });
     detector.onResponse(makeResponse({ status: 200, url: 'https://custom.example.com' }), 'mysite');
     expect(customDetect).toHaveBeenCalledOnce();
     expect(() => detector.checkAndThrow('step', 'mysite')).toThrow(RateLimited);
   });
 
   it('falls back to defaultDetect when site has no custom detect', () => {
-    const detector = new RateLimitDetector({ othersite: () => null });
+    const detector = new RateLimitDetector({ othersite: () => null }, { RateLimited });
     detector.onResponse(makeResponse({ status: 429 }), 'twitter');
     expect(() => detector.checkAndThrow('step', 'twitter')).toThrow(RateLimited);
   });
 
   it('per-site isolation: twitter 429 does not block other sites', () => {
-    const detector = new RateLimitDetector();
+    const detector = new RateLimitDetector(undefined, { RateLimited });
     detector.onResponse(makeResponse({ status: 429, url: 'https://api.twitter.com/x' }), 'twitter');
     // A 200 from reddit should not trigger anything
     detector.onResponse(makeResponse({ status: 200, url: 'https://reddit.com/y' }), 'reddit');
@@ -106,7 +109,7 @@ describe('RateLimitDetector', () => {
   });
 
   it('clear(site) only clears that site', () => {
-    const detector = new RateLimitDetector();
+    const detector = new RateLimitDetector(undefined, { RateLimited });
     detector.onResponse(makeResponse({ status: 429, url: 'https://api.twitter.com' }), 'twitter');
     detector.onResponse(makeResponse({ status: 429, url: 'https://reddit.com' }), 'reddit');
     detector.clear('twitter');
@@ -115,7 +118,7 @@ describe('RateLimitDetector', () => {
   });
 
   it('clear() without arg clears all sites', () => {
-    const detector = new RateLimitDetector();
+    const detector = new RateLimitDetector(undefined, { RateLimited });
     detector.onResponse(makeResponse({ status: 429, url: 'https://api.twitter.com' }), 'twitter');
     detector.onResponse(makeResponse({ status: 429, url: 'https://reddit.com' }), 'reddit');
     detector.clear();
@@ -124,14 +127,14 @@ describe('RateLimitDetector', () => {
   });
 
   it('ignores non-matching responses (does not store signal)', () => {
-    const detector = new RateLimitDetector();
+    const detector = new RateLimitDetector(undefined, { RateLimited });
     detector.onResponse(makeResponse({ status: 200 }), 'twitter');
     detector.onResponse(makeResponse({ status: 404 }), 'twitter');
     expect(() => detector.checkAndThrow('step', 'twitter')).not.toThrow();
   });
 
   it('skips storing a second signal if one already exists for the site', () => {
-    const detector = new RateLimitDetector();
+    const detector = new RateLimitDetector(undefined, { RateLimited });
     const first = makeResponse({ status: 429, url: 'https://api.twitter.com/first' });
     const second = makeResponse({ status: 429, url: 'https://api.twitter.com/second' });
     detector.onResponse(first, 'twitter');

@@ -1,7 +1,7 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
-import { SiteRuntimeManager } from '../runtime/manager.js';
+import { createSiteRuntimeAccess } from '../runtime/access.js';
 import { discoverPlugins } from '../registry/discovery.js';
 
 export function getScreenshotPath(dataDir: string, site: string): string {
@@ -34,10 +34,10 @@ Options:
   const screenshotPath = getScreenshotPath(dataDir, site);
 
   const plugins = await discoverPlugins();
-  const runtimeManager = new SiteRuntimeManager(plugins);
+  const runtimeAccess = createSiteRuntimeAccess(plugins);
 
   try {
-    const runtime = await runtimeManager.get(site);
+    const runtime = await runtimeAccess.getSiteRuntime(site);
     const base64 = await runtime.primitives.screenshot();
 
     fs.mkdirSync(path.dirname(screenshotPath), { recursive: true });

@@ -1,6 +1,6 @@
 import type { ZodType } from 'zod';
 import type { Primitives } from '../primitives/types.js';
-import type { DetectFn } from '../primitives/rate-limit-detect.js';
+import type { DetectFn } from '../primitives/types.js';
 import type { Trace } from '../trace.js';
 
 // ── Expose target ──────────────────────────────────────────────

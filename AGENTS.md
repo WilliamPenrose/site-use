@@ -32,6 +32,13 @@ CLI (index.ts, cli/)
 - Browser manages Chrome lifecycle only, including launch, connect, and reconnect.
 - Action-Log tracks daily action counts such as follow and unfollow for rate limiting. It uses a standalone SQLite database (`action-log.db`) and does not depend on the removed storage layer.
 
+## Runtime Boundary
+
+- The root `site-use` repo remains the product shell. `@site-use/runtime` is a reusable execution layer, not a second product shell.
+- `@site-use/runtime` is the only source of truth for runtime execution semantics, including browser lifecycle, session management, tab reuse, and stack assembly.
+- Root compatibility layers such as `src/browser/` and `src/runtime/` must delegate to `@site-use/runtime` and must not reintroduce parallel runtime implementations.
+- `@site-use/runtime` must not depend directly on `SitePlugin`. Keep the package boundary through runtime-facing definitions and adapters.
+
 ## Workflow
 
 - Always rebuild after code changes. Run `pnpm run build` after modifying any `.ts` file, before testing CLI commands or telling the user the change is ready.

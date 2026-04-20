@@ -1,4 +1,7 @@
-import { RateLimited } from '../errors.js';
+import {
+  createRuntimePrimitivesError,
+  type RuntimePrimitivesHooks,
+} from './hooks.js';
 
 export interface RateLimitSignal {
   url: string;
@@ -41,8 +44,13 @@ export const defaultDetect: DetectFn = (response) => {
 export class RateLimitDetector {
   readonly signals: Map<string, RateLimitSignal> = new Map();
   readonly siteDetectors: Map<string, DetectFn> = new Map();
+  private readonly hooks: RuntimePrimitivesHooks;
 
-  constructor(siteDetectors?: Record<string, DetectFn>) {
+  constructor(
+    siteDetectors?: Record<string, DetectFn>,
+    hooks: RuntimePrimitivesHooks = {},
+  ) {
+    this.hooks = hooks;
     if (siteDetectors) {
       for (const [site, fn] of Object.entries(siteDetectors)) {
         this.siteDetectors.set(site, fn);
@@ -90,11 +98,16 @@ export class RateLimitDetector {
       ? `Rate limit detected. Reset at epoch ${resetEpoch}. Wait until then before retrying.`
       : 'Rate limit detected. Wait before retrying.';
 
-    throw new RateLimited(`Rate limited at step "${step}": ${signal.reason}`, {
-      url: signal.url,
-      step,
-      hint,
-    });
+    throw createRuntimePrimitivesError(
+      'RateLimited',
+      this.hooks.RateLimited,
+      `Rate limited at step "${step}": ${signal.reason}`,
+      {
+        url: signal.url,
+        step,
+        hint,
+      },
+    );
   }
 
   /**

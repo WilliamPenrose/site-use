@@ -1,6 +1,5 @@
 /** Twitter site definition — single source of truth for site identity. */
-import type { DetectFn } from '../../primitives/rate-limit-detect.js';
-import type { Primitives } from '../../primitives/types.js';
+import type { DetectFn, Primitives } from '../../primitives/types.js';
 
 export interface AuthCheckDiagnostic {
   step: string;

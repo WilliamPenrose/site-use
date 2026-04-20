@@ -1,6 +1,6 @@
 {
   "name": "site-use",
-  "version": "2026.4.18",
+  "version": "2026.4.20",
   "description": "Site-level browser automation — deterministic CLI workflows for Chrome, optimized for LLM agent consumption.",
   "repository": {
     "type": "git",
@@ -45,6 +45,7 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
+    "verify:runtime-cutover": "node scripts/verify-runtime-cutover.mjs",
     "dev": "tsc --watch",
     "test": "vitest run --exclude 'tests/integration/diagnose-*.test.ts'",
     "test:unit": "vitest run tests/unit",
@@ -65,6 +66,7 @@
     "node": ">=22.14.0"
   },
   "dependencies": {
+    "@site-use/runtime": "workspace:*",
     "dotenv": "^16.4.7",
     "puppeteer-core": "^24.39.1",
     "snarkdown": "^2.0.0",

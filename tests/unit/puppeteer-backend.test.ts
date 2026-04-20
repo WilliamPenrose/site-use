@@ -1,4 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import {
+  CdpThrottled,
+  ElementNotFound,
+  NavigationFailed,
+} from '../../src/errors.js';
 
 // Mock config and click-enhanced modules
 vi.mock('../../src/config.js', () => ({
@@ -9,12 +14,12 @@ vi.mock('../../src/config.js', () => ({
   })),
 }));
 
-vi.mock('../../src/primitives/scroll-enhanced.js', () => ({
+vi.mock('../../packages/runtime/src/internal/primitives/scroll-enhanced.js', () => ({
   humanScroll: vi.fn().mockResolvedValue(undefined),
   scrollElementIntoView: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('../../src/primitives/click-enhanced.js', () => ({
+vi.mock('../../packages/runtime/src/internal/primitives/click-enhanced.js', () => ({
   applyJitter: vi.fn((x: number, y: number) => ({ x, y })),
   checkOcclusion: vi.fn().mockResolvedValue({ occluded: false }),
   waitForElementStable: vi.fn().mockResolvedValue({ center: { x: 150, y: 220 }, box: { x: 100, y: 200, width: 100, height: 40 } }),
@@ -67,7 +72,7 @@ const mockBrowser = {
 };
 
 // Import after mock setup
-let PuppeteerBackend: typeof import('../../src/primitives/puppeteer-backend.js').PuppeteerBackend;
+let PuppeteerBackend: new (...args: any[]) => any;
 
 beforeEach(async () => {
   vi.resetModules();
@@ -78,8 +83,21 @@ beforeEach(async () => {
   mockScreenshot.mockClear();
   // Restore default resolved values after clearAllMocks
   mockNewPage.mockResolvedValue(createMockPage());
-  const mod = await import('../../src/primitives/puppeteer-backend.js');
-  PuppeteerBackend = mod.PuppeteerBackend;
+  const [{ getClickEnhancementConfig }, mod] = await Promise.all([
+    import('../../src/config.js'),
+    import('../../packages/runtime/src/internal/primitives/puppeteer-backend.js'),
+  ]);
+  const RuntimePuppeteerBackend = mod.PuppeteerBackend;
+  PuppeteerBackend = class extends RuntimePuppeteerBackend {
+    constructor(browserOrOptions: any, siteDomains?: any, rateLimitDetector?: any) {
+      super(browserOrOptions, siteDomains, rateLimitDetector, {
+        ElementNotFound,
+        NavigationFailed,
+        CdpThrottled,
+        getClickEnhancementConfig,
+      });
+    }
+  };
 });
 
 describe('PuppeteerBackend', () => {
@@ -532,7 +550,7 @@ describe('PuppeteerBackend', () => {
         occlusionCheck: false,
       });
 
-      const { clickWithTrajectory } = await import('../../src/primitives/click-enhanced.js');
+      const { clickWithTrajectory } = await import('../../packages/runtime/src/internal/primitives/click-enhanced.js');
       vi.mocked(clickWithTrajectory)
         .mockResolvedValueOnce('throttled')
         .mockResolvedValueOnce('ok');
@@ -571,7 +589,7 @@ describe('PuppeteerBackend', () => {
         occlusionCheck: false,
       });
 
-      const { clickWithTrajectory } = await import('../../src/primitives/click-enhanced.js');
+      const { clickWithTrajectory } = await import('../../packages/runtime/src/internal/primitives/click-enhanced.js');
       vi.mocked(clickWithTrajectory)
         .mockResolvedValueOnce('throttled')
         .mockResolvedValueOnce('throttled')
@@ -611,7 +629,7 @@ describe('PuppeteerBackend', () => {
         occlusionCheck: false,
       });
 
-      const { clickWithTrajectory } = await import('../../src/primitives/click-enhanced.js');
+      const { clickWithTrajectory } = await import('../../packages/runtime/src/internal/primitives/click-enhanced.js');
       vi.mocked(clickWithTrajectory).mockResolvedValue('throttled');
 
       const cdpSession = {
@@ -630,11 +648,12 @@ describe('PuppeteerBackend', () => {
       };
       mockCreateCDPSession.mockResolvedValue(cdpSession);
 
-      const { CdpThrottled } = await import('../../src/errors.js');
       const backend = new PuppeteerBackend(mockBrowser as any);
       await backend.takeSnapshot();
 
-      await expect(backend.click('1')).rejects.toThrow(CdpThrottled);
+      await expect(backend.click('1')).rejects.toMatchObject({
+        name: 'CdpThrottled',
+      });
     });
 
     it('skips retry and escalates when page stays hidden after recovery (click)', async () => {
@@ -649,7 +668,7 @@ describe('PuppeteerBackend', () => {
         occlusionCheck: false,
       });
 
-      const { clickWithTrajectory } = await import('../../src/primitives/click-enhanced.js');
+      const { clickWithTrajectory } = await import('../../packages/runtime/src/internal/primitives/click-enhanced.js');
       vi.mocked(clickWithTrajectory)
         .mockResolvedValueOnce('throttled')
         .mockResolvedValueOnce('ok');
@@ -698,7 +717,7 @@ describe('PuppeteerBackend', () => {
       const backend = new PuppeteerBackend(mockBrowser as any);
       await backend.scroll({ direction: 'down' });
 
-      const { humanScroll } = await import('../../src/primitives/scroll-enhanced.js');
+      const { humanScroll } = await import('../../packages/runtime/src/internal/primitives/scroll-enhanced.js');
       expect(humanScroll).toHaveBeenCalledWith(page, 0, 600);
     });
 
@@ -709,7 +728,7 @@ describe('PuppeteerBackend', () => {
       const backend = new PuppeteerBackend(mockBrowser as any);
       await backend.scroll({ direction: 'up' });
 
-      const { humanScroll } = await import('../../src/primitives/scroll-enhanced.js');
+      const { humanScroll } = await import('../../packages/runtime/src/internal/primitives/scroll-enhanced.js');
       expect(humanScroll).toHaveBeenCalledWith(page, 0, -600);
     });
 
@@ -720,7 +739,7 @@ describe('PuppeteerBackend', () => {
       const backend = new PuppeteerBackend(mockBrowser as any);
       await backend.scroll({ direction: 'down', amount: 300 });
 
-      const { humanScroll } = await import('../../src/primitives/scroll-enhanced.js');
+      const { humanScroll } = await import('../../packages/runtime/src/internal/primitives/scroll-enhanced.js');
       expect(humanScroll).toHaveBeenCalledWith(page, 0, 300);
     });
 
@@ -728,7 +747,7 @@ describe('PuppeteerBackend', () => {
       const page = createMockPage();
       mockNewPage.mockResolvedValue(page);
 
-      const { humanScroll } = await import('../../src/primitives/scroll-enhanced.js');
+      const { humanScroll } = await import('../../packages/runtime/src/internal/primitives/scroll-enhanced.js');
       vi.mocked(humanScroll)
         .mockResolvedValueOnce('throttled')
         .mockResolvedValueOnce('ok');
@@ -753,7 +772,7 @@ describe('PuppeteerBackend', () => {
       const page = createMockPage();
       mockNewPage.mockResolvedValue(page);
 
-      const { humanScroll } = await import('../../src/primitives/scroll-enhanced.js');
+      const { humanScroll } = await import('../../packages/runtime/src/internal/primitives/scroll-enhanced.js');
       vi.mocked(humanScroll)
         .mockResolvedValueOnce('throttled')
         .mockResolvedValueOnce('throttled')
@@ -779,7 +798,7 @@ describe('PuppeteerBackend', () => {
       const page = createMockPage();
       mockNewPage.mockResolvedValue(page);
 
-      const { humanScroll } = await import('../../src/primitives/scroll-enhanced.js');
+      const { humanScroll } = await import('../../packages/runtime/src/internal/primitives/scroll-enhanced.js');
       vi.mocked(humanScroll).mockResolvedValue('throttled');
 
       const cdpSession = {
@@ -792,17 +811,18 @@ describe('PuppeteerBackend', () => {
       };
       mockCreateCDPSession.mockResolvedValue(cdpSession);
 
-      const { CdpThrottled } = await import('../../src/errors.js');
       const backend = new PuppeteerBackend(mockBrowser as any);
 
-      await expect(backend.scroll({ direction: 'down' })).rejects.toThrow(CdpThrottled);
+      await expect(backend.scroll({ direction: 'down' })).rejects.toMatchObject({
+        name: 'CdpThrottled',
+      });
     });
 
     it('skips retry and escalates when page stays hidden after recovery (scroll)', async () => {
       const page = createMockPage();
       mockNewPage.mockResolvedValue(page);
 
-      const { humanScroll } = await import('../../src/primitives/scroll-enhanced.js');
+      const { humanScroll } = await import('../../packages/runtime/src/internal/primitives/scroll-enhanced.js');
       vi.mocked(humanScroll)
         .mockResolvedValueOnce('throttled')
         .mockResolvedValueOnce('ok');
@@ -1267,7 +1287,7 @@ describe('PuppeteerBackend', () => {
       await backend.takeSnapshot();
       await backend.scrollIntoView('1');
 
-      const { scrollElementIntoView } = await import('../../src/primitives/scroll-enhanced.js');
+      const { scrollElementIntoView } = await import('../../packages/runtime/src/internal/primitives/scroll-enhanced.js');
       expect(scrollElementIntoView).toHaveBeenCalledWith(page, 101);
     });
   });

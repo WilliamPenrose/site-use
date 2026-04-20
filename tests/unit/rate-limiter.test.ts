@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { SlidingWindowRateLimiter } from '../../src/primitives/rate-limiter.js';
+import { SlidingWindowRateLimiter } from '../../packages/runtime/src/internal/primitives/rate-limiter.js';
 
 describe('SlidingWindowRateLimiter', () => {
   beforeEach(() => { vi.useFakeTimers(); });

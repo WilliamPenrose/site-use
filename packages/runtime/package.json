@@ -1,0 +1,26 @@
+{
+  "name": "@site-use/runtime",
+  "version": "0.0.0-private",
+  "private": true,
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./internal/primitives": {
+      "import": "./dist/internal/primitives/index.js",
+      "types": "./dist/internal/primitives/index.d.ts"
+    }
+  },
+  "dependencies": {
+    "puppeteer-core": "^24.39.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "typescript": "^5.8.2"
+  }
+}

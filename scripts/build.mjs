@@ -17,19 +17,33 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT = path.resolve(__dirname, '..');
+const ROOT_DIST = path.join(ROOT, 'dist');
+const RUNTIME_DIST = path.join(ROOT, 'packages', 'runtime', 'dist');
 
 function run(cmd, label) {
   console.log(`[build] ${label || cmd}`);
   execSync(cmd, { cwd: ROOT, stdio: 'inherit' });
 }
 
-// Step 1: Main TypeScript compilation
+function cleanDir(target, label) {
+  fs.rmSync(target, { recursive: true, force: true });
+  console.log(`[build] cleaned ${label}`);
+}
+
+// Step 0: Clean generated output so removed modules do not linger in dist/
+cleanDir(ROOT_DIST, 'dist/');
+cleanDir(RUNTIME_DIST, 'packages/runtime/dist/');
+
+// Step 1: Build workspace packages needed by the root package exports
+run('npx tsc -p packages/runtime/tsconfig.json', 'tsc (packages/runtime)');
+
+// Step 2: Main TypeScript compilation
 run('npx tsc', 'tsc (main)');
 
-// Step 1a: Compile tools/diagnose Node files (separate rootDir, imports dist/ declarations)
+// Step 2a: Compile tools/diagnose Node files (separate rootDir, imports dist/ declarations)
 run('npx tsc -p tools/diagnose/tsconfig.json', 'tsc (tools/diagnose)');
 
-// Step 1.5: Stamp BUILD_HASH, BUILD_DATE, and package.json version
+// Step 2.5: Stamp BUILD_HASH, BUILD_DATE, and package.json version
 try {
   const hash = execSync('git rev-parse --short HEAD', { cwd: ROOT, encoding: 'utf-8' }).trim();
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, '.');
@@ -54,7 +68,7 @@ try {
   console.log('[build] BUILD_HASH: dev (not in git repo)');
 }
 
-// Step 2: Generate browser barrel (must happen before type-check since page.ts imports it)
+// Step 3: Generate browser barrel (must happen before type-check since page.ts imports it)
 console.log('[build] Generating browser barrel...');
 const checksDir = path.join(ROOT, 'tools', 'diagnose', 'checks');
 const excludePrefix = '_';
@@ -117,13 +131,13 @@ const barrelPath = path.join(checksDir, '_browser-barrel.ts');
 fs.writeFileSync(barrelPath, barrelContent, 'utf-8');
 console.log(`[build] Wrote ${barrelPath}`);
 
-// Step 3: Type-check browser checks (DOM lib, no emit) — barrel must exist first
+// Step 4: Type-check browser checks (DOM lib, no emit) — barrel must exist first
 run(
   'npx tsc -p tools/diagnose/tsconfig.checks.json --noEmit',
   'tsc (browser checks type-check)',
 );
 
-// Step 4: Bundle page.ts with esbuild
+// Step 5: Bundle page.ts with esbuild
 run(
   [
     'npx esbuild tools/diagnose/page.ts',
@@ -136,7 +150,7 @@ run(
   'esbuild (bundle page.ts)',
 );
 
-// Step 5: Copy index.html
+// Step 6: Copy index.html
 const srcHtml = path.join(ROOT, 'tools', 'diagnose', 'index.html');
 const distDir = path.join(ROOT, 'dist', 'diagnose');
 fs.mkdirSync(distDir, { recursive: true });

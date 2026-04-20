@@ -1,7 +1,11 @@
+export {
+  createSecurePuppeteerPrimitives,
+  type CreateSecurePuppeteerPrimitivesOptions,
+} from '@site-use/runtime/internal/primitives';
+
 export type {
   DetectFn,
   InterceptControl,
-  InterceptHandler,
   Primitives,
   RateLimitConfig,
   RateLimitSignal,
@@ -9,4 +13,4 @@ export type {
   Snapshot,
   SnapshotNode,
   ThrottleConfig,
-} from '@site-use/runtime/internal/primitives';
+} from './types.js';

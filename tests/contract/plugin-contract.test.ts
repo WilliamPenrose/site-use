@@ -3,11 +3,16 @@ import { z } from 'zod';
 import { generateCliCommands } from '../../src/registry/codegen.js';
 import { validatePlugins } from '../../src/registry/validation.js';
 import type { SitePlugin } from '../../src/registry/types.js';
-import type { SiteRuntimeManager } from '../../src/runtime/manager.js';
+import type { SiteRuntimeAccess } from '../../src/runtime/access.js';
 
 
-function fakeManager(): SiteRuntimeManager {
-  return { get: vi.fn(), clearAll: vi.fn() } as unknown as SiteRuntimeManager;
+function fakeAccess(): SiteRuntimeAccess {
+  return {
+    has: vi.fn(),
+    getSiteRuntime: vi.fn(),
+    clearSite: vi.fn(),
+    clearAll: vi.fn(),
+  };
 }
 
 function fakePlugin(overrides: Partial<SitePlugin> = {}): SitePlugin {
@@ -41,7 +46,7 @@ function makeMockRuntime(plugin: SitePlugin) {
 
 describe('Plugin Contract', () => {
   it('generates CLI commands from standard capabilities', () => {
-    const cmds = generateCliCommands([fakePlugin()], fakeManager());
+    const cmds = generateCliCommands([fakePlugin()], fakeAccess());
     expect(cmds.find(c => c.command === 'check-login')).toBeDefined();
     expect(cmds.find(c => c.command === 'feed')).toBeDefined();
   });
@@ -65,7 +70,7 @@ describe('Plugin Contract', () => {
         },
       ],
     });
-    const cmds = generateCliCommands([plugin], fakeManager());
+    const cmds = generateCliCommands([plugin], fakeAccess());
     expect(cmds.find(c => c.command === 'trending')).toBeDefined();
   });
 
@@ -73,7 +78,7 @@ describe('Plugin Contract', () => {
     const plugin = fakePlugin({
       auth: { check: async () => ({ loggedIn: true }), expose: ['cli'] },
     });
-    const cliCmds = generateCliCommands([plugin], fakeManager());
+    const cliCmds = generateCliCommands([plugin], fakeAccess());
     expect(cliCmds.find(c => c.command === 'check-login')).toBeDefined();
   });
 
@@ -81,7 +86,7 @@ describe('Plugin Contract', () => {
     const plugin = fakePlugin({
       auth: { check: async () => ({ loggedIn: true }), expose: ['mcp'] },
     });
-    const cliCmds = generateCliCommands([plugin], fakeManager());
+    const cliCmds = generateCliCommands([plugin], fakeAccess());
     expect(cliCmds.find(c => c.command === 'check-login')).toBeUndefined();
   });
 
@@ -92,8 +97,13 @@ describe('Plugin Contract', () => {
       },
     });
     const mockRuntime = makeMockRuntime(plugin);
-    const mgr = { get: vi.fn(async () => mockRuntime), clearAll: vi.fn() } as unknown as SiteRuntimeManager;
-    const cmds = generateCliCommands([plugin], mgr);
+    const access = {
+      has: vi.fn(),
+      getSiteRuntime: vi.fn(async () => mockRuntime),
+      clearSite: vi.fn(),
+      clearAll: vi.fn(),
+    } as unknown as SiteRuntimeAccess;
+    const cmds = generateCliCommands([plugin], access);
 
     const authCmd = cmds.find(c => c.command === 'check-login')!;
     const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -156,8 +166,13 @@ describe('Error Scenario Tests', () => {
       },
     });
     const mockRuntime = makeMockRuntime(plugin);
-    const mgr = { get: vi.fn(async () => mockRuntime), clearAll: vi.fn() } as unknown as SiteRuntimeManager;
-    const cmds = generateCliCommands([plugin], mgr);
+    const access = {
+      has: vi.fn(),
+      getSiteRuntime: vi.fn(async () => mockRuntime),
+      clearSite: vi.fn(),
+      clearAll: vi.fn(),
+    } as unknown as SiteRuntimeAccess;
+    const cmds = generateCliCommands([plugin], access);
     const authCmd = cmds.find(c => c.command === 'check-login')!;
     const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     await authCmd.handler([]);
@@ -174,7 +189,7 @@ describe('Backward Compatibility Snapshots', () => {
       name: 'twitter',
       domains: ['x.com', 'twitter.com'],
     });
-    const cmds = generateCliCommands([twitterPlugin], fakeManager());
+    const cmds = generateCliCommands([twitterPlugin], fakeAccess());
     const cmdNames = cmds.map(c => `${c.site} ${c.command}`).sort();
     expect(cmdNames).toEqual(['twitter check-login', 'twitter feed']);
   });

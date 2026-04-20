@@ -1,5 +1,6 @@
 node_modules/
 dist/
+packages/*/dist/
 
 # Private environment variables
 .env
@@ -44,3 +45,5 @@ tmp/
 .worktrees/
 .gitnexus
 .mcp.json
+.superpowers
+.tmp

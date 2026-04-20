@@ -1,5 +1,5 @@
 import type { Primitives } from './types.js';
-import { SessionExpired } from '../errors.js';
+import { createRuntimePrimitivesError, type RuntimePrimitivesHooks } from './hooks.js';
 
 export interface AuthGuardCheckResult {
   loggedIn: boolean;
@@ -27,6 +27,7 @@ const AUTH_CACHE_MS = 30_000; // 30s — skip re-check within this window
 export function createAuthGuardedPrimitives(
   inner: Primitives,
   configs: AuthGuardConfig[],
+  hooks: RuntimePrimitivesHooks = {},
 ): Primitives {
   // Per-site timestamp of last successful auth check
   const lastAuthOk = new Map<string, number>();
@@ -51,7 +52,9 @@ export function createAuthGuardedPrimitives(
           const authCheckMs = Date.now() - authStart;
           if (!result.loggedIn) {
             lastAuthOk.delete(config.site);
-            throw new SessionExpired(
+            throw createRuntimePrimitivesError(
+              'SessionExpired',
+              hooks.SessionExpired,
               `${config.site} login required`,
               {
                 url,

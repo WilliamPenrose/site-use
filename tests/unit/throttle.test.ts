@@ -2,10 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { InterceptHandler } from '../../src/primitives/types.js';
 import { createMockPrimitives } from '../../src/testing/index.js';
 
-let createThrottledPrimitives: typeof import('../../src/primitives/throttle.js').createThrottledPrimitives;
+let createThrottledPrimitives: typeof import('../../packages/runtime/src/internal/primitives/throttle.js').createThrottledPrimitives;
 
 beforeEach(async () => {
-  const mod = await import('../../src/primitives/throttle.js');
+  const mod = await import('../../packages/runtime/src/internal/primitives/throttle.js');
   createThrottledPrimitives = mod.createThrottledPrimitives;
 });
 
