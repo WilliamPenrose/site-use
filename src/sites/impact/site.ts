@@ -21,7 +21,11 @@ export async function checkLogin(
 
 /**
  * Lightweight in-page auth guard. Does NOT navigate.
- * Polls for .accountSelectTrigger element (up to 5s).
+ * Polls for a stable logged-in signal (up to 5s).
+ *
+ * Impact's account switcher can render late or be absent on some marketplace
+ * layouts. Treat the secured discovery page URL itself as a valid logged-in
+ * signal as long as we are not on the login page.
  */
 export async function isLoggedIn(
   primitives: Primitives,
@@ -36,6 +40,10 @@ export async function isLoggedIn(
       `!!document.querySelector('.accountSelectTrigger')`,
     );
     if (hasAccount) {
+      return { loggedIn: true };
+    }
+    const currentUrl = await primitives.evaluate<string>('window.location.href');
+    if (currentUrl.includes('/secure/advertiser/discover/') && currentUrl.includes('page=marketplace')) {
       return { loggedIn: true };
     }
     await new Promise(r => setTimeout(r, 500));
