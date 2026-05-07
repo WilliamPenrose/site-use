@@ -24,6 +24,18 @@ export function hydrateDomSnapshot(
 
     const indexToBackendId: number[] = backendIds;
 
+    // Pre-build set for O(1) isClickable lookup (RareBooleanData stores indices)
+    const clickableSet = new Set<number>(nodes.isClickable?.index ?? []);
+
+    // Pre-build layout-index map (nodeIndex → layout entry index)
+    const layout = doc.layout ?? {};
+    const layoutNodeIndex: number[] = layout.nodeIndex ?? [];
+    const layoutIndexMap = new Map<number, number>();
+    for (let li = 0; li < layoutNodeIndex.length; li++) {
+      const nodeIdx = layoutNodeIndex[li];
+      if (!layoutIndexMap.has(nodeIdx)) layoutIndexMap.set(nodeIdx, li);
+    }
+
     for (let i = 0; i < backendIds.length; i++) {
       const backendNodeId = backendIds[i];
       const tagStrIdx = nodes.nodeName?.[i];
@@ -48,15 +60,40 @@ export function hydrateDomSnapshot(
       const nodeValue = (nodeValueIdx >= 0 && nodeValueIdx < strings.length)
         ? strings[nodeValueIdx] : null;
 
+      // Layout data (bounds + cursor) if this node has a layout entry
+      let bounds: DomEntry['bounds'] = null;
+      let cursorStyle: string | null = null;
+      const layoutIdx = layoutIndexMap.get(i);
+      if (layoutIdx != null) {
+        const rawBounds = layout.bounds?.[layoutIdx];
+        if (rawBounds && rawBounds.length >= 4) {
+          bounds = {
+            x: rawBounds[0] / devicePixelRatio,
+            y: rawBounds[1] / devicePixelRatio,
+            width: rawBounds[2] / devicePixelRatio,
+            height: rawBounds[3] / devicePixelRatio,
+          };
+        }
+        const styleIndices: number[] | undefined = layout.styles?.[layoutIdx];
+        if (styleIndices && styleIndices.length > 0) {
+          const cursorIdx = styleIndices[0];
+          if (cursorIdx >= 0 && cursorIdx < strings.length) {
+            cursorStyle = strings[cursorIdx];
+          }
+        }
+      }
+
+      const isClickable = clickableSet.has(i);
+
       const entry: DomEntry = {
         backendNodeId,
         frameId: doc.frame ?? '',
         parentBackendNodeId,
         tag,
         attributes: attrs,
-        bounds: null,
-        cursorStyle: null,
-        isClickable: false,
+        bounds,
+        cursorStyle,
+        isClickable,
         nodeType: nodes.nodeType?.[i] ?? 0,
         nodeValue,
       };
