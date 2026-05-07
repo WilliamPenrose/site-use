@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { mergeAxData, mergeDomSnapshot } from '../../packages/runtime/src/internal/primitives/snapshot/merge.js';
+import { buildSnapshotOutput } from '../../packages/runtime/src/internal/primitives/snapshot/output.js';
 import type { DomEntry, DomLookup, RawFrameAX } from '../../packages/runtime/src/internal/primitives/snapshot/types.js';
 
 function ax(nodeId: string, role: string, name: string, backendId: number): any {
@@ -131,5 +132,43 @@ describe('mergeDomSnapshot — inject scenarios', () => {
 
     expect(result.nodes.length).toBe(1);
     expect(result.nodes[0].frameUrl).toBe('https://x.com/dialog');
+  });
+});
+
+describe('buildSnapshotOutput — M2 priorities', () => {
+  it('upgraded node emits upgrade.role and upgrade.name', () => {
+    const frames: RawFrameAX[] = [{
+      frameId: 'main', frameUrl: 'https://x.com', isMainFrame: true,
+      nodes: [ax('a1', 'generic', '', 100)],
+    }];
+    const base = mergeAxData(frames);
+    const domLookup: DomLookup = new Map();
+    domLookup.set(100, dom({ backendNodeId: 100, tag: 'div', cursorStyle: 'pointer' }));
+    domLookup.set(101, dom({ backendNodeId: 101, parentBackendNodeId: 100, nodeType: 3, nodeValue: 'Filter' }));
+
+    const merged = mergeDomSnapshot(base, domLookup, new Map([['main', 'https://x.com']]), 'main');
+    const output = buildSnapshotOutput(merged.nodes, merged.axIdToUid);
+
+    const node = output.idToNode.get('1')!;
+    expect(node.role).toBe('button');
+    expect(node.name).toBe('Filter');
+  });
+
+  it('inferred node emits inferred.role/name and skips children', () => {
+    const frames: RawFrameAX[] = [{
+      frameId: 'main', frameUrl: 'https://x.com', isMainFrame: true, nodes: [],
+    }];
+    const base = mergeAxData(frames);
+    const domLookup: DomLookup = new Map();
+    domLookup.set(700, dom({ backendNodeId: 700, tag: 'div', cursorStyle: 'pointer' }));
+    domLookup.set(701, dom({ backendNodeId: 701, parentBackendNodeId: 700, nodeType: 3, nodeValue: 'Click' }));
+
+    const merged = mergeDomSnapshot(base, domLookup, new Map([['main', 'https://x.com']]), 'main');
+    const output = buildSnapshotOutput(merged.nodes, merged.axIdToUid);
+
+    const node = output.idToNode.get('1')!;
+    expect(node.role).toBe('button');
+    expect(node.name).toBe('Click');
+    expect(node.children).toBeUndefined();
   });
 });
