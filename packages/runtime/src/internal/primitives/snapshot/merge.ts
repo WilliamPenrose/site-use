@@ -88,7 +88,16 @@ export function mergeDomSnapshot(
       }
       // For other roles (button/link/textbox/...) keep AX as-is — already interactive.
     } else {
-      // Inject branch — Task 15 will fill this in
+      const uid = String(nextUid++);
+      injected.push({
+        uid,
+        axNode: null,
+        backendNodeId: backendId,
+        frameId: entry.frameId,
+        frameUrl: entry.frameId === mainFrameId ? undefined : frameUrlByFrameId.get(entry.frameId),
+        inferred: { role: 'button', name: inferredName },
+      });
+      finalUidToBackendNodeId.set(uid, backendId);
     }
   }
 
@@ -96,10 +105,6 @@ export function mergeDomSnapshot(
     const u = upgraded.get(n.uid);
     return u ? { ...n, upgrade: u } : n;
   }).concat(injected);
-
-  // Suppress unused-variable warnings for variables reserved for Task 15.
-  void nextUid;
-  void finalUidToBackendNodeId;
 
   return {
     nodes: finalNodes,
