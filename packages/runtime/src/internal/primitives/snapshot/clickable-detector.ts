@@ -4,6 +4,14 @@ const INTERACTIVE_TAGS = new Set([
   'button', 'input', 'select', 'textarea', 'a', 'details', 'summary', 'option', 'optgroup',
 ]);
 
+const INTERACTIVE_ATTRS = new Set(['onclick', 'onmousedown', 'onmouseup', 'onkeydown', 'onkeyup', 'tabindex']);
+
+const INTERACTIVE_ROLES = new Set([
+  'button', 'link', 'menuitem', 'option', 'radio', 'checkbox', 'tab',
+  'textbox', 'combobox', 'slider', 'spinbutton',
+  'search', 'searchbox', 'row', 'cell', 'gridcell',
+]);
+
 export class ClickableElementDetector {
   /**
    * Decide if a DOM node should be treated as interactive.
@@ -50,6 +58,19 @@ export class ClickableElementDetector {
 
     // Cursor pointer — final fallback for Vue/React style-driven interactives
     if (entry.cursorStyle === 'pointer') return true;
+
+    // Attribute-level interactive signals
+    for (const attr of Object.keys(entry.attributes)) {
+      if (INTERACTIVE_ATTRS.has(attr)) return true;
+    }
+
+    // role attribute -> interactive
+    const roleAttr = entry.attributes['role'];
+    if (roleAttr && INTERACTIVE_ROLES.has(roleAttr)) return true;
+
+    // AX role -> interactive
+    const axRole = axNode?.role?.value;
+    if (axRole && INTERACTIVE_ROLES.has(axRole)) return true;
 
     return false;
   }

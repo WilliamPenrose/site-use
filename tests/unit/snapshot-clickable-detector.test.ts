@@ -81,4 +81,21 @@ describe('ClickableElementDetector.isInteractive', () => {
       expect(ClickableElementDetector.isInteractive(makeEntry({ tag: 'div' }), ax, empty)).toBe(true);
     }
   });
+
+  it('onclick attribute marks interactive', () => {
+    expect(ClickableElementDetector.isInteractive(makeEntry({ tag: 'div', attributes: { onclick: 'foo()' } }), null, empty)).toBe(true);
+  });
+
+  it('tabindex attribute marks interactive', () => {
+    expect(ClickableElementDetector.isInteractive(makeEntry({ tag: 'div', attributes: { tabindex: '0' } }), null, empty)).toBe(true);
+  });
+
+  it('role="button" attribute marks interactive', () => {
+    expect(ClickableElementDetector.isInteractive(makeEntry({ tag: 'div', attributes: { role: 'button' } }), null, empty)).toBe(true);
+  });
+
+  it('AX role=link marks interactive', () => {
+    const ax = { role: { value: 'link' }, properties: [] };
+    expect(ClickableElementDetector.isInteractive(makeEntry({ tag: 'div' }), ax, empty)).toBe(true);
+  });
 });
