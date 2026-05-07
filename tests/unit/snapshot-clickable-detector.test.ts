@@ -150,4 +150,28 @@ describe('ClickableElementDetector.isInteractive', () => {
     lookup.set(1, span); lookup.set(2, input);
     expect(ClickableElementDetector.isInteractive(span, null, lookup)).toBe(true);
   });
+
+  // DOM-level disabled gate — covers AX-orphan path that AX disabled gate misses.
+  // M2 specifically targets Vue/React divs AX dropped, so axNode is null and the
+  // earlier AX disabled check never fires for them.
+
+  it('AX-orphan div with aria-disabled="true" + cursor:pointer is NOT interactive', () => {
+    const e = makeEntry({ tag: 'div', cursorStyle: 'pointer', attributes: { 'aria-disabled': 'true' } });
+    expect(ClickableElementDetector.isInteractive(e, null, empty)).toBe(false);
+  });
+
+  it('AX-orphan div with aria-disabled="" (boolean shorthand) is NOT interactive', () => {
+    const e = makeEntry({ tag: 'div', isClickable: true, attributes: { 'aria-disabled': '' } });
+    expect(ClickableElementDetector.isInteractive(e, null, empty)).toBe(false);
+  });
+
+  it('AX-orphan div with disabled attribute + isClickable is NOT interactive', () => {
+    const e = makeEntry({ tag: 'div', isClickable: true, attributes: { disabled: '' } });
+    expect(ClickableElementDetector.isInteractive(e, null, empty)).toBe(false);
+  });
+
+  it('aria-disabled="false" does not block — control case', () => {
+    const e = makeEntry({ tag: 'div', cursorStyle: 'pointer', attributes: { 'aria-disabled': 'false' } });
+    expect(ClickableElementDetector.isInteractive(e, null, empty)).toBe(true);
+  });
 });

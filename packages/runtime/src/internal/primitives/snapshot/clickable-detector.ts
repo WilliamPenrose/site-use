@@ -80,8 +80,16 @@ export class ClickableElementDetector {
       }
     }
 
-    // label proxying via "for" attribute → skip (would double-activate external input)
+    // label proxying via "for" attribute -> skip (would double-activate external input)
     if (entry.tag === 'label' && entry.attributes['for']) return false;
+
+    // DOM-level disabled gate — covers the AX-orphan path (axNode === null).
+    // M2's whole point is to surface elements AX dropped, so the AX disabled
+    // check above never fires for them; without this, a Vue/React div with
+    // aria-disabled="true" + cursor:pointer slips through.
+    const ariaDisabled = entry.attributes['aria-disabled'];
+    if (ariaDisabled === 'true' || ariaDisabled === '') return false;
+    if ('disabled' in entry.attributes) return false;
 
     // label/span wrapping form control (e.g. Ant Design's <label><span><input/></span></label>)
     if ((entry.tag === 'label' || entry.tag === 'span') &&
