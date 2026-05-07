@@ -1,4 +1,6 @@
-import type { RawFrameAX, MergedNode, MergeResult } from './types.js';
+import type { RawFrameAX, MergedNode, MergeResult, DomLookup } from './types.js';
+import { ClickableElementDetector } from './clickable-detector.js';
+import { deriveDomName } from './derive-name.js';
 
 function shouldSkipNode(node: any): boolean {
   if (node.ignored) return true;
@@ -44,4 +46,66 @@ export function mergeAxData(rawData: RawFrameAX[]): MergeResult {
   }
 
   return { nodes, uidToBackendNodeId, axIdToUid, axNodeByBackendId, backendIdToUid };
+}
+
+/**
+ * Cross-join AX-merged nodes with hydrated DOMSnapshot.
+ * For each DOM node the detector marks interactive:
+ *   - upgrade existing AX MergedNode (role generic/'' → button) — case ①
+ *   - inject new MergedNode for AX-orphan (cases ② AX never saw it; ③ AX shouldSkip dropped it)
+ *     [inject branch is filled in Task 15]
+ */
+export function mergeDomSnapshot(
+  base: MergeResult,
+  domLookup: DomLookup,
+  frameUrlByFrameId: Map<string, string>,
+  mainFrameId: string,
+): MergeResult {
+  const upgraded = new Map<string, { role: string; name: string }>();
+  const injected: MergedNode[] = [];
+
+  let maxUid = 0;
+  for (const n of base.nodes) {
+    const num = Number(n.uid);
+    if (Number.isFinite(num) && num > maxUid) maxUid = num;
+  }
+  let nextUid = maxUid + 1;
+  const finalUidToBackendNodeId = new Map(base.uidToBackendNodeId);
+
+  for (const [backendId, entry] of domLookup) {
+    if (entry.nodeType !== 1) continue;
+    const axNode = base.axNodeByBackendId.get(backendId) ?? null;
+    if (!ClickableElementDetector.isInteractive(entry, axNode, domLookup)) continue;
+
+    const inferredName = deriveDomName(entry, domLookup);
+    const existingUid = base.backendIdToUid.get(backendId);
+
+    if (existingUid != null) {
+      const existing = base.nodes.find(n => n.uid === existingUid);
+      const role = existing?.axNode?.role?.value ?? '';
+      if (role === 'generic' || role === '' || role === 'none') {
+        upgraded.set(existingUid, { role: 'button', name: inferredName });
+      }
+      // For other roles (button/link/textbox/...) keep AX as-is — already interactive.
+    } else {
+      // Inject branch — Task 15 will fill this in
+    }
+  }
+
+  const finalNodes = base.nodes.map(n => {
+    const u = upgraded.get(n.uid);
+    return u ? { ...n, upgrade: u } : n;
+  }).concat(injected);
+
+  // Suppress unused-variable warnings for variables reserved for Task 15.
+  void nextUid;
+  void finalUidToBackendNodeId;
+
+  return {
+    nodes: finalNodes,
+    uidToBackendNodeId: finalUidToBackendNodeId,
+    axIdToUid: base.axIdToUid,
+    axNodeByBackendId: base.axNodeByBackendId,
+    backendIdToUid: base.backendIdToUid,
+  };
 }
