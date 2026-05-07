@@ -1,10 +1,6 @@
-import type { RawFrameAX, MergedNode } from './types.js';
-
-export interface MergeResult {
-  nodes: MergedNode[];
-  uidToBackendNodeId: Map<string, number>;
-  axIdToUid: Map<string, string>;
-}
+import type { RawFrameAX, MergedNode, MergeResult, DomLookup } from './types.js';
+import { ClickableElementDetector } from './clickable-detector.js';
+import { deriveDomName } from './derive-name.js';
 
 function shouldSkipNode(node: any): boolean {
   if (node.ignored) return true;
@@ -15,13 +11,15 @@ function shouldSkipNode(node: any): boolean {
 
 /**
  * Merge multi-frame AX data into a flat list of MergedNodes.
- * Assigns sequential uids, populates uidToBackendNodeId, filters ignored nodes.
- * First frame in the array is treated as the main frame (frameUrl = undefined).
+ * Now also returns reverse indexes (axNodeByBackendId, backendIdToUid)
+ * for M2 cross-join with DOMSnapshot.
  */
-export function mergeAXData(rawData: RawFrameAX[]): MergeResult {
+export function mergeAxData(rawData: RawFrameAX[]): MergeResult {
   const nodes: MergedNode[] = [];
   const uidToBackendNodeId = new Map<string, number>();
   const axIdToUid = new Map<string, string>();
+  const axNodeByBackendId = new Map<number, any>();
+  const backendIdToUid = new Map<number, string>();
   let nextUid = 1;
 
   for (const frame of rawData) {
@@ -29,12 +27,12 @@ export function mergeAXData(rawData: RawFrameAX[]): MergeResult {
       if (shouldSkipNode(axNode)) continue;
 
       const uid = String(nextUid++);
-      // Scope by frameId to prevent cross-frame nodeId collisions.
-      // CDP does not guarantee globally unique AX nodeIds across frames.
       axIdToUid.set(`${frame.frameId}:${axNode.nodeId}`, uid);
 
       if (axNode.backendDOMNodeId != null) {
         uidToBackendNodeId.set(uid, axNode.backendDOMNodeId);
+        axNodeByBackendId.set(axNode.backendDOMNodeId, axNode);
+        backendIdToUid.set(axNode.backendDOMNodeId, uid);
       }
 
       nodes.push({
@@ -47,5 +45,72 @@ export function mergeAXData(rawData: RawFrameAX[]): MergeResult {
     }
   }
 
-  return { nodes, uidToBackendNodeId, axIdToUid };
+  return { nodes, uidToBackendNodeId, axIdToUid, axNodeByBackendId, backendIdToUid };
+}
+
+/**
+ * Cross-join AX-merged nodes with hydrated DOMSnapshot.
+ * For each DOM node the detector marks interactive:
+ *   - upgrade existing AX MergedNode (role generic/'' → button) — case ①
+ *   - inject new MergedNode for AX-orphan (cases ② AX never saw it; ③ AX shouldSkip dropped it)
+ *     [inject branch is filled in Task 15]
+ */
+export function mergeDomSnapshot(
+  base: MergeResult,
+  domLookup: DomLookup,
+  frameUrlByFrameId: Map<string, string>,
+  mainFrameId: string,
+): MergeResult {
+  const upgraded = new Map<string, { role: string; name: string }>();
+  const injected: MergedNode[] = [];
+
+  let maxUid = 0;
+  for (const n of base.nodes) {
+    const num = Number(n.uid);
+    if (Number.isFinite(num) && num > maxUid) maxUid = num;
+  }
+  let nextUid = maxUid + 1;
+  const finalUidToBackendNodeId = new Map(base.uidToBackendNodeId);
+
+  for (const [backendId, entry] of domLookup) {
+    if (entry.nodeType !== 1) continue;
+    const axNode = base.axNodeByBackendId.get(backendId) ?? null;
+    if (!ClickableElementDetector.isInteractive(entry, axNode, domLookup)) continue;
+
+    const inferredName = deriveDomName(entry, domLookup);
+    const existingUid = base.backendIdToUid.get(backendId);
+
+    if (existingUid != null) {
+      const existing = base.nodes.find(n => n.uid === existingUid);
+      const role = existing?.axNode?.role?.value ?? '';
+      if (role === 'generic' || role === '' || role === 'none') {
+        upgraded.set(existingUid, { role: 'button', name: inferredName });
+      }
+      // For other roles (button/link/textbox/...) keep AX as-is — already interactive.
+    } else {
+      const uid = String(nextUid++);
+      injected.push({
+        uid,
+        axNode: null,
+        backendNodeId: backendId,
+        frameId: entry.frameId,
+        frameUrl: entry.frameId === mainFrameId ? undefined : frameUrlByFrameId.get(entry.frameId),
+        inferred: { role: 'button', name: inferredName },
+      });
+      finalUidToBackendNodeId.set(uid, backendId);
+    }
+  }
+
+  const finalNodes = base.nodes.map(n => {
+    const u = upgraded.get(n.uid);
+    return u ? { ...n, upgrade: u } : n;
+  }).concat(injected);
+
+  return {
+    nodes: finalNodes,
+    uidToBackendNodeId: finalUidToBackendNodeId,
+    axIdToUid: base.axIdToUid,
+    axNodeByBackendId: base.axNodeByBackendId,
+    backendIdToUid: base.backendIdToUid,
+  };
 }

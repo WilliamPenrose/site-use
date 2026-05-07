@@ -30,7 +30,10 @@ vi.mock('../../packages/runtime/src/internal/primitives/click-enhanced.js', () =
 // --- Mocks ---
 
 const mockGoto = vi.fn().mockResolvedValue(undefined);
-const mockEvaluate = vi.fn().mockResolvedValue('result');
+const mockEvaluate = vi.fn().mockImplementation((expr: string) => {
+  if (expr === 'window.devicePixelRatio') return Promise.resolve(1);
+  return Promise.resolve('result');
+});
 const mockScreenshot = vi.fn().mockResolvedValue(Buffer.from('png'));
 const mockAuthenticate = vi.fn().mockResolvedValue(undefined);
 const mockClose = vi.fn().mockResolvedValue(undefined);
@@ -135,6 +138,7 @@ describe('PuppeteerBackend', () => {
           if (method === 'Accessibility.getFullAXTree') {
             return Promise.resolve({ nodes: [{ nodeId: 'ax-1', role: { value: 'button' }, name: { value: 'OK' }, backendDOMNodeId: 101, ignored: false, properties: [] }] });
           }
+          if (method === 'DOMSnapshot.captureSnapshot') return Promise.resolve({ documents: [], strings: [] });
           if (method === 'DOM.describeNode') return Promise.resolve({ node: { nodeId: 10 } });
           if (method === 'DOM.getBoxModel') return Promise.resolve({ model: { content: [100, 200, 200, 200, 200, 240, 100, 240] } });
           return Promise.resolve({});
@@ -323,6 +327,9 @@ describe('PuppeteerBackend', () => {
           if (method === 'Accessibility.getFullAXTree') {
             return Promise.resolve({ nodes });
           }
+          if (method === 'DOMSnapshot.captureSnapshot') {
+            return Promise.resolve({ documents: [], strings: [] });
+          }
           return Promise.resolve({});
         }),
         detach: vi.fn().mockResolvedValue(undefined),
@@ -501,6 +508,7 @@ describe('PuppeteerBackend', () => {
               ],
             });
           }
+          if (method === 'DOMSnapshot.captureSnapshot') return Promise.resolve({ documents: [], strings: [] });
           if (method === 'DOM.describeNode') {
             return Promise.resolve({ node: { nodeId: 10 } });
           }
@@ -570,6 +578,7 @@ describe('PuppeteerBackend', () => {
           if (method === 'Accessibility.getFullAXTree') {
             return Promise.resolve({ nodes: [{ nodeId: 'ax-1', role: { value: 'button' }, name: { value: 'Follow' }, backendDOMNodeId: 101, ignored: false, properties: [] }] });
           }
+          if (method === 'DOMSnapshot.captureSnapshot') return Promise.resolve({ documents: [], strings: [] });
           if (method === 'DOM.describeNode') return Promise.resolve({ node: { nodeId: 10 } });
           if (method === 'DOM.getBoxModel') return Promise.resolve({ model: { content: [100, 200, 200, 200, 200, 240, 100, 240] } });
           if (method === 'Runtime.evaluate') return Promise.resolve({ result: { value: 'visible' } });
@@ -611,6 +620,7 @@ describe('PuppeteerBackend', () => {
           if (method === 'Accessibility.getFullAXTree') {
             return Promise.resolve({ nodes: [{ nodeId: 'ax-1', role: { value: 'button' }, name: { value: 'Follow' }, backendDOMNodeId: 101, ignored: false, properties: [] }] });
           }
+          if (method === 'DOMSnapshot.captureSnapshot') return Promise.resolve({ documents: [], strings: [] });
           if (method === 'DOM.describeNode') return Promise.resolve({ node: { nodeId: 10 } });
           if (method === 'DOM.getBoxModel') return Promise.resolve({ model: { content: [100, 200, 200, 200, 200, 240, 100, 240] } });
           if (method === 'Runtime.evaluate') return Promise.resolve({ result: { value: 'visible' } });
@@ -651,6 +661,7 @@ describe('PuppeteerBackend', () => {
           if (method === 'Accessibility.getFullAXTree') {
             return Promise.resolve({ nodes: [{ nodeId: 'ax-1', role: { value: 'button' }, name: { value: 'Follow' }, backendDOMNodeId: 101, ignored: false, properties: [] }] });
           }
+          if (method === 'DOMSnapshot.captureSnapshot') return Promise.resolve({ documents: [], strings: [] });
           if (method === 'DOM.describeNode') return Promise.resolve({ node: { nodeId: 10 } });
           if (method === 'DOM.getBoxModel') return Promise.resolve({ model: { content: [100, 200, 200, 200, 200, 240, 100, 240] } });
           if (method === 'Runtime.evaluate') return Promise.resolve({ result: { value: 'hidden' } });
@@ -692,6 +703,7 @@ describe('PuppeteerBackend', () => {
           if (method === 'Accessibility.getFullAXTree') {
             return Promise.resolve({ nodes: [{ nodeId: 'ax-1', role: { value: 'button' }, name: { value: 'Follow' }, backendDOMNodeId: 101, ignored: false, properties: [] }] });
           }
+          if (method === 'DOMSnapshot.captureSnapshot') return Promise.resolve({ documents: [], strings: [] });
           if (method === 'DOM.describeNode') return Promise.resolve({ node: { nodeId: 10 } });
           if (method === 'DOM.getBoxModel') return Promise.resolve({ model: { content: [100, 200, 200, 200, 200, 240, 100, 240] } });
           if (method === 'Browser.getWindowForTarget') return Promise.resolve({ windowId: 1 });
@@ -749,6 +761,7 @@ describe('PuppeteerBackend', () => {
           if (method === 'Accessibility.getFullAXTree') {
             return Promise.resolve({ nodes: [{ nodeId: 'ax-1', role: { value: 'button' }, name: { value: 'Follow' }, backendDOMNodeId: 101, ignored: false, properties: [] }] });
           }
+          if (method === 'DOMSnapshot.captureSnapshot') return Promise.resolve({ documents: [], strings: [] });
           if (method === 'DOM.describeNode') return Promise.resolve({ node: { nodeId: 10 } });
           if (method === 'DOM.getBoxModel') return Promise.resolve({ model: { content: [100, 200, 200, 200, 200, 240, 100, 240] } });
           if (method === 'Runtime.evaluate') return Promise.resolve({ result: { value: 'visible' } });
@@ -788,6 +801,7 @@ describe('PuppeteerBackend', () => {
           if (method === 'Accessibility.getFullAXTree') {
             return Promise.resolve({ nodes: [{ nodeId: 'ax-1', role: { value: 'button' }, name: { value: 'Follow' }, backendDOMNodeId: 101, ignored: false, properties: [] }] });
           }
+          if (method === 'DOMSnapshot.captureSnapshot') return Promise.resolve({ documents: [], strings: [] });
           if (method === 'DOM.describeNode') return Promise.resolve({ node: { nodeId: 10 } });
           if (method === 'DOM.getBoxModel') return Promise.resolve({ model: { content: [100, 200, 200, 200, 200, 240, 100, 240] } });
           return Promise.resolve({});
@@ -1117,6 +1131,7 @@ describe('PuppeteerBackend', () => {
               ],
             });
           }
+          if (method === 'DOMSnapshot.captureSnapshot') return Promise.resolve({ documents: [], strings: [] });
           if (method === 'DOM.focus') {
             return Promise.resolve({});
           }
@@ -1167,6 +1182,7 @@ describe('PuppeteerBackend', () => {
               }],
             });
           }
+          if (method === 'DOMSnapshot.captureSnapshot') return Promise.resolve({ documents: [], strings: [] });
           if (method === 'DOM.focus') {
             return Promise.reject(new Error('Could not find node'));
           }
@@ -1407,6 +1423,7 @@ describe('PuppeteerBackend', () => {
               ],
             });
           }
+          if (method === 'DOMSnapshot.captureSnapshot') return Promise.resolve({ documents: [], strings: [] });
           return Promise.resolve({});
         }),
         detach: vi.fn().mockResolvedValue(undefined),

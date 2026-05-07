@@ -15,13 +15,14 @@ vi.mock('../../packages/runtime/src/internal/primitives/click-enhanced.js', () =
 
 import { PuppeteerBackend } from '../../packages/runtime/src/internal/primitives/puppeteer-backend.js';
 
-function createMockPageWithFrames(frameTree: any, axResults: Record<string, any[]>) {
+function createMockPageWithFrames(frameTree: any, axResults: Record<string, any[]>, domSnapshot: any = { documents: [], strings: [] }) {
   const session = {
     send: vi.fn().mockImplementation((method: string, params?: any) => {
       if (method === 'Page.getFrameTree') return Promise.resolve({ frameTree });
       if (method === 'Accessibility.getFullAXTree') {
         return Promise.resolve({ nodes: axResults[params?.frameId] ?? [] });
       }
+      if (method === 'DOMSnapshot.captureSnapshot') return Promise.resolve(domSnapshot);
       return Promise.resolve({});
     }),
     detach: vi.fn().mockResolvedValue(undefined),
@@ -31,7 +32,10 @@ function createMockPageWithFrames(frameTree: any, axResults: Record<string, any[
     url: vi.fn().mockReturnValue('https://example.com'),
     createCDPSession: vi.fn().mockResolvedValue(session),
     bringToFront: vi.fn().mockResolvedValue(undefined),
-    evaluate: vi.fn().mockResolvedValue(undefined),
+    evaluate: vi.fn().mockImplementation((expr: string) => {
+      if (expr === 'window.devicePixelRatio') return Promise.resolve(1);
+      return Promise.resolve(undefined);
+    }),
     on: vi.fn(), off: vi.fn(),
     mouse: { click: vi.fn(), wheel: vi.fn(), move: vi.fn() },
     keyboard: { type: vi.fn(), press: vi.fn(), sendCharacter: vi.fn() },
@@ -120,5 +124,84 @@ describe('takeSnapshot pipeline integration', () => {
 
     expect(snapshot.idToNode.size).toBe(1);
     expect(snapshot.idToNode.get('1')!.name).toBe('OK');
+  });
+
+  it('M2: Vue-style <div @click> appears as inferred button', async () => {
+    const { page } = createMockPageWithFrames(
+      { frame: { id: 'main', url: 'https://qly.example/', securityOrigin: 'https://qly.example' } },
+      {
+        main: [
+          { nodeId: 'a1', role: { value: 'generic' }, name: { value: '' }, backendDOMNodeId: 100, ignored: false, properties: [] },
+        ],
+      },
+      {
+        documents: [{
+          frame: 'main',
+          nodes: {
+            parentIndex: [-1, 0],
+            nodeType: [1, 3],
+            nodeName: [0, 1],
+            nodeValue: [-1, 2],
+            backendNodeId: [100, 101],
+            attributes: [[], []],
+            isClickable: { index: [] },
+          },
+          layout: {
+            nodeIndex: [0],
+            bounds: [[10, 20, 100, 30]],
+            styles: [[3]],
+          },
+        }],
+        strings: ['DIV', '#text', 'Filter', 'pointer'],
+      },
+    );
+
+    const backend = new PuppeteerBackend({ page: page as any, siteDomains: { test: ['qly.example'] } });
+    const snapshot = await backend.takeSnapshot();
+
+    expect(snapshot.idToNode.size).toBe(1);
+    const node = snapshot.idToNode.get('1')!;
+    expect(node.role).toBe('button');
+    expect(node.name).toBe('Filter');
+    expect(node.frameUrl).toBeUndefined();
+  });
+
+  it('M2: AX-orphan div with cursor:pointer is injected as inferred button', async () => {
+    const { page } = createMockPageWithFrames(
+      { frame: { id: 'main', url: 'https://qly.example/', securityOrigin: 'https://qly.example' } },
+      {
+        main: [
+          { nodeId: 'a1', role: { value: 'button' }, name: { value: 'Native' }, backendDOMNodeId: 100, ignored: false, properties: [] },
+        ],
+      },
+      {
+        documents: [{
+          frame: 'main',
+          nodes: {
+            parentIndex: [-1, -1],
+            nodeType: [1, 1],
+            nodeName: [0, 0],
+            nodeValue: [-1, -1],
+            backendNodeId: [100, 200],
+            attributes: [[], []],
+            isClickable: { index: [] },
+          },
+          layout: {
+            nodeIndex: [1],
+            bounds: [[0, 0, 80, 40]],
+            styles: [[1]],
+          },
+        }],
+        strings: ['DIV', 'pointer'],
+      },
+    );
+
+    const backend = new PuppeteerBackend({ page: page as any, siteDomains: { test: ['qly.example'] } });
+    const snapshot = await backend.takeSnapshot();
+
+    expect(snapshot.idToNode.size).toBe(2);
+    expect(snapshot.idToNode.get('1')!.name).toBe('Native');
+    const injected = snapshot.idToNode.get('2')!;
+    expect(injected.role).toBe('button');
   });
 });
