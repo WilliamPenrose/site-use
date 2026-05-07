@@ -94,4 +94,55 @@ describe('hydrateDomSnapshot', () => {
     expect(entry.bounds).toEqual({ x: 50, y: 100, width: 150, height: 200 });
     expect(entry.cursorStyle).toBe('pointer');
   });
+
+  it('decodes text nodes with nodeValue', () => {
+    const snapshot: RawDomSnapshot = {
+      strings: ['DIV', '#text', 'Hello World'],
+      documents: [{
+        frame: 'main',
+        nodes: {
+          parentIndex: [-1, 0],
+          nodeType: [1, 3],
+          nodeName: [0, 1],
+          nodeValue: [-1, 2],
+          backendNodeId: [50, 51],
+          attributes: [[], []],
+          isClickable: { index: [] },
+        },
+        layout: { nodeIndex: [], bounds: [], styles: [] },
+      }],
+    };
+    const result = hydrateDomSnapshot(snapshot, 1);
+    const text = result.get(51)!;
+    expect(text.nodeType).toBe(3);
+    expect(text.nodeValue).toBe('Hello World');
+    expect(text.parentBackendNodeId).toBe(50);
+  });
+
+  it('multi-document: each entry tagged with its document frameId', () => {
+    const snapshot: RawDomSnapshot = {
+      strings: ['DIV'],
+      documents: [
+        {
+          frame: 'main',
+          nodes: {
+            parentIndex: [-1], nodeType: [1], nodeName: [0], nodeValue: [-1],
+            backendNodeId: [100], attributes: [[]], isClickable: { index: [] },
+          },
+          layout: { nodeIndex: [], bounds: [], styles: [] },
+        },
+        {
+          frame: 'iframe-1',
+          nodes: {
+            parentIndex: [-1], nodeType: [1], nodeName: [0], nodeValue: [-1],
+            backendNodeId: [200], attributes: [[]], isClickable: { index: [] },
+          },
+          layout: { nodeIndex: [], bounds: [], styles: [] },
+        },
+      ],
+    };
+    const result = hydrateDomSnapshot(snapshot, 1);
+    expect(result.get(100)!.frameId).toBe('main');
+    expect(result.get(200)!.frameId).toBe('iframe-1');
+  });
 });
