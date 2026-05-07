@@ -5,18 +5,11 @@ const EMPTY_DOM: RawDomSnapshot = { documents: [], strings: [] };
 
 /**
  * Fetch snapshot data from all same-origin frames.
- * Combines per-frame AX (M1) and DOMSnapshot.captureSnapshot (M2) in parallel.
+ * Fires per-frame AX (M1) and DOMSnapshot.captureSnapshot (M2) in parallel,
+ * then awaits both — saves one round-trip vs serializing them.
  */
 export async function fetchSnapshotData(client: any): Promise<RawSnapshotData> {
-  let frames: RawFrameAX[];
-  try {
-    frames = await fetchFrames(client);
-  } catch {
-    const { nodes } = await client.send('Accessibility.getFullAXTree');
-    frames = [{ frameId: '', frameUrl: '', isMainFrame: true, nodes }];
-  }
-
-  const domPromise = client.send('DOMSnapshot.captureSnapshot', {
+  const domPromise: Promise<RawDomSnapshot> = client.send('DOMSnapshot.captureSnapshot', {
     computedStyles: ['cursor'],
     includePaintOrder: false,
     includeDOMRects: false,
@@ -27,7 +20,15 @@ export async function fetchSnapshotData(client: any): Promise<RawSnapshotData> {
     return EMPTY_DOM;
   });
 
-  const domSnapshot: RawDomSnapshot = await domPromise;
+  let frames: RawFrameAX[];
+  try {
+    frames = await fetchFrames(client);
+  } catch {
+    const { nodes } = await client.send('Accessibility.getFullAXTree');
+    frames = [{ frameId: '', frameUrl: '', isMainFrame: true, nodes }];
+  }
+
+  const domSnapshot = await domPromise;
   return { frames, domSnapshot };
 }
 
