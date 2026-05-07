@@ -12,6 +12,9 @@ const INTERACTIVE_ROLES = new Set([
   'search', 'searchbox', 'row', 'cell', 'gridcell',
 ]);
 
+const SEARCH_INDICATORS = ['search', 'magnify', 'glass', 'lookup', 'find', 'query', 'searchbox'];
+const ICON_ATTRS = new Set(['class', 'role', 'onclick', 'data-action', 'aria-label']);
+
 export class ClickableElementDetector {
   /**
    * Decide if a DOM node should be treated as interactive.
@@ -49,6 +52,18 @@ export class ClickableElementDetector {
       }
     }
 
+    // Search indicators in class / id / data-*
+    const cls = (entry.attributes['class'] ?? '').toLowerCase();
+    if (cls && SEARCH_INDICATORS.some(ind => cls.includes(ind))) return true;
+    const id = (entry.attributes['id'] ?? '').toLowerCase();
+    if (id && SEARCH_INDICATORS.some(ind => id.includes(ind))) return true;
+    for (const [name, value] of Object.entries(entry.attributes)) {
+      if (name.startsWith('data-')) {
+        const v = value.toLowerCase();
+        if (SEARCH_INDICATORS.some(ind => v.includes(ind))) return true;
+      }
+    }
+
     // Native interactive tags
     if (INTERACTIVE_TAGS.has(entry.tag)) return true;
 
@@ -71,6 +86,15 @@ export class ClickableElementDetector {
     // AX role -> interactive
     const axRole = axNode?.role?.value;
     if (axRole && INTERACTIVE_ROLES.has(axRole)) return true;
+
+    // Icon-sized elements with interactive-suggesting attrs
+    if (entry.bounds &&
+        entry.bounds.width >= 10 && entry.bounds.width <= 50 &&
+        entry.bounds.height >= 10 && entry.bounds.height <= 50) {
+      for (const attr of Object.keys(entry.attributes)) {
+        if (ICON_ATTRS.has(attr)) return true;
+      }
+    }
 
     return false;
   }
