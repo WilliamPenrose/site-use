@@ -56,4 +56,29 @@ describe('ClickableElementDetector.isInteractive', () => {
     const e = makeEntry({ tag: 'div', cursorStyle: 'default' });
     expect(ClickableElementDetector.isInteractive(e, null, empty)).toBe(false);
   });
+
+  it('AX disabled excludes even when other signals fire', () => {
+    const e = makeEntry({ tag: 'div', cursorStyle: 'pointer' });
+    const ax = { properties: [{ name: 'disabled', value: { value: true } }] };
+    expect(ClickableElementDetector.isInteractive(e, ax, empty)).toBe(false);
+  });
+
+  it('AX hidden excludes', () => {
+    const e = makeEntry({ tag: 'button' });
+    const ax = { properties: [{ name: 'hidden', value: { value: true } }] };
+    expect(ClickableElementDetector.isInteractive(e, ax, empty)).toBe(false);
+  });
+
+  it('AX focusable=true marks interactive', () => {
+    const e = makeEntry({ tag: 'div' });
+    const ax = { properties: [{ name: 'focusable', value: { value: true } }] };
+    expect(ClickableElementDetector.isInteractive(e, ax, empty)).toBe(true);
+  });
+
+  it('AX checked/expanded/pressed/selected presence marks interactive', () => {
+    for (const name of ['checked', 'expanded', 'pressed', 'selected']) {
+      const ax = { properties: [{ name, value: { value: false } }] };
+      expect(ClickableElementDetector.isInteractive(makeEntry({ tag: 'div' }), ax, empty)).toBe(true);
+    }
+  });
 });

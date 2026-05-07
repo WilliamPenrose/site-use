@@ -23,6 +23,24 @@ export class ClickableElementDetector {
       return false;
     }
 
+    // AX property checks — must come before positive-signal short-circuits
+    // because disabled/hidden override everything else
+    if (axNode?.properties) {
+      for (const prop of axNode.properties) {
+        const name = prop.name;
+        const value = prop.value?.value;
+        if ((name === 'disabled' || name === 'hidden') && value) return false;
+      }
+      for (const prop of axNode.properties) {
+        const name = prop.name;
+        const value = prop.value?.value;
+        if ((name === 'focusable' || name === 'editable' || name === 'settable') && value) return true;
+        if (name === 'checked' || name === 'expanded' || name === 'pressed' || name === 'selected') return true;
+        if ((name === 'required' || name === 'autocomplete') && value) return true;
+        if (name === 'keyshortcuts' && value) return true;
+      }
+    }
+
     // Native interactive tags
     if (INTERACTIVE_TAGS.has(entry.tag)) return true;
 
