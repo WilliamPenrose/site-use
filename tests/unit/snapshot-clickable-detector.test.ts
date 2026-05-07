@@ -41,4 +41,19 @@ describe('ClickableElementDetector.isInteractive', () => {
   it('plain div with no signals is NOT interactive', () => {
     expect(ClickableElementDetector.isInteractive(makeEntry({ tag: 'div' }), null, empty)).toBe(false);
   });
+
+  it('isClickable=true marks div as interactive (DOMSnapshot click-listener signal)', () => {
+    const e = makeEntry({ tag: 'div', isClickable: true });
+    expect(ClickableElementDetector.isInteractive(e, null, empty)).toBe(true);
+  });
+
+  it('cursor:pointer fallback marks div as interactive', () => {
+    const e = makeEntry({ tag: 'div', cursorStyle: 'pointer' });
+    expect(ClickableElementDetector.isInteractive(e, null, empty)).toBe(true);
+  });
+
+  it('cursor:default on plain div does not trigger', () => {
+    const e = makeEntry({ tag: 'div', cursorStyle: 'default' });
+    expect(ClickableElementDetector.isInteractive(e, null, empty)).toBe(false);
+  });
 });

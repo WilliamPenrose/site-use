@@ -26,6 +26,13 @@ export class ClickableElementDetector {
     // Native interactive tags
     if (INTERACTIVE_TAGS.has(entry.tag)) return true;
 
+    // DOMSnapshot.isClickable — Chrome's native "this node has click listener" signal
+    // (replaces browser-use's has_js_click_listener via Runtime.evaluate getEventListeners)
+    if (entry.isClickable) return true;
+
+    // Cursor pointer — final fallback for Vue/React style-driven interactives
+    if (entry.cursorStyle === 'pointer') return true;
+
     return false;
   }
 }
