@@ -24,9 +24,9 @@ import type {
   InterceptHandler,
   InterceptControl,
 } from './types.js';
-import { fetchAXData } from './snapshot/fetch.js';
-import { hydrateAXData } from './snapshot/hydrate.js';
-import { mergeAxData } from './snapshot/merge.js';
+import { fetchSnapshotData } from './snapshot/fetch.js';
+import { hydrateAXData, hydrateDomSnapshot } from './snapshot/hydrate.js';
+import { mergeAxData, mergeDomSnapshot } from './snapshot/merge.js';
 import { filterNodes } from './snapshot/filter.js';
 import { buildSnapshotOutput } from './snapshot/output.js';
 import { RateLimitDetector } from './rate-limit-detect.js';
@@ -413,16 +413,27 @@ export class PuppeteerBackend implements Primitives {
     const client = await page.createCDPSession();
 
     try {
-      // 5-stage pipeline: fetch → hydrate → merge → filter → output
-      const rawData = await fetchAXData(client);
-      const hydrated = hydrateAXData(rawData);
-      const { nodes, uidToBackendNodeId, axIdToUid } = mergeAxData(hydrated);
-      const filtered = filterNodes(nodes);
-      // TODO(M2): When filter becomes non-trivial, recompute uidToBackendNodeId and
-      // axIdToUid from `filtered` to avoid dangling children refs and stale click targets.
-      const snapshot = buildSnapshotOutput(filtered, axIdToUid);
+      const { frames, domSnapshot } = await fetchSnapshotData(client);
+      const hydratedAx = hydrateAXData(frames);
 
-      this.uidToBackendNodeId = uidToBackendNodeId;
+      const dpr = await page.evaluate('window.devicePixelRatio').catch(() => 1) as number;
+      const domLookup = hydrateDomSnapshot(domSnapshot, dpr || 1);
+
+      const baseMerge = mergeAxData(hydratedAx);
+
+      // Build frameUrl map + identify main frameId for M2 inject
+      const frameUrlByFrameId = new Map<string, string>();
+      let mainFrameId = '';
+      for (const f of frames) {
+        frameUrlByFrameId.set(f.frameId, f.frameUrl);
+        if (f.isMainFrame) mainFrameId = f.frameId;
+      }
+
+      const merged = mergeDomSnapshot(baseMerge, domLookup, frameUrlByFrameId, mainFrameId);
+      const filtered = filterNodes(merged.nodes);
+      const snapshot = buildSnapshotOutput(filtered, merged.axIdToUid);
+
+      this.uidToBackendNodeId = merged.uidToBackendNodeId;
       return snapshot;
     } finally {
       await client.detach();

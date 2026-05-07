@@ -15,13 +15,14 @@ vi.mock('../../packages/runtime/src/internal/primitives/click-enhanced.js', () =
 
 import { PuppeteerBackend } from '../../packages/runtime/src/internal/primitives/puppeteer-backend.js';
 
-function createMockPageWithFrames(frameTree: any, axResults: Record<string, any[]>) {
+function createMockPageWithFrames(frameTree: any, axResults: Record<string, any[]>, domSnapshot: any = { documents: [], strings: [] }) {
   const session = {
     send: vi.fn().mockImplementation((method: string, params?: any) => {
       if (method === 'Page.getFrameTree') return Promise.resolve({ frameTree });
       if (method === 'Accessibility.getFullAXTree') {
         return Promise.resolve({ nodes: axResults[params?.frameId] ?? [] });
       }
+      if (method === 'DOMSnapshot.captureSnapshot') return Promise.resolve(domSnapshot);
       return Promise.resolve({});
     }),
     detach: vi.fn().mockResolvedValue(undefined),
@@ -31,7 +32,10 @@ function createMockPageWithFrames(frameTree: any, axResults: Record<string, any[
     url: vi.fn().mockReturnValue('https://example.com'),
     createCDPSession: vi.fn().mockResolvedValue(session),
     bringToFront: vi.fn().mockResolvedValue(undefined),
-    evaluate: vi.fn().mockResolvedValue(undefined),
+    evaluate: vi.fn().mockImplementation((expr: string) => {
+      if (expr === 'window.devicePixelRatio') return Promise.resolve(1);
+      return Promise.resolve(undefined);
+    }),
     on: vi.fn(), off: vi.fn(),
     mouse: { click: vi.fn(), wheel: vi.fn(), move: vi.fn() },
     keyboard: { type: vi.fn(), press: vi.fn(), sendCharacter: vi.fn() },

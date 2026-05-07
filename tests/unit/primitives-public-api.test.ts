@@ -5,7 +5,10 @@ import { createSecurePuppeteerPrimitives } from '../../src/primitives/factory.js
 function createMockPage(): Page {
   return {
     goto: vi.fn().mockResolvedValue(null),
-    evaluate: vi.fn().mockResolvedValue('ok'),
+    evaluate: vi.fn().mockImplementation((expr: string) => {
+      if (expr === 'window.devicePixelRatio') return Promise.resolve(1);
+      return Promise.resolve('ok');
+    }),
     screenshot: vi.fn().mockResolvedValue(Buffer.from('png')),
     on: vi.fn(),
     off: vi.fn(),
@@ -74,10 +77,13 @@ describe('root primitives public API', () => {
   });
 
   it('builds snapshot nodes from the AX tree through the page-scoped backend', async () => {
-    const send = vi.fn().mockImplementation((method: string) => {
+    const send = vi.fn().mockImplementation((method: string, params?: any) => {
       if (method === 'Browser.getWindowForTarget') return Promise.resolve({ windowId: 1 });
       if (method === 'Browser.getWindowBounds') {
         return Promise.resolve({ bounds: { windowState: 'normal' } });
+      }
+      if (method === 'Page.getFrameTree') {
+        return Promise.resolve({ frameTree: { frame: { id: 'main', url: 'https://x.com/home', securityOrigin: 'https://x.com' } } });
       }
       if (method === 'Accessibility.getFullAXTree') {
         return Promise.resolve({
@@ -91,6 +97,7 @@ describe('root primitives public API', () => {
           }],
         });
       }
+      if (method === 'DOMSnapshot.captureSnapshot') return Promise.resolve({ documents: [], strings: [] });
       return Promise.resolve({});
     });
 
