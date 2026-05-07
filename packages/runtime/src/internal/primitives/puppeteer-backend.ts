@@ -26,7 +26,7 @@ import type {
 } from './types.js';
 import { fetchAXData } from './snapshot/fetch.js';
 import { hydrateAXData } from './snapshot/hydrate.js';
-import { mergeAXData } from './snapshot/merge.js';
+import { mergeAxData } from './snapshot/merge.js';
 import { filterNodes } from './snapshot/filter.js';
 import { buildSnapshotOutput } from './snapshot/output.js';
 import { RateLimitDetector } from './rate-limit-detect.js';
@@ -416,7 +416,7 @@ export class PuppeteerBackend implements Primitives {
       // 5-stage pipeline: fetch → hydrate → merge → filter → output
       const rawData = await fetchAXData(client);
       const hydrated = hydrateAXData(rawData);
-      const { nodes, uidToBackendNodeId, axIdToUid } = mergeAXData(hydrated);
+      const { nodes, uidToBackendNodeId, axIdToUid } = mergeAxData(hydrated);
       const filtered = filterNodes(nodes);
       // TODO(M2): When filter becomes non-trivial, recompute uidToBackendNodeId and
       // axIdToUid from `filtered` to avoid dangling children refs and stale click targets.

@@ -60,3 +60,13 @@ export interface MergedNode {
 /** Limits for iframe traversal to defend against malicious pages. */
 export const MAX_IFRAME_DEPTH = 5;
 export const MAX_IFRAMES = 100;
+
+export interface MergeResult {
+  nodes: MergedNode[];
+  uidToBackendNodeId: Map<string, number>;
+  axIdToUid: Map<string, string>;
+  /** backendNodeId -> AX node, populated for nodes that survived shouldSkipNode and have backendDOMNodeId. */
+  axNodeByBackendId: Map<number, any>;
+  /** backendNodeId -> uid, reverse of uidToBackendNodeId (built once for M2 join). */
+  backendIdToUid: Map<number, string>;
+}

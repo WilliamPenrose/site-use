@@ -1,10 +1,4 @@
-import type { RawFrameAX, MergedNode } from './types.js';
-
-export interface MergeResult {
-  nodes: MergedNode[];
-  uidToBackendNodeId: Map<string, number>;
-  axIdToUid: Map<string, string>;
-}
+import type { RawFrameAX, MergedNode, MergeResult } from './types.js';
 
 function shouldSkipNode(node: any): boolean {
   if (node.ignored) return true;
@@ -15,13 +9,15 @@ function shouldSkipNode(node: any): boolean {
 
 /**
  * Merge multi-frame AX data into a flat list of MergedNodes.
- * Assigns sequential uids, populates uidToBackendNodeId, filters ignored nodes.
- * First frame in the array is treated as the main frame (frameUrl = undefined).
+ * Now also returns reverse indexes (axNodeByBackendId, backendIdToUid)
+ * for M2 cross-join with DOMSnapshot.
  */
-export function mergeAXData(rawData: RawFrameAX[]): MergeResult {
+export function mergeAxData(rawData: RawFrameAX[]): MergeResult {
   const nodes: MergedNode[] = [];
   const uidToBackendNodeId = new Map<string, number>();
   const axIdToUid = new Map<string, string>();
+  const axNodeByBackendId = new Map<number, any>();
+  const backendIdToUid = new Map<number, string>();
   let nextUid = 1;
 
   for (const frame of rawData) {
@@ -29,12 +25,12 @@ export function mergeAXData(rawData: RawFrameAX[]): MergeResult {
       if (shouldSkipNode(axNode)) continue;
 
       const uid = String(nextUid++);
-      // Scope by frameId to prevent cross-frame nodeId collisions.
-      // CDP does not guarantee globally unique AX nodeIds across frames.
       axIdToUid.set(`${frame.frameId}:${axNode.nodeId}`, uid);
 
       if (axNode.backendDOMNodeId != null) {
         uidToBackendNodeId.set(uid, axNode.backendDOMNodeId);
+        axNodeByBackendId.set(axNode.backendDOMNodeId, axNode);
+        backendIdToUid.set(axNode.backendDOMNodeId, uid);
       }
 
       nodes.push({
@@ -47,5 +43,5 @@ export function mergeAXData(rawData: RawFrameAX[]): MergeResult {
     }
   }
 
-  return { nodes, uidToBackendNodeId, axIdToUid };
+  return { nodes, uidToBackendNodeId, axIdToUid, axNodeByBackendId, backendIdToUid };
 }

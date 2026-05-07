@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mergeAXData } from '../../packages/runtime/src/internal/primitives/snapshot/merge.js';
+import { mergeAxData } from '../../packages/runtime/src/internal/primitives/snapshot/merge.js';
 import type { RawFrameAX } from '../../packages/runtime/src/internal/primitives/snapshot/types.js';
 
 function axNode(nodeId: string, role: string, name: string, backendDOMNodeId?: number, extra?: any) {
@@ -14,14 +14,14 @@ function axNode(nodeId: string, role: string, name: string, backendDOMNodeId?: n
   };
 }
 
-describe('mergeAXData', () => {
+describe('mergeAxData', () => {
   it('assigns sequential uids across frames', () => {
     const data: RawFrameAX[] = [
       { frameId: 'main', frameUrl: 'https://example.com', isMainFrame: true, nodes: [axNode('a1', 'button', 'OK', 100)] },
       { frameId: 'iframe', frameUrl: 'https://example.com/form', isMainFrame: false, nodes: [axNode('b1', 'textbox', 'Name', 200)] },
     ];
 
-    const result = mergeAXData(data);
+    const result = mergeAxData(data);
 
     expect(result.nodes).toHaveLength(2);
     expect(result.nodes[0].uid).toBe('1');
@@ -34,7 +34,7 @@ describe('mergeAXData', () => {
       { frameId: 'iframe', frameUrl: 'https://example.com/form', isMainFrame: false, nodes: [axNode('b1', 'textbox', 'Name', 200)] },
     ];
 
-    const result = mergeAXData(data);
+    const result = mergeAxData(data);
 
     expect(result.nodes[0].frameUrl).toBeUndefined();
     expect(result.nodes[1].frameUrl).toBe('https://example.com/form');
@@ -48,7 +48,7 @@ describe('mergeAXData', () => {
       ]},
     ];
 
-    const result = mergeAXData(data);
+    const result = mergeAxData(data);
 
     expect(result.uidToBackendNodeId.get('1')).toBe(101);
     expect(result.uidToBackendNodeId.get('2')).toBe(102);
@@ -62,7 +62,7 @@ describe('mergeAXData', () => {
       ]},
     ];
 
-    const result = mergeAXData(data);
+    const result = mergeAxData(data);
 
     expect(result.nodes).toHaveLength(1);
     expect(result.nodes[0].uid).toBe('1');
@@ -77,7 +77,7 @@ describe('mergeAXData', () => {
       ]},
     ];
 
-    const result = mergeAXData(data);
+    const result = mergeAxData(data);
 
     expect(result.nodes).toHaveLength(1);
   });
@@ -89,7 +89,7 @@ describe('mergeAXData', () => {
       ]},
     ];
 
-    const result = mergeAXData(data);
+    const result = mergeAxData(data);
 
     expect(result.nodes).toHaveLength(1);
     expect(result.uidToBackendNodeId.has('1')).toBe(false);
@@ -101,7 +101,7 @@ describe('mergeAXData', () => {
       { frameId: 'iframe', frameUrl: 'https://example.com/form', isMainFrame: false, nodes: [axNode('a1', 'textbox', 'Name', 200)] },
     ];
 
-    const result = mergeAXData(data);
+    const result = mergeAxData(data);
 
     // Same nodeId 'a1' in different frames should map to different uids
     expect(result.axIdToUid.get('main:a1')).toBe('1');
@@ -114,7 +114,7 @@ describe('mergeAXData', () => {
       { frameId: 'empty', frameUrl: 'https://example.com/empty', isMainFrame: false, nodes: [] },
     ];
 
-    const result = mergeAXData(data);
+    const result = mergeAxData(data);
 
     expect(result.nodes).toHaveLength(1);
   });
