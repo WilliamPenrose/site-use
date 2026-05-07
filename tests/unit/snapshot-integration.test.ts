@@ -125,4 +125,83 @@ describe('takeSnapshot pipeline integration', () => {
     expect(snapshot.idToNode.size).toBe(1);
     expect(snapshot.idToNode.get('1')!.name).toBe('OK');
   });
+
+  it('M2: Vue-style <div @click> appears as inferred button', async () => {
+    const { page } = createMockPageWithFrames(
+      { frame: { id: 'main', url: 'https://qly.example/', securityOrigin: 'https://qly.example' } },
+      {
+        main: [
+          { nodeId: 'a1', role: { value: 'generic' }, name: { value: '' }, backendDOMNodeId: 100, ignored: false, properties: [] },
+        ],
+      },
+      {
+        documents: [{
+          frame: 'main',
+          nodes: {
+            parentIndex: [-1, 0],
+            nodeType: [1, 3],
+            nodeName: [0, 1],
+            nodeValue: [-1, 2],
+            backendNodeId: [100, 101],
+            attributes: [[], []],
+            isClickable: { index: [] },
+          },
+          layout: {
+            nodeIndex: [0],
+            bounds: [[10, 20, 100, 30]],
+            styles: [[3]],
+          },
+        }],
+        strings: ['DIV', '#text', 'Filter', 'pointer'],
+      },
+    );
+
+    const backend = new PuppeteerBackend({ page: page as any, siteDomains: { test: ['qly.example'] } });
+    const snapshot = await backend.takeSnapshot();
+
+    expect(snapshot.idToNode.size).toBe(1);
+    const node = snapshot.idToNode.get('1')!;
+    expect(node.role).toBe('button');
+    expect(node.name).toBe('Filter');
+    expect(node.frameUrl).toBeUndefined();
+  });
+
+  it('M2: AX-orphan div with cursor:pointer is injected as inferred button', async () => {
+    const { page } = createMockPageWithFrames(
+      { frame: { id: 'main', url: 'https://qly.example/', securityOrigin: 'https://qly.example' } },
+      {
+        main: [
+          { nodeId: 'a1', role: { value: 'button' }, name: { value: 'Native' }, backendDOMNodeId: 100, ignored: false, properties: [] },
+        ],
+      },
+      {
+        documents: [{
+          frame: 'main',
+          nodes: {
+            parentIndex: [-1, -1],
+            nodeType: [1, 1],
+            nodeName: [0, 0],
+            nodeValue: [-1, -1],
+            backendNodeId: [100, 200],
+            attributes: [[], []],
+            isClickable: { index: [] },
+          },
+          layout: {
+            nodeIndex: [1],
+            bounds: [[0, 0, 80, 40]],
+            styles: [[1]],
+          },
+        }],
+        strings: ['DIV', 'pointer'],
+      },
+    );
+
+    const backend = new PuppeteerBackend({ page: page as any, siteDomains: { test: ['qly.example'] } });
+    const snapshot = await backend.takeSnapshot();
+
+    expect(snapshot.idToNode.size).toBe(2);
+    expect(snapshot.idToNode.get('1')!.name).toBe('Native');
+    const injected = snapshot.idToNode.get('2')!;
+    expect(injected.role).toBe('button');
+  });
 });
