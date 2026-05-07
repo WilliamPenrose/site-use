@@ -120,4 +120,34 @@ describe('ClickableElementDetector.isInteractive', () => {
     const e = makeEntry({ tag: 'span', bounds: { x: 0, y: 0, width: 24, height: 24 }, attributes: { lang: 'en' } });
     expect(ClickableElementDetector.isInteractive(e, null, empty)).toBe(false);
   });
+
+  it('label[for=...] is NOT interactive (proxies external input)', () => {
+    const e = makeEntry({ tag: 'label', attributes: { for: 'email' } });
+    expect(ClickableElementDetector.isInteractive(e, null, empty)).toBe(false);
+  });
+
+  it('label > input is interactive (no for attr)', () => {
+    const lookup: DomLookup = new Map();
+    const label: DomEntry = makeEntry({ backendNodeId: 1, tag: 'label' });
+    const input: DomEntry = makeEntry({ backendNodeId: 2, tag: 'input', parentBackendNodeId: 1 });
+    lookup.set(1, label); lookup.set(2, input);
+    expect(ClickableElementDetector.isInteractive(label, null, lookup)).toBe(true);
+  });
+
+  it('label > span > input is interactive (depth 2)', () => {
+    const lookup: DomLookup = new Map();
+    const label = makeEntry({ backendNodeId: 1, tag: 'label' });
+    const span  = makeEntry({ backendNodeId: 2, tag: 'span', parentBackendNodeId: 1 });
+    const input = makeEntry({ backendNodeId: 3, tag: 'input', parentBackendNodeId: 2 });
+    lookup.set(1, label); lookup.set(2, span); lookup.set(3, input);
+    expect(ClickableElementDetector.isInteractive(label, null, lookup)).toBe(true);
+  });
+
+  it('span > input is interactive', () => {
+    const lookup: DomLookup = new Map();
+    const span = makeEntry({ backendNodeId: 1, tag: 'span' });
+    const input = makeEntry({ backendNodeId: 2, tag: 'input', parentBackendNodeId: 1 });
+    lookup.set(1, span); lookup.set(2, input);
+    expect(ClickableElementDetector.isInteractive(span, null, lookup)).toBe(true);
+  });
 });

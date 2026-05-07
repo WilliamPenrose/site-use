@@ -14,8 +14,36 @@ const INTERACTIVE_ROLES = new Set([
 
 const SEARCH_INDICATORS = ['search', 'magnify', 'glass', 'lookup', 'find', 'query', 'searchbox'];
 const ICON_ATTRS = new Set(['class', 'role', 'onclick', 'data-action', 'aria-label']);
+const FORM_CONTROL_TAGS = new Set(['input', 'select', 'textarea']);
 
 export class ClickableElementDetector {
+  private static childrenIndex: WeakMap<DomLookup, Map<number, number[]>> = new WeakMap();
+
+  private static getChildren(lookup: DomLookup, backendId: number): number[] {
+    let idx = this.childrenIndex.get(lookup);
+    if (!idx) {
+      idx = new Map();
+      for (const [bid, e] of lookup) {
+        if (e.parentBackendNodeId == null) continue;
+        if (!idx.has(e.parentBackendNodeId)) idx.set(e.parentBackendNodeId, []);
+        idx.get(e.parentBackendNodeId)!.push(bid);
+      }
+      this.childrenIndex.set(lookup, idx);
+    }
+    return idx.get(backendId) ?? [];
+  }
+
+  private static hasFormControlDescendant(entry: DomEntry, lookup: DomLookup, depth: number): boolean {
+    if (depth <= 0) return false;
+    for (const childId of this.getChildren(lookup, entry.backendNodeId)) {
+      const child = lookup.get(childId);
+      if (!child || child.nodeType !== 1) continue;
+      if (FORM_CONTROL_TAGS.has(child.tag)) return true;
+      if (this.hasFormControlDescendant(child, lookup, depth - 1)) return true;
+    }
+    return false;
+  }
+
   /**
    * Decide if a DOM node should be treated as interactive.
    * Port of browser-use's clickable_elements.py (Python). 9 heuristic branches.
@@ -50,6 +78,15 @@ export class ClickableElementDetector {
         if ((name === 'required' || name === 'autocomplete') && value) return true;
         if (name === 'keyshortcuts' && value) return true;
       }
+    }
+
+    // label proxying via "for" attribute → skip (would double-activate external input)
+    if (entry.tag === 'label' && entry.attributes['for']) return false;
+
+    // label/span wrapping form control (e.g. Ant Design's <label><span><input/></span></label>)
+    if ((entry.tag === 'label' || entry.tag === 'span') &&
+        ClickableElementDetector.hasFormControlDescendant(entry, domLookup, 2)) {
+      return true;
     }
 
     // Search indicators in class / id / data-*
