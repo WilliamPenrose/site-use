@@ -8,3 +8,9 @@ export type {
   RuntimeSiteDefinition,
   SiteSession,
 } from './types.js';
+export {
+  BrowserDisconnected,
+  BrowserNotRunning,
+  SiteUseError,
+} from './errors.js';
+export type { ErrorContext } from './errors.js';
