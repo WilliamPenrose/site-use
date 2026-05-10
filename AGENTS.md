@@ -43,6 +43,15 @@ CLI (index.ts, cli/)
 
 - Always rebuild after code changes. Run `pnpm run build` after modifying any `.ts` file, before testing CLI commands or telling the user the change is ready.
 
+## AX Matching
+
+When locating a node from `primitives.takeSnapshot()` by name, do **not** hardcode a single `role`. The same visual control can render as different AX roles depending on Ant Design version, mount state, or whether a popover has been opened before — for example, a dropdown option may appear as `button` in one snapshot and `menuitem` in the next. Match an interactivity *category* instead:
+
+- **Buttons / clickables**: `button | tab | link | menuitem | menuitemradio | option | radio | checkbox | switch`
+- **Text inputs**: `textbox | searchbox | combobox | spinbutton`
+
+If a single-role lookup fails, the first debugging step is to dump the AX subtree (see `.dev/scripts/qlydata/dump-snapshot.mjs`) and read the actual role rather than guessing.
+
 ## Tests
 
 - Site-specific tests live alongside the site code under `src/sites/<name>/__tests__/`.
