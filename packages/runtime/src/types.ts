@@ -12,6 +12,21 @@ export type RuntimeWebRTCPolicy =
   | 'off';
 
 export interface RuntimeConfig {
+  /** Required. Where Chrome profile + chrome.json + locks live. */
+  dataDir: string;
+  /** Default: `${dataDir}/chrome-profile` */
+  chromeProfileDir?: string;
+  /** Default: `${dataDir}/chrome.json` */
+  chromeJsonPath?: string;
+  proxy?: RuntimeProxyConfig;
+  /** Source label for the proxy, used in launch logs. Optional. */
+  proxySource?: string;
+  /** Default: 'disable_non_proxied_udp' */
+  webrtcPolicy?: RuntimeWebRTCPolicy;
+}
+
+/** Internal — every field present after defaults are applied. */
+export interface ResolvedRuntimeConfig {
   dataDir: string;
   chromeProfileDir: string;
   chromeJsonPath: string;

@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync, unlinkSync, existsSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { isPidAlive } from './internal/pid.js';
-import type { ChromeInfo, CloseResult, RuntimeConfig } from './types.js';
+import type { ChromeInfo, CloseResult, ResolvedRuntimeConfig } from './types.js';
 
 const HEALTH_CHECK_TIMEOUT_MS = 5_000;
 const PROTOCOL_TIMEOUT_MS = 30_000;
@@ -13,7 +13,6 @@ let browserInstance: Browser | null = null;
 type RuntimeErrorCtor = new (message: string, context?: Record<string, unknown>) => Error;
 
 export interface BrowserLifecycleHooks {
-  getConfig?: () => RuntimeConfig;
   injectCoordFix?: (page: Page) => Promise<void>;
   buildWelcomeHTML?: () => string;
   BrowserDisconnected?: RuntimeErrorCtor;
@@ -39,13 +38,6 @@ function makeBrowserNotRunning(
 ): Error {
   const Ctor = hooks.BrowserNotRunning ?? Error;
   return new Ctor(message, context);
-}
-
-function requireConfig(hooks: BrowserLifecycleHooks): RuntimeConfig {
-  if (!hooks.getConfig) {
-    throw new Error('createRuntime() requires hooks.getConfig() for browser lifecycle operations.');
-  }
-  return hooks.getConfig();
 }
 
 export async function safePages(
@@ -103,10 +95,7 @@ function connectBrowser(wsEndpoint: string): Promise<Browser> {
   });
 }
 
-export function readChromeJson(
-  chromeJsonPath: string,
-  hooks: BrowserLifecycleHooks = {},
-): ChromeInfo | null {
+export function readChromeJson(chromeJsonPath: string): ChromeInfo | null {
   try {
     const data = JSON.parse(readFileSync(chromeJsonPath, 'utf-8'));
     if (!isPidAlive(data.pid)) {
@@ -152,7 +141,6 @@ async function findPidOnPort(port: number): Promise<number | undefined> {
 export async function recoverOrphanChrome(
   chromeProfileDir: string,
   chromeJsonPath: string,
-  hooks: BrowserLifecycleHooks = {},
 ): Promise<ChromeInfo | null> {
   const dtapPath = path.join(chromeProfileDir, 'DevToolsActivePort');
   if (!existsSync(dtapPath)) return null;
@@ -245,7 +233,7 @@ export async function unfreezePages(pages: Page[]): Promise<void> {
   }
 }
 
-function fixPreferences(profileDir: string, webrtcPolicy: RuntimeConfig['webrtcPolicy']): void {
+function fixPreferences(profileDir: string, webrtcPolicy: ResolvedRuntimeConfig['webrtcPolicy']): void {
   const prefsPath = path.join(profileDir, 'Default', 'Preferences');
   try {
     const raw = readFileSync(prefsPath, 'utf-8');
@@ -283,7 +271,7 @@ function fixPreferences(profileDir: string, webrtcPolicy: RuntimeConfig['webrtcP
   }
 }
 
-function buildLaunchArgs(config: RuntimeConfig, extraArgs?: string[]): string[] {
+function buildLaunchArgs(config: ResolvedRuntimeConfig, extraArgs?: string[]): string[] {
   const args = [
     `--user-data-dir=${config.chromeProfileDir}`,
     '--remote-debugging-port=0',
@@ -328,8 +316,11 @@ async function applyConnectionSetup(browser: Browser, hooks: BrowserLifecycleHoo
   });
 }
 
-async function applyProxyAuth(browser: Browser, hooks: BrowserLifecycleHooks): Promise<void> {
-  const config = requireConfig(hooks);
+async function applyProxyAuth(
+  browser: Browser,
+  config: ResolvedRuntimeConfig,
+  hooks: BrowserLifecycleHooks,
+): Promise<void> {
   if (config.proxy?.username) {
     const pages = await safePages(browser, hooks);
     const page = pages[0];
@@ -412,9 +403,9 @@ async function waitForDevToolsPort(
 
 export async function launchAndDetach(
   extraArgs: string[] | undefined,
+  config: ResolvedRuntimeConfig,
   hooks: BrowserLifecycleHooks,
 ): Promise<ChromeInfo> {
-  const config = requireConfig(hooks);
   const args = buildLaunchArgs(config, extraArgs);
 
   const proxyLog = config.proxySource
@@ -486,6 +477,7 @@ async function waitForProcessExit(
 
 export async function ensureBrowser(
   opts: { autoLaunch?: boolean; extraArgs?: string[] } | undefined,
+  config: ResolvedRuntimeConfig,
   hooks: BrowserLifecycleHooks,
 ): Promise<Browser> {
   if (hooks.ensureBrowser) {
@@ -498,10 +490,9 @@ export async function ensureBrowser(
   }
   console.error('[site-use] ensureBrowser: creating new connection');
 
-  const config = requireConfig(hooks);
   const autoLaunch = opts?.autoLaunch ?? false;
 
-  let info = readChromeJson(config.chromeJsonPath, hooks);
+  let info = readChromeJson(config.chromeJsonPath);
 
   if (!info) {
     if (!autoLaunch) {
@@ -510,7 +501,7 @@ export async function ensureBrowser(
         'Chrome is not running. Launch it first with: site-use browser launch',
       );
     }
-    info = await launchAndDetach(opts?.extraArgs, hooks);
+    info = await launchAndDetach(opts?.extraArgs, config, hooks);
   }
 
   try {
@@ -527,7 +518,7 @@ export async function ensureBrowser(
       );
     }
 
-    info = await launchAndDetach(opts?.extraArgs, hooks);
+    info = await launchAndDetach(opts?.extraArgs, config, hooks);
     browserInstance = await connectBrowser(info.wsEndpoint);
   }
 
@@ -537,22 +528,24 @@ export async function ensureBrowser(
 
   await checkBrowserHealth(browserInstance, hooks);
   await applyConnectionSetup(browserInstance, hooks);
-  await applyProxyAuth(browserInstance, hooks);
+  await applyProxyAuth(browserInstance, config, hooks);
 
   return browserInstance;
 }
 
-export async function closeBrowser(hooks: BrowserLifecycleHooks): Promise<CloseResult> {
+export async function closeBrowser(
+  config: ResolvedRuntimeConfig,
+  hooks: BrowserLifecycleHooks,
+): Promise<CloseResult> {
   if (hooks.closeBrowser) {
     return await hooks.closeBrowser();
   }
 
-  const config = requireConfig(hooks);
-  let info = readChromeJson(config.chromeJsonPath, hooks);
+  let info = readChromeJson(config.chromeJsonPath);
   let recovered = false;
 
   if (!info) {
-    info = await recoverOrphanChrome(config.chromeProfileDir, config.chromeJsonPath, hooks);
+    info = await recoverOrphanChrome(config.chromeProfileDir, config.chromeJsonPath);
     if (info) recovered = true;
   }
 

@@ -1,3 +1,4 @@
+import path from 'node:path';
 import type { Browser, Page } from 'puppeteer-core';
 import {
   closeBrowser as closeBrowserLifecycle,
@@ -16,12 +17,30 @@ import { Mutex } from './internal/mutex.js';
 import type {
   ChromeInfo,
   CloseResult,
+  ResolvedRuntimeConfig,
   Runtime,
   RuntimeAuthGuardResult,
+  RuntimeConfig,
   RuntimeRateLimitSignal,
   RuntimeSiteDefinition,
   SiteSession,
 } from './types.js';
+
+function resolveConfig(config: RuntimeConfig): ResolvedRuntimeConfig {
+  if (!config.dataDir) {
+    throw new Error('createRuntime: config.dataDir is required');
+  }
+  return {
+    dataDir: config.dataDir,
+    chromeProfileDir:
+      config.chromeProfileDir ?? path.join(config.dataDir, 'chrome-profile'),
+    chromeJsonPath:
+      config.chromeJsonPath ?? path.join(config.dataDir, 'chrome.json'),
+    proxy: config.proxy,
+    proxySource: config.proxySource,
+    webrtcPolicy: config.webrtcPolicy ?? 'disable_non_proxied_udp',
+  };
+}
 
 interface RuntimeAuthGuardConfig<TPrimitives> {
   site: string;
@@ -117,12 +136,14 @@ export function createRuntime<
   TPrimitives = unknown,
   TRateLimitDetector = unknown,
   TSignal extends RuntimeRateLimitSignal = RuntimeRateLimitSignal,
->(options?: {
+>(options: {
+  config: RuntimeConfig;
   autoLaunch?: boolean;
   extraArgs?: string[];
   hooks?: RuntimeHooks<TPrimitives, TRateLimitDetector, TSignal>;
 }): Runtime<TPrimitives, TRateLimitDetector, TSignal> {
-  const hooks = options?.hooks ?? {};
+  const config = resolveConfig(options.config);
+  const hooks = options.hooks ?? {};
   const sessions = new Map<string, SiteSession<TPrimitives, TRateLimitDetector, TSignal>>();
   const pending = new Map<string, Promise<SiteSession<TPrimitives, TRateLimitDetector, TSignal>>>();
   let browser: Browser | null = null;
@@ -133,9 +154,10 @@ export function createRuntime<
   }): Promise<Browser> {
     browser = await ensureBrowserLifecycle(
       {
-        autoLaunch: opts?.autoLaunch ?? options?.autoLaunch ?? true,
-        extraArgs: opts?.extraArgs ?? options?.extraArgs,
+        autoLaunch: opts?.autoLaunch ?? options.autoLaunch ?? true,
+        extraArgs: opts?.extraArgs ?? options.extraArgs,
       },
+      config,
       hooks,
     );
     return browser;
@@ -202,11 +224,11 @@ export function createRuntime<
   return {
     ensureBrowser: ensureBrowserConnection,
     launchBrowser: async (extraArgs?: string[]): Promise<ChromeInfo> =>
-      await launchAndDetach(extraArgs, hooks),
-    readChromeJson: (chromeJsonPath: string) => readChromeJson(chromeJsonPath, hooks),
+      await launchAndDetach(extraArgs, config, hooks),
+    readChromeJson: (chromeJsonPath: string) => readChromeJson(chromeJsonPath),
     writeChromeJson,
     recoverOrphanChrome: async (chromeProfileDir: string, chromeJsonPath: string) =>
-      await recoverOrphanChrome(chromeProfileDir, chromeJsonPath, hooks),
+      await recoverOrphanChrome(chromeProfileDir, chromeJsonPath),
     closeBrowser: async (): Promise<CloseResult> => {
       await Promise.all([...sessions.keys()].map(async (siteName) => {
         const session = sessions.get(siteName);
@@ -214,7 +236,7 @@ export function createRuntime<
       }));
       sessions.clear();
       browser = null;
-      return await closeBrowserLifecycle(hooks);
+      return await closeBrowserLifecycle(config, hooks);
     },
     isBrowserConnected: (): boolean => isBrowserConnectedLifecycle(),
     safePages: async (activeBrowser: Browser) => await safePages(activeBrowser, hooks),
@@ -259,7 +281,7 @@ export function createRuntime<
       browser = null;
 
       if (opts?.closeBrowser) {
-        await closeBrowserLifecycle(hooks);
+        await closeBrowserLifecycle(config, hooks);
       }
     },
   };
