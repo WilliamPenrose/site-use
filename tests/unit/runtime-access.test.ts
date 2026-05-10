@@ -10,9 +10,13 @@ const runtimeApi = {
 
 const createRuntime = vi.fn(() => runtimeApi);
 
-vi.mock('@site-use/runtime', () => ({
-  createRuntime,
-}));
+vi.mock('@site-use/runtime', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@site-use/runtime')>();
+  return {
+    ...actual,
+    createRuntime,
+  };
+});
 
 function fakePlugin(name: string): SitePlugin {
   return {

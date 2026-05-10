@@ -50,8 +50,15 @@ const mockSpawn = vi.fn().mockImplementation(() => {
   return mockSpawnProcess;
 });
 
-const mockProcessKill = vi.spyOn(process, 'kill').mockImplementation(((pid: number) => {
+const mockProcessKill = vi.spyOn(process, 'kill').mockImplementation(((pid: number, signal?: string | number) => {
   if (typeof pid === 'number') {
+    if (signal === 0) {
+      // signal 0 is a liveness probe — do not modify alivePids
+      if (pid === process.pid || alivePids.has(pid)) return true;
+      const err: NodeJS.ErrnoException = new Error('ESRCH');
+      err.code = 'ESRCH';
+      throw err;
+    }
     alivePids.delete(pid);
   }
   return true;
@@ -127,7 +134,7 @@ vi.mock('../../src/lock.js', () => ({
 }));
 
 // Import after mocks
-const { ensureBrowser, closeBrowser, isBrowserConnected } = await import(
+const { ensureBrowser, closeBrowser, isBrowserConnected, __resetRuntimeForTesting } = await import(
   '../../src/browser/browser.js'
 );
 
@@ -154,6 +161,7 @@ const defaultExistsSync = (filePath: string) => {
 describe('browser', () => {
   beforeEach(async () => {
     await closeBrowser();
+    __resetRuntimeForTesting();
     chromeJsonStore = {};
     alivePids = new Set<number>();
     mockLaunch.mockClear();
@@ -166,8 +174,14 @@ describe('browser', () => {
       return mockSpawnProcess;
     });
     mockProcessKill.mockClear();
-    mockProcessKill.mockImplementation(((pid: number) => {
+    mockProcessKill.mockImplementation(((pid: number, signal?: string | number) => {
       if (typeof pid === 'number') {
+        if (signal === 0) {
+          if (pid === process.pid || alivePids.has(pid)) return true;
+          const err: NodeJS.ErrnoException = new Error('ESRCH');
+          err.code = 'ESRCH';
+          throw err;
+        }
         alivePids.delete(pid);
       }
       return true;
@@ -320,6 +334,7 @@ describe('browser', () => {
         proxy: { server: 'http://127.0.0.1:7890' },
         proxySource: 'SITE_USE_PROXY',
       };
+      __resetRuntimeForTesting();
       await ensureBrowser({ autoLaunch: true });
       const spawnArgs: string[] = mockSpawn.mock.calls[0][1];
       expect(spawnArgs).toContain('--proxy-server=http://127.0.0.1:7890');
@@ -331,6 +346,7 @@ describe('browser', () => {
         proxy: { server: 'socks5://127.0.0.1:1080' },
         proxySource: 'HTTPS_PROXY',
       };
+      __resetRuntimeForTesting();
       await ensureBrowser({ autoLaunch: true });
       const spawnArgs: string[] = mockSpawn.mock.calls[0][1];
       expect(spawnArgs).toContain('--proxy-server=socks5://127.0.0.1:1080');

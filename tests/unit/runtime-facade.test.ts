@@ -32,6 +32,7 @@ describe('createRuntime', () => {
     }));
 
     const runtime = createRuntime({
+      config: { dataDir: '/tmp/site-use-test' },
       hooks: {
         buildSiteStack,
         ensureBrowser,
@@ -55,6 +56,7 @@ describe('createRuntime', () => {
     }));
 
     const runtime = createRuntime({
+      config: { dataDir: '/tmp/site-use-test' },
       hooks: {
         buildSiteStack,
         closeBrowser: browserClose,
@@ -78,6 +80,7 @@ describe('createRuntime', () => {
     }));
 
     const runtime = createRuntime({
+      config: { dataDir: '/tmp/site-use-test' },
       hooks: {
         buildSiteStack,
         ensureBrowser,
@@ -101,6 +104,7 @@ describe('createRuntime', () => {
     }));
 
     const runtime = createRuntime({
+      config: { dataDir: '/tmp/site-use-test' },
       hooks: {
         buildSiteStack,
         ensureBrowser,

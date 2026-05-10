@@ -73,3 +73,8 @@ export async function safePages(browser: Browser): Promise<Page[]> {
 export async function unfreezePages(pages: Page[]): Promise<void> {
   await getRuntime().unfreezePages(pages);
 }
+
+/** @internal — for unit tests only. */
+export function __resetRuntimeForTesting(): void {
+  runtime = null;
+}
