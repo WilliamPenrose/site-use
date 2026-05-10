@@ -1,6 +1,6 @@
 {
   "name": "@site-use/runtime",
-  "version": "0.1.0",
+  "version": "2026.5.10",
   "description": "Browser automation runtime for site-use — Chrome lifecycle management and primitives.",
   "repository": {
     "type": "git",
