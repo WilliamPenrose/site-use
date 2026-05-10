@@ -6,30 +6,31 @@ import {
   PuppeteerBackend,
   RateLimitDetector,
 } from '@site-use/runtime/internal/primitives';
-import { getConfig } from '../config.js';
-import { getClickEnhancementConfig } from '../config.js';
+import { getConfig, getClickEnhancementConfig } from '../config.js';
 import {
-  BrowserDisconnected,
-  BrowserNotRunning,
   CdpThrottled,
   ElementNotFound,
   NavigationFailed,
   RateLimited,
   SessionExpired,
 } from '../errors.js';
-import { isPidAlive } from '../lock.js';
 import { buildWelcomeHTML } from '../browser/welcome.js';
 import type { Primitives } from '../primitives/types.js';
 
 export function createSiteUseRuntime() {
+  const cfg = getConfig();
   return createRuntime<Primitives, RateLimitDetector>({
+    config: {
+      dataDir: cfg.dataDir,
+      chromeProfileDir: cfg.chromeProfileDir,
+      chromeJsonPath: cfg.chromeJsonPath,
+      proxy: cfg.proxy,
+      proxySource: cfg.proxySource,
+      webrtcPolicy: cfg.webrtcPolicy,
+    },
     hooks: {
-      getConfig,
       injectCoordFix,
-      isPidAlive,
       buildWelcomeHTML,
-      BrowserDisconnected,
-      BrowserNotRunning,
       createRateLimitDetector: (siteDetectors) =>
         new RateLimitDetector(siteDetectors, { RateLimited }),
       createSitePrimitives: ({ page, siteDomains, rateLimitDetector }) =>
