@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync, unlinkSync, existsSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { isPidAlive } from './internal/pid.js';
+import { BrowserDisconnected, BrowserNotRunning } from './errors.js';
 import type { ChromeInfo, CloseResult, ResolvedRuntimeConfig } from './types.js';
 
 const HEALTH_CHECK_TIMEOUT_MS = 5_000;
@@ -10,34 +11,12 @@ const PROTOCOL_TIMEOUT_MS = 30_000;
 
 let browserInstance: Browser | null = null;
 
-type RuntimeErrorCtor = new (message: string, context?: Record<string, unknown>) => Error;
-
 export interface BrowserLifecycleHooks {
   injectCoordFix?: (page: Page) => Promise<void>;
   buildWelcomeHTML?: () => string;
-  BrowserDisconnected?: RuntimeErrorCtor;
-  BrowserNotRunning?: RuntimeErrorCtor;
   ensureBrowser?: (opts?: { autoLaunch?: boolean; extraArgs?: string[] }) => Promise<Browser>;
   closeBrowser?: () => Promise<CloseResult>;
   safePages?: (browser: Browser) => Promise<Page[]>;
-}
-
-function makeBrowserDisconnected(
-  hooks: BrowserLifecycleHooks,
-  message: string,
-  context: Record<string, unknown> = {},
-): Error {
-  const Ctor = hooks.BrowserDisconnected ?? Error;
-  return new Ctor(message, context);
-}
-
-function makeBrowserNotRunning(
-  hooks: BrowserLifecycleHooks,
-  message: string,
-  context: Record<string, unknown> = {},
-): Error {
-  const Ctor = hooks.BrowserNotRunning ?? Error;
-  return new Ctor(message, context);
 }
 
 export async function safePages(
@@ -79,8 +58,7 @@ async function checkBrowserHealth(browser: Browser, hooks: BrowserLifecycleHooks
   } catch {
     browser.disconnect();
     browserInstance = null;
-    throw makeBrowserDisconnected(
-      hooks,
+    throw new BrowserDisconnected(
       'Chrome is unresponsive (health check timed out). Restart it with: site-use browser close && site-use browser launch',
       { step: 'healthCheck' },
     );
@@ -337,8 +315,7 @@ function findChromeExecutable(hooks: BrowserLifecycleHooks): string {
   const customPath = process.env.CHROME_EXECUTABLE_PATH;
   if (customPath) {
     if (existsSync(customPath)) return customPath;
-    throw makeBrowserNotRunning(
-      hooks,
+    throw new BrowserNotRunning(
       `CHROME_EXECUTABLE_PATH is set to "${customPath}" but the file does not exist.`,
     );
   }
@@ -361,8 +338,7 @@ function findChromeExecutable(hooks: BrowserLifecycleHooks): string {
     }
   }
 
-  throw makeBrowserNotRunning(
-    hooks,
+  throw new BrowserNotRunning(
     'Chrome executable not found. Install Google Chrome, or set CHROME_EXECUTABLE_PATH to your Chrome binary path.',
   );
 }
@@ -381,7 +357,7 @@ async function waitForDevToolsPort(
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (!isPidAlive(pid)) {
-      throw makeBrowserDisconnected(hooks, 'Chrome exited before debug port was available');
+      throw new BrowserDisconnected('Chrome exited before debug port was available');
     }
     try {
       const content = readFileSync(dtapPath, 'utf-8').trim();
@@ -398,7 +374,7 @@ async function waitForDevToolsPort(
     }
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
-  throw makeBrowserDisconnected(hooks, 'Timed out waiting for Chrome debug port');
+  throw new BrowserDisconnected('Timed out waiting for Chrome debug port');
 }
 
 export async function launchAndDetach(
@@ -424,7 +400,7 @@ export async function launchAndDetach(
 
   const pid = chromeProc.pid;
   if (!pid) {
-    throw makeBrowserDisconnected(hooks, 'Chrome launched but PID not available');
+    throw new BrowserDisconnected('Chrome launched but PID not available');
   }
 
   const wsEndpoint = await waitForDevToolsPort(config.chromeProfileDir, pid, hooks);
@@ -496,8 +472,7 @@ export async function ensureBrowser(
 
   if (!info) {
     if (!autoLaunch) {
-      throw makeBrowserNotRunning(
-        hooks,
+      throw new BrowserNotRunning(
         'Chrome is not running. Launch it first with: site-use browser launch',
       );
     }
@@ -512,8 +487,7 @@ export async function ensureBrowser(
     } catch {}
 
     if (!autoLaunch) {
-      throw makeBrowserNotRunning(
-        hooks,
+      throw new BrowserNotRunning(
         'Chrome is not running (connection failed). Launch it first with: site-use browser launch',
       );
     }
