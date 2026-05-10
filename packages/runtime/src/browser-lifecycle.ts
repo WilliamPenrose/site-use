@@ -2,6 +2,7 @@ import puppeteer, { type Browser, type Page } from 'puppeteer-core';
 import { readFileSync, writeFileSync, unlinkSync, existsSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
+import { isPidAlive } from './internal/pid.js';
 import type { ChromeInfo, CloseResult, RuntimeConfig } from './types.js';
 
 const HEALTH_CHECK_TIMEOUT_MS = 5_000;
@@ -14,7 +15,6 @@ type RuntimeErrorCtor = new (message: string, context?: Record<string, unknown>)
 export interface BrowserLifecycleHooks {
   getConfig?: () => RuntimeConfig;
   injectCoordFix?: (page: Page) => Promise<void>;
-  isPidAlive?: (pid: number) => boolean;
   buildWelcomeHTML?: () => string;
   BrowserDisconnected?: RuntimeErrorCtor;
   BrowserNotRunning?: RuntimeErrorCtor;
@@ -46,13 +46,6 @@ function requireConfig(hooks: BrowserLifecycleHooks): RuntimeConfig {
     throw new Error('createRuntime() requires hooks.getConfig() for browser lifecycle operations.');
   }
   return hooks.getConfig();
-}
-
-function requireIsPidAlive(hooks: BrowserLifecycleHooks): (pid: number) => boolean {
-  if (!hooks.isPidAlive) {
-    throw new Error('createRuntime() requires hooks.isPidAlive() for browser lifecycle operations.');
-  }
-  return hooks.isPidAlive;
 }
 
 export async function safePages(
@@ -114,7 +107,6 @@ export function readChromeJson(
   chromeJsonPath: string,
   hooks: BrowserLifecycleHooks = {},
 ): ChromeInfo | null {
-  const isPidAlive = requireIsPidAlive(hooks);
   try {
     const data = JSON.parse(readFileSync(chromeJsonPath, 'utf-8'));
     if (!isPidAlive(data.pid)) {
@@ -390,7 +382,6 @@ async function waitForDevToolsPort(
   hooks: BrowserLifecycleHooks,
   timeoutMs = 30_000,
 ): Promise<string> {
-  const isPidAlive = requireIsPidAlive(hooks);
   const dtapPath = path.join(chromeProfileDir, 'DevToolsActivePort');
   try {
     unlinkSync(dtapPath);
@@ -480,7 +471,6 @@ async function waitForProcessExit(
   hooks: BrowserLifecycleHooks,
   timeoutMs = 5_000,
 ): Promise<void> {
-  const isPidAlive = requireIsPidAlive(hooks);
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
@@ -575,7 +565,7 @@ export async function closeBrowser(hooks: BrowserLifecycleHooks): Promise<CloseR
     browserInstance = null;
   }
 
-  if (info && requireIsPidAlive(hooks)(info.pid)) {
+  if (info && isPidAlive(info.pid)) {
     try {
       process.kill(info.pid);
     } catch {
