@@ -65,6 +65,21 @@ export interface ThrottleConfig {
   rateLimit?: RateLimitConfig;
 }
 
+/**
+ * Per-call options for click(). Lets a caller override the throttle
+ * delay for a specific click without constructing a second primitives
+ * instance — useful for "follow-up" clicks (e.g. picking a just-
+ * revealed dropdown option, where 0.5-1s of human-paced delay is
+ * implausibly slow).
+ */
+export interface ClickOptions {
+  /**
+   * Override the throttle min/max delay for this call only.
+   * Merged on top of the primitives' base config.
+   */
+  throttle?: Partial<ThrottleConfig>;
+}
+
 // --- Primitives interface ---
 
 export interface Primitives {
@@ -78,7 +93,7 @@ export interface Primitives {
   takeSnapshot(): Promise<Snapshot>;
 
   /** Click element by snapshot uid. Aligned with devtools-mcp click. */
-  click(uid: string): Promise<void>;
+  click(uid: string, options?: ClickOptions): Promise<void>;
 
   /** Type text into element by snapshot uid. Aligned with devtools-mcp type. */
   type(uid: string, text: string, options?: { delay?: number }): Promise<void>;

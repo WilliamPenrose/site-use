@@ -1,4 +1,4 @@
-import type { Primitives, ThrottleConfig } from './types.js';
+import type { ClickOptions, Primitives, ThrottleConfig } from './types.js';
 import { SlidingWindowRateLimiter } from './rate-limiter.js';
 
 const DEFAULT_CONFIG: ThrottleConfig = {
@@ -25,7 +25,10 @@ export function createThrottledPrimitives(
     return fn();
   }
 
-  async function throttledAndCounted<T>(fn: () => Promise<T>): Promise<T> {
+  async function throttledAndCounted<T>(
+    fn: () => Promise<T>,
+    override?: Partial<ThrottleConfig>,
+  ): Promise<T> {
     if (rateLimiter) {
       const wait = rateLimiter.getWaitTime();
       if (wait > 0) {
@@ -33,13 +36,18 @@ export function createThrottledPrimitives(
       }
       rateLimiter.record();
     }
-    await randomDelay(cfg);
+    // Per-call override merges on top of the base config so callers
+    // can tighten/loosen min/maxDelay (or rateLimit) for one operation
+    // without constructing a second primitives instance.
+    const effective: ThrottleConfig = override ? { ...cfg, ...override } : cfg;
+    await randomDelay(effective);
     return fn();
   }
 
   return {
     navigate: (url) => throttledAndCounted(() => inner.navigate(url)),
-    click: (uid) => throttledAndCounted(() => inner.click(uid)),
+    click: (uid, options?: ClickOptions) =>
+      throttledAndCounted(() => inner.click(uid), options?.throttle),
     type: (uid, text, options) => throttledAndCounted(() => inner.type(uid, text, options)),
     scroll: (options) => inner.scroll(options),
     scrollIntoView: (uid) => inner.scrollIntoView(uid),

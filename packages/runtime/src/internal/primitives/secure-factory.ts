@@ -1,5 +1,11 @@
 import type { Page } from 'puppeteer-core';
-import type { InterceptControl, ScrollOptions, Snapshot, ThrottleConfig } from './types.js';
+import type {
+  ClickOptions,
+  InterceptControl,
+  ScrollOptions,
+  Snapshot,
+  ThrottleConfig,
+} from './types.js';
 import { PuppeteerBackend } from './puppeteer-backend.js';
 import { createThrottledPrimitives } from './throttle.js';
 
@@ -11,7 +17,7 @@ export interface CreateSecurePuppeteerPrimitivesOptions {
 export interface SecurePrimitives {
   navigate(url: string): Promise<void>;
   takeSnapshot(): Promise<Snapshot>;
-  click(uid: string): Promise<void>;
+  click(uid: string, options?: ClickOptions): Promise<void>;
   type(uid: string, text: string, options?: { delay?: number }): Promise<void>;
   pressKey(key: string): Promise<void>;
   scroll(options: ScrollOptions): Promise<void>;
@@ -33,7 +39,7 @@ export function createSecurePuppeteerPrimitives(
   return {
     navigate: (url) => safe.navigate(url),
     takeSnapshot: () => safe.takeSnapshot(),
-    click: (uid) => safe.click(uid),
+    click: (uid, clickOptions) => safe.click(uid, clickOptions),
     type: (uid, text, typeOptions) => safe.type(uid, text, typeOptions),
     pressKey: (key) => safe.pressKey(key),
     scroll: (scrollOptions) => safe.scroll(scrollOptions),
