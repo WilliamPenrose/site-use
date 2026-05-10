@@ -1,7 +1,13 @@
 {
   "name": "@site-use/runtime",
-  "version": "0.0.0-private",
-  "private": true,
+  "version": "0.1.0",
+  "description": "Browser automation runtime for site-use — Chrome lifecycle management and primitives.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/WilliamPenrose/site-use.git",
+    "directory": "packages/runtime"
+  },
+  "license": "MIT",
   "type": "module",
   "files": [
     "dist"
@@ -15,6 +21,13 @@
       "import": "./dist/internal/primitives/index.js",
       "types": "./dist/internal/primitives/index.d.ts"
     }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepublishOnly": "npm run build"
+  },
+  "engines": {
+    "node": ">=22.14.0"
   },
   "dependencies": {
     "puppeteer-core": "^24.39.1"
