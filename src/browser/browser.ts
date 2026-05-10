@@ -6,21 +6,25 @@ import {
 } from '@site-use/runtime';
 import { injectCoordFix } from '@site-use/runtime/internal/primitives';
 import { getConfig } from '../config.js';
-import { BrowserDisconnected, BrowserNotRunning } from '../errors.js';
-import { isPidAlive } from '../lock.js';
 import { buildWelcomeHTML } from './welcome.js';
 
 let runtime: ReturnType<typeof createRuntime> | null = null;
 
 function getRuntime(): ReturnType<typeof createRuntime> {
-  runtime ??= createRuntime({
+  if (runtime) return runtime;
+  const cfg = getConfig();
+  runtime = createRuntime({
+    config: {
+      dataDir: cfg.dataDir,
+      chromeProfileDir: cfg.chromeProfileDir,
+      chromeJsonPath: cfg.chromeJsonPath,
+      proxy: cfg.proxy,
+      proxySource: cfg.proxySource,
+      webrtcPolicy: cfg.webrtcPolicy,
+    },
     hooks: {
-      getConfig,
       injectCoordFix,
-      isPidAlive,
       buildWelcomeHTML,
-      BrowserDisconnected,
-      BrowserNotRunning,
     },
   });
   return runtime;
