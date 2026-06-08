@@ -78,10 +78,5 @@
     "oxlint": "^1.56.0",
     "typescript": "^5.8.2",
     "vitest": "^3.0.9"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild"
-    ]
   }
 }
