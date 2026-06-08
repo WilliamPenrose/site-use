@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { ensureBrowser, closeBrowser, isBrowserConnected, readChromeJson } from '../../src/browser/browser.js';
+import { ensureBrowser, closeBrowser, isBrowserConnected, readChromeJson, __resetRuntimeForTesting } from '../../src/browser/browser.js';
 import { getConfig } from '../../src/config.js';
 
 // Use a temp directory as SITE_USE_DATA_DIR so we don't pollute the real profile
@@ -15,6 +15,10 @@ beforeEach(() => {
   delete process.env.SITE_USE_PROXY;
   delete process.env.HTTPS_PROXY;
   delete process.env.HTTP_PROXY;
+  // Drop the cached runtime so it re-reads getConfig() and binds to THIS test's
+  // tmpDir. Without this the singleton stays bound to the first test's config and
+  // later tests write chrome.json / the profile dir into the wrong directory.
+  __resetRuntimeForTesting();
 });
 
 afterEach(async () => {

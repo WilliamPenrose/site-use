@@ -94,8 +94,10 @@ vi.mock('node:fs', async (importOriginal) => {
       }
     }),
     existsSync: vi.fn((filePath: string) => {
-      // Chrome executable path — pretend it exists
-      if (typeof filePath === 'string' && filePath.includes('chrome')) return true;
+      // Chrome executable path — pretend it exists. Case-insensitive so the
+      // macOS path ("/Applications/Google Chrome.app/.../Google Chrome") matches
+      // too, not just lowercase Linux paths like /usr/bin/google-chrome.
+      if (typeof filePath === 'string' && filePath.toLowerCase().includes('chrome')) return true;
       return false;
     }),
     mkdirSync: vi.fn(),
@@ -154,7 +156,7 @@ const defaultWriteFileSync = (filePath: string, data: string) => {
   }
 };
 const defaultExistsSync = (filePath: string) => {
-  if (typeof filePath === 'string' && filePath.includes('chrome')) return true;
+  if (typeof filePath === 'string' && filePath.toLowerCase().includes('chrome')) return true;
   return false;
 };
 
