@@ -2,6 +2,9 @@ node_modules/
 dist/
 packages/*/dist/
 
+# macOS Finder metadata
+.DS_Store
+
 # Private environment variables
 .env
 .npmrc
