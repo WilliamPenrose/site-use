@@ -353,6 +353,41 @@ describe('browser', () => {
       const spawnArgs: string[] = mockSpawn.mock.calls[0][1];
       expect(spawnArgs).toContain('--proxy-server=socks5://127.0.0.1:1080');
     });
+
+    it('always bypasses loopback so local dev servers stay reachable', async () => {
+      testConfig = {
+        ...testConfig,
+        proxy: { server: 'http://127.0.0.1:7890' },
+        proxySource: 'SITE_USE_PROXY',
+      };
+      __resetRuntimeForTesting();
+      await ensureBrowser({ autoLaunch: true });
+      const spawnArgs: string[] = mockSpawn.mock.calls[0][1];
+      expect(spawnArgs).toContain('--proxy-bypass-list=localhost;127.0.0.1;[::1]');
+    });
+
+    it('appends caller-supplied bypass entries after the loopback defaults', async () => {
+      testConfig = {
+        ...testConfig,
+        proxy: { server: 'http://127.0.0.1:7890', bypass: '100.64.0.0/10;*.internal' },
+        proxySource: 'SITE_USE_PROXY',
+      };
+      __resetRuntimeForTesting();
+      await ensureBrowser({ autoLaunch: true });
+      const spawnArgs: string[] = mockSpawn.mock.calls[0][1];
+      expect(spawnArgs).toContain(
+        '--proxy-bypass-list=localhost;127.0.0.1;[::1];100.64.0.0/10;*.internal',
+      );
+    });
+
+    it('does not include --proxy-bypass-list when no proxy is configured', async () => {
+      __resetRuntimeForTesting();
+      await ensureBrowser({ autoLaunch: true });
+      const spawnArgs: string[] = mockSpawn.mock.calls[0][1];
+      expect(
+        spawnArgs.some((a: string) => a.startsWith('--proxy-bypass-list=')),
+      ).toBe(false);
+    });
   });
 
   describe('platform-specific args', () => {

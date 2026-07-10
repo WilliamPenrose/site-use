@@ -7,6 +7,8 @@ export interface ProxyConfig {
   server: string;
   username?: string;
   password?: string;
+  /** Extra hosts to reach directly (Chrome `--proxy-bypass-list`); loopback is always bypassed. */
+  bypass?: string;
 }
 
 export type WebRTCPolicy =
@@ -55,6 +57,12 @@ export function getConfig(): Config {
     }
     if (password) {
       proxy.password = password;
+    }
+    // Loopback is bypassed unconditionally by the runtime; this adds extra direct hosts on top
+    // (e.g. tailscale/LAN dev servers). `;`-separated, Chrome --proxy-bypass-list syntax.
+    const bypass = process.env.SITE_USE_PROXY_BYPASS;
+    if (bypass) {
+      proxy.bypass = bypass;
     }
   }
 

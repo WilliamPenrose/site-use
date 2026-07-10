@@ -50,10 +50,25 @@ describe('getConfig', () => {
     vi.stubEnv('SITE_USE_PROXY', 'socks5://127.0.0.1:1080');
     vi.stubEnv('SITE_USE_PROXY_USER', '');
     vi.stubEnv('SITE_USE_PROXY_PASS', '');
+    vi.stubEnv('SITE_USE_PROXY_BYPASS', '');
     const config = getConfig();
     expect(config.proxy).toEqual({
       server: 'socks5://127.0.0.1:1080',
     });
+  });
+
+  it('picks up SITE_USE_PROXY_BYPASS as extra direct hosts', () => {
+    vi.stubEnv('SITE_USE_PROXY', 'http://127.0.0.1:7890');
+    vi.stubEnv('SITE_USE_PROXY_BYPASS', '100.64.0.0/10;*.internal');
+    const config = getConfig();
+    expect(config.proxy?.bypass).toBe('100.64.0.0/10;*.internal');
+  });
+
+  it('leaves proxy.bypass unset when SITE_USE_PROXY_BYPASS is absent', () => {
+    vi.stubEnv('SITE_USE_PROXY', 'http://127.0.0.1:7890');
+    vi.stubEnv('SITE_USE_PROXY_BYPASS', '');
+    const config = getConfig();
+    expect(config.proxy?.bypass).toBeUndefined();
   });
 
   it('falls back to HTTPS_PROXY when SITE_USE_PROXY is not set', () => {

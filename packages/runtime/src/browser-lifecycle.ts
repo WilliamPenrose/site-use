@@ -271,6 +271,12 @@ function buildLaunchArgs(config: ResolvedRuntimeConfig, extraArgs?: string[]): s
 
   if (config.proxy) {
     args.push(`--proxy-server=${config.proxy.server}`);
+    // Always keep loopback direct — without this Chrome routes localhost through the proxy too, and a
+    // proxy like clash can't reach the user's own dev servers. Caller-supplied bypass entries append.
+    const bypass = ['localhost', '127.0.0.1', '[::1]', config.proxy.bypass]
+      .filter(Boolean)
+      .join(';');
+    args.push(`--proxy-bypass-list=${bypass}`);
   }
 
   if (extraArgs?.length) {

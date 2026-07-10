@@ -4,6 +4,12 @@ export interface RuntimeProxyConfig {
   server: string;
   username?: string;
   password?: string;
+  /**
+   * Extra hosts to reach directly, bypassing the proxy — a Chrome `--proxy-bypass-list` value
+   * (`;`-separated, e.g. `100.64.0.0/10;*.internal`). Loopback (localhost/127.0.0.1/[::1]) is always
+   * bypassed regardless, so local dev servers stay reachable through an active proxy.
+   */
+  bypass?: string;
 }
 
 export type RuntimeWebRTCPolicy =
