@@ -162,6 +162,7 @@ const defaultExistsSync = (filePath: string) => {
 
 describe('browser', () => {
   beforeEach(async () => {
+    vi.unstubAllEnvs();
     await closeBrowser();
     __resetRuntimeForTesting();
     chromeJsonStore = {};
@@ -468,6 +469,9 @@ describe('browser', () => {
 
   describe('error handling', () => {
     it('throws BrowserNotRunning when Chrome executable not found', async () => {
+      // Isolate from a local .env that points CHROME_EXECUTABLE_PATH at a cloned
+      // Chrome, which would otherwise take the custom-path branch and its message.
+      vi.stubEnv('CHROME_EXECUTABLE_PATH', '');
       const { existsSync } = await import('node:fs');
       vi.mocked(existsSync).mockReturnValue(false);
       await expect(ensureBrowser({ autoLaunch: true })).rejects.toThrow('Chrome executable not found');
