@@ -1,3 +1,4 @@
+import type { Page } from 'puppeteer-core';
 import type { Point } from './click-enhanced.js';
 import { easeInOutCubic } from './click-enhanced.js';
 
@@ -18,6 +19,28 @@ export interface HumanizedPathOptions {
 
 function dist(a: Point, b: Point): number {
   return Math.hypot(b.x - a.x, b.y - a.y);
+}
+
+/** Threshold (ms): if the first CDP input event takes longer, input is throttled. */
+const THROTTLE_THRESHOLD_MS = 1000;
+
+/**
+ * Move the pointer along a path via page.mouse.move. The first move doubles as a
+ * throttle probe: if it takes > THROTTLE_THRESHOLD_MS the window is backgrounded,
+ * so we return 'throttled' immediately and let the caller fall back.
+ */
+export async function movePointerAlong(
+  page: Page,
+  path: Point[],
+  stepDelayMs: number,
+): Promise<'ok' | 'throttled'> {
+  for (let i = 0; i < path.length; i++) {
+    const t0 = i === 0 ? Date.now() : 0;
+    await page.mouse.move(path[i].x, path[i].y);
+    if (t0 && Date.now() - t0 > THROTTLE_THRESHOLD_MS) return 'throttled';
+    await new Promise((r) => setTimeout(r, stepDelayMs));
+  }
+  return 'ok';
 }
 
 /**

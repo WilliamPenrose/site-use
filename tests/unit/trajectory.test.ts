@@ -1,5 +1,8 @@
-import { describe, it, expect } from 'vitest';
-import { generateHumanizedPath } from '../../packages/runtime/src/internal/primitives/trajectory.js';
+import { describe, it, expect, vi } from 'vitest';
+import {
+  generateHumanizedPath,
+  movePointerAlong,
+} from '../../packages/runtime/src/internal/primitives/trajectory.js';
 import { mulberry32 } from './mouse-features.js';
 
 function pathLen(pts: { x: number; y: number }[]): number {
@@ -59,5 +62,31 @@ describe('generateHumanizedPath', () => {
   it('returns a single exact point when start equals target', () => {
     const pts = generateHumanizedPath({ x: 100, y: 100 }, { x: 100, y: 100 }, { rng: mulberry32(5) });
     expect(pts).toEqual([{ x: 100, y: 100 }]);
+  });
+});
+
+describe('movePointerAlong', () => {
+  it('moves through every point and returns ok when not throttled', async () => {
+    const move = vi.fn().mockResolvedValue(undefined);
+    const page = { mouse: { move } } as any;
+    const path = [{ x: 0, y: 0 }, { x: 10, y: 10 }, { x: 20, y: 20 }];
+    const result = await movePointerAlong(page, path, 0);
+    expect(result).toBe('ok');
+    expect(move).toHaveBeenCalledTimes(3);
+  });
+
+  it('returns throttled when the first move exceeds the throttle threshold', async () => {
+    let n = 0;
+    const base = 1_000_000;
+    vi.spyOn(Date, 'now').mockImplementation(() => {
+      n++;
+      // call #1 = t0 capture, call #2 = elapsed check (1500ms later)
+      return n >= 2 ? base + 1500 : base;
+    });
+    const move = vi.fn().mockResolvedValue(undefined);
+    const page = { mouse: { move } } as any;
+    const result = await movePointerAlong(page, [{ x: 0, y: 0 }, { x: 5, y: 5 }], 0);
+    vi.spyOn(Date, 'now').mockRestore();
+    expect(result).toBe('throttled');
   });
 });
