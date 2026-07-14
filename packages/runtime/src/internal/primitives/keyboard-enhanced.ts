@@ -1,4 +1,5 @@
 import { pinyin } from 'pinyin-pro';
+import type { CDPSession } from 'puppeteer-core';
 
 /** Unicode ranges treated as CJK / IME-composed input. */
 const CJK_RANGES: ReadonlyArray<readonly [number, number]> = [
@@ -59,4 +60,114 @@ export function wordToPinyin(word: string): PinyinChar[] {
     const ok = typeof syl === 'string' && /^[a-z]+$/.test(syl);
     return { char, pinyin: ok ? syl : null };
   });
+}
+
+export interface ImeTiming {
+  letterDelayMs?: () => number;
+  wordStartDelayMs?: () => number;
+  commitDelayMs?: () => number;
+}
+
+/** keyCode during IME composition is always 229 ("Process") regardless of key. */
+const IME_KEYDOWN_KEYCODE = 229;
+
+/** Physical key metadata for pinyin letters a-z (keyup reports the real code). */
+const LETTER_KEYS: Record<string, { code: string; keyCode: number }> = {};
+for (let c = 97; c <= 122; c++) {
+  const ch = String.fromCharCode(c);
+  LETTER_KEYS[ch] = { code: `Key${ch.toUpperCase()}`, keyCode: c - 32 };
+}
+
+function wait(ms: number): Promise<void> {
+  return ms > 0 ? new Promise((r) => setTimeout(r, ms)) : Promise.resolve();
+}
+
+async function composeSpan(
+  client: CDPSession,
+  span: PinyinChar[],
+  d: Required<ImeTiming>,
+): Promise<void> {
+  await wait(d.wordStartDelayMs());
+  const hanzi = span.map((c) => c.char).join('');
+  const letters = span.map((c) => c.pinyin as string).join('');
+
+  let composed = '';
+  for (const letter of letters) {
+    const key = LETTER_KEYS[letter];
+    await client.send('Input.dispatchKeyEvent', {
+      type: 'keyDown',
+      windowsVirtualKeyCode: IME_KEYDOWN_KEYCODE,
+      key: 'Process',
+      code: key?.code ?? '',
+    });
+    composed += letter;
+    await client.send('Input.imeSetComposition', {
+      text: composed,
+      selectionStart: composed.length,
+      selectionEnd: composed.length,
+    });
+    await client.send('Input.dispatchKeyEvent', {
+      type: 'keyUp',
+      windowsVirtualKeyCode: key?.keyCode ?? 0,
+      key: letter,
+      code: key?.code ?? '',
+    });
+    await wait(d.letterDelayMs());
+  }
+
+  // Candidate selection: Space confirms the composition.
+  await wait(d.commitDelayMs());
+  await client.send('Input.dispatchKeyEvent', {
+    type: 'keyDown',
+    windowsVirtualKeyCode: IME_KEYDOWN_KEYCODE,
+    key: 'Process',
+    code: 'Space',
+  });
+  await client.send('Input.insertText', { text: hanzi });
+  await client.send('Input.dispatchKeyEvent', {
+    type: 'keyUp',
+    windowsVirtualKeyCode: 32,
+    key: ' ',
+    code: 'Space',
+  });
+}
+
+async function composeFallback(client: CDPSession, char: string): Promise<void> {
+  await client.send('Input.imeSetComposition', {
+    text: char,
+    selectionStart: char.length,
+    selectionEnd: char.length,
+  });
+  await client.send('Input.insertText', { text: char });
+}
+
+/** Drive an IME-faithful keystroke stream for a CJK run on the focused element. */
+export async function imeComposeText(
+  client: CDPSession,
+  runText: string,
+  timing: ImeTiming = {},
+): Promise<void> {
+  const d: Required<ImeTiming> = {
+    letterDelayMs: timing.letterDelayMs ?? (() => 80 + Math.random() * 90),
+    wordStartDelayMs: timing.wordStartDelayMs ?? (() => 150 + Math.random() * 350),
+    commitDelayMs: timing.commitDelayMs ?? (() => 200 + Math.random() * 400),
+  };
+
+  for (const word of segmentCjkWords(runText)) {
+    const chars = wordToPinyin(word);
+    let i = 0;
+    while (i < chars.length) {
+      if (chars[i].pinyin == null) {
+        await composeFallback(client, chars[i].char);
+        i++;
+        continue;
+      }
+      const span: PinyinChar[] = [];
+      while (i < chars.length && chars[i].pinyin != null) {
+        span.push(chars[i]);
+        i++;
+      }
+      await composeSpan(client, span, d);
+    }
+  }
 }
