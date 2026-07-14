@@ -71,6 +71,9 @@ export interface ImeTiming {
 /** keyCode during IME composition is always 229 ("Process") regardless of key. */
 const IME_KEYDOWN_KEYCODE = 229;
 
+/** keyCode reported by the Space key (candidate-selection commit). */
+const SPACE_KEYCODE = 32;
+
 /** Physical key metadata for pinyin letters a-z (keyup reports the real code). */
 const LETTER_KEYS: Record<string, { code: string; keyCode: number }> = {};
 for (let c = 97; c <= 122; c++) {
@@ -126,19 +129,31 @@ async function composeSpan(
   await client.send('Input.insertText', { text: hanzi });
   await client.send('Input.dispatchKeyEvent', {
     type: 'keyUp',
-    windowsVirtualKeyCode: 32,
+    windowsVirtualKeyCode: SPACE_KEYCODE,
     key: ' ',
     code: 'Space',
   });
 }
 
 async function composeFallback(client: CDPSession, char: string): Promise<void> {
+  await client.send('Input.dispatchKeyEvent', {
+    type: 'keyDown',
+    windowsVirtualKeyCode: IME_KEYDOWN_KEYCODE,
+    key: 'Process',
+    code: '',
+  });
   await client.send('Input.imeSetComposition', {
     text: char,
     selectionStart: char.length,
     selectionEnd: char.length,
   });
   await client.send('Input.insertText', { text: char });
+  await client.send('Input.dispatchKeyEvent', {
+    type: 'keyUp',
+    windowsVirtualKeyCode: IME_KEYDOWN_KEYCODE,
+    key: 'Process',
+    code: '',
+  });
 }
 
 /** Drive an IME-faithful keystroke stream for a CJK run on the focused element. */

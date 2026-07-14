@@ -74,11 +74,18 @@ describe('imeComposeText', () => {
     await imeComposeText(client as any, QIAN, NO_DELAY); // pinyin: qian
     const calls = client.send.mock.calls;
 
-    const firstKeydown = calls.find(
-      (c) => c[0] === 'Input.dispatchKeyEvent' && c[1].type === 'keyDown',
+    const letterKeydowns = calls.filter(
+      (c) =>
+        c[0] === 'Input.dispatchKeyEvent' &&
+        c[1].type === 'keyDown' &&
+        typeof c[1].code === 'string' &&
+        c[1].code.startsWith('Key'),
     );
-    expect(firstKeydown[1].windowsVirtualKeyCode).toBe(229);
-    expect(firstKeydown[1].key).toBe('Process');
+    expect(letterKeydowns.length).toBeGreaterThan(0);
+    for (const c of letterKeydowns) {
+      expect(c[1].windowsVirtualKeyCode).toBe(229);
+      expect(c[1].key).toBe('Process');
+    }
 
     const comps = calls
       .filter((c) => c[0] === 'Input.imeSetComposition')
@@ -94,15 +101,30 @@ describe('imeComposeText', () => {
     expect(inserts.at(-1)[1].text).toBe(QIAN);
   });
 
-  it('fallback: unmapped char emits composition + insertText, no 229 keydown', async () => {
+  it('fallback: unmapped char is bracketed by a matching 229 keydown/keyup pair', async () => {
     const client = mockClient();
     await imeComposeText(client as any, GA, NO_DELAY); // Hangul, no pinyin
-    const methods = client.send.mock.calls.map((c) => c[0]);
+    const calls = client.send.mock.calls;
+    const methods = calls.map((c) => c[0]);
     expect(methods).toContain('Input.imeSetComposition');
     expect(methods).toContain('Input.insertText');
-    const has229 = client.send.mock.calls.some(
-      (c) => c[0] === 'Input.dispatchKeyEvent' && c[1].windowsVirtualKeyCode === 229,
+
+    const keydowns229 = calls.filter(
+      (c) => c[0] === 'Input.dispatchKeyEvent' && c[1].type === 'keyDown' && c[1].windowsVirtualKeyCode === 229,
     );
-    expect(has229).toBe(false);
+    const keyups229 = calls.filter(
+      (c) => c[0] === 'Input.dispatchKeyEvent' && c[1].type === 'keyUp' && c[1].windowsVirtualKeyCode === 229,
+    );
+    expect(keydowns229.length).toBe(1);
+    expect(keyups229.length).toBe(1);
+
+    const keydownIdx = calls.indexOf(keydowns229[0]);
+    const compositionIdx = calls.findIndex((c) => c[0] === 'Input.imeSetComposition');
+    const insertIdx = calls.findIndex((c) => c[0] === 'Input.insertText');
+    const keyupIdx = calls.indexOf(keyups229[0]);
+
+    expect(keydownIdx).toBeLessThan(compositionIdx);
+    expect(compositionIdx).toBeLessThan(insertIdx);
+    expect(insertIdx).toBeLessThan(keyupIdx);
   });
 });
