@@ -29,6 +29,7 @@ export type {
   CreateSecurePuppeteerPrimitivesOptions,
   SecurePrimitives,
 } from './secure-factory.js';
+export type { TextRun, PinyinChar, ImeTiming } from './keyboard-enhanced.js';
 
 export { createAuthGuardedPrimitives } from './auth-guard.js';
 export {
@@ -51,3 +52,11 @@ export { SlidingWindowRateLimiter } from './rate-limiter.js';
 export { PuppeteerBackend } from './puppeteer-backend.js';
 export { humanScroll, scrollElementIntoView } from './scroll-enhanced.js';
 export { createThrottledPrimitives } from './throttle.js';
+export {
+  isCjkCodePoint,
+  containsCjk,
+  splitCjkRuns,
+  segmentCjkWords,
+  wordToPinyin,
+  imeComposeText,
+} from './keyboard-enhanced.js';

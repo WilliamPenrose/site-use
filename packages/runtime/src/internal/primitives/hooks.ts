@@ -1,6 +1,7 @@
-import type { Page } from 'puppeteer-core';
+import type { Page, CDPSession } from 'puppeteer-core';
 import type { BoundingBox, Point } from './click-enhanced.js';
 import type { HumanScrollOptions, ScrollIntoViewOptions } from './scroll-enhanced.js';
+import type { ImeTiming } from './keyboard-enhanced.js';
 
 export interface PrimitivesErrorContext {
   url?: string;
@@ -65,6 +66,11 @@ export interface RuntimePrimitivesHooks {
     page: Page,
     backendNodeId: number,
     options?: ScrollIntoViewOptions,
+  ) => Promise<void>;
+  imeCompose?: (
+    client: CDPSession,
+    text: string,
+    timing?: ImeTiming,
   ) => Promise<void>;
 }
 

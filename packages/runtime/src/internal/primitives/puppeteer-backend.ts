@@ -30,6 +30,7 @@ import { mergeAxData, mergeDomSnapshot } from './snapshot/merge.js';
 import { filterNodes } from './snapshot/filter.js';
 import { buildSnapshotOutput } from './snapshot/output.js';
 import { RateLimitDetector } from './rate-limit-detect.js';
+import { splitCjkRuns, imeComposeText } from './keyboard-enhanced.js';
 
 const DEFAULT_SITE = '_default';
 
@@ -526,23 +527,30 @@ export class PuppeteerBackend implements Primitives {
     this.checkRateLimit('type');
     const { page, backendNodeId } = await this.resolveUid(uid, 'type');
 
-    // Focus the element via CDP
     const client = await page.createCDPSession();
     try {
-      await client.send('DOM.focus', { backendNodeId });
-    } catch (err) {
-      throw createRuntimePrimitivesError(
-        'ElementNotFound',
-        this.hooks.ElementNotFound,
-        `Failed to focus element with uid "${uid}": ${err instanceof Error ? err.message : String(err)}`,
-        { step: 'type', retryable: true, hint: 'The DOM may have changed since takeSnapshot(). Try taking a new snapshot and retrying.' },
-      );
+      try {
+        await client.send('DOM.focus', { backendNodeId });
+      } catch (err) {
+        throw createRuntimePrimitivesError(
+          'ElementNotFound',
+          this.hooks.ElementNotFound,
+          `Failed to focus element with uid "${uid}": ${err instanceof Error ? err.message : String(err)}`,
+          { step: 'type', retryable: true, hint: 'The DOM may have changed since takeSnapshot(). Try taking a new snapshot and retrying.' },
+        );
+      }
+
+      const imeCompose = this.hooks.imeCompose ?? imeComposeText;
+      for (const run of splitCjkRuns(text)) {
+        if (run.cjk) {
+          await imeCompose(client, run.text);
+        } else {
+          await page.keyboard.type(run.text, { delay: options?.delay ?? 0 });
+        }
+      }
     } finally {
       await client.detach();
     }
-
-    // Type text via Puppeteer keyboard
-    await page.keyboard.type(text, { delay: options?.delay ?? 0 });
 
     // Wait for DOM stability
     await new Promise((r) => setTimeout(r, 100));

@@ -39,6 +39,7 @@ const mockAuthenticate = vi.fn().mockResolvedValue(undefined);
 const mockClose = vi.fn().mockResolvedValue(undefined);
 const mockUrl = vi.fn().mockReturnValue('about:blank');
 const mockCreateCDPSession = vi.fn();
+let imeComposeSpy: ReturnType<typeof vi.fn>;
 
 function createMockPage() {
   return {
@@ -80,6 +81,7 @@ let PuppeteerBackend: new (...args: any[]) => any;
 beforeEach(async () => {
   vi.resetModules();
   vi.clearAllMocks();
+  imeComposeSpy = vi.fn().mockResolvedValue(undefined);
   mockNewPage.mockClear();
   mockGoto.mockClear();
   mockEvaluate.mockClear();
@@ -98,6 +100,8 @@ beforeEach(async () => {
         NavigationFailed,
         CdpThrottled,
         getClickEnhancementConfig,
+        imeCompose: (client: any, text: string, timing?: any) =>
+          imeComposeSpy(client, text, timing),
       });
     }
   };
@@ -819,6 +823,82 @@ describe('PuppeteerBackend', () => {
     });
   });
 
+  describe('type', () => {
+    const C = (...cps: number[]) => String.fromCodePoint(...cps);
+    const QIAN = C(0x524d);
+    const DUAN = C(0x7aef);
+
+    function mockFocusSession() {
+      return {
+        send: vi.fn().mockResolvedValue({}),
+        detach: vi.fn().mockResolvedValue(undefined),
+      };
+    }
+
+    async function backendWithUid() {
+      // Populate the uid map: uid "1" -> backendDOMNodeId 101.
+      const axSession = {
+        send: vi.fn().mockImplementation((method: string) => {
+          if (method === 'Page.getFrameTree') {
+            return Promise.resolve({
+              frameTree: { frame: { id: 'main', url: 'https://x.com', securityOrigin: 'https://x.com' } },
+            });
+          }
+          if (method === 'Accessibility.getFullAXTree') {
+            return Promise.resolve({
+              nodes: [
+                { nodeId: 'ax-1', role: { value: 'textbox' }, name: { value: 'Search' }, backendDOMNodeId: 101, ignored: false, properties: [] },
+              ],
+            });
+          }
+          if (method === 'DOMSnapshot.captureSnapshot') return Promise.resolve({ documents: [], strings: [] });
+          return Promise.resolve({});
+        }),
+        detach: vi.fn().mockResolvedValue(undefined),
+      };
+      mockCreateCDPSession.mockResolvedValue(axSession);
+      const backend = new PuppeteerBackend(mockBrowser as any);
+      await backend.takeSnapshot();
+      return backend;
+    }
+
+    it('routes ASCII text through keyboard.type, never the IME hook', async () => {
+      const backend = await backendWithUid();
+      mockCreateCDPSession.mockResolvedValue(mockFocusSession());
+      const page = await (backend as any).getPage();
+
+      await backend.type('1', 'abc');
+
+      expect(page.keyboard.type).toHaveBeenCalledWith('abc', { delay: 0 });
+      expect(imeComposeSpy).not.toHaveBeenCalled();
+    });
+
+    it('routes CJK text through the IME hook, not keyboard.type', async () => {
+      const backend = await backendWithUid();
+      mockCreateCDPSession.mockResolvedValue(mockFocusSession());
+      const page = await (backend as any).getPage();
+
+      await backend.type('1', QIAN + DUAN); // frontend
+
+      expect(imeComposeSpy).toHaveBeenCalledTimes(1);
+      expect(imeComposeSpy.mock.calls[0][1]).toBe(QIAN + DUAN);
+      expect(page.keyboard.type).not.toHaveBeenCalled();
+    });
+
+    it('routes mixed text: ASCII to keyboard.type, CJK to the IME hook, in order', async () => {
+      const backend = await backendWithUid();
+      mockCreateCDPSession.mockResolvedValue(mockFocusSession());
+      const page = await (backend as any).getPage();
+
+      await backend.type('1', 'a' + QIAN + 'b'); // a + Han + b
+
+      expect(page.keyboard.type).toHaveBeenCalledWith('a', { delay: 0 });
+      expect(page.keyboard.type).toHaveBeenCalledWith('b', { delay: 0 });
+      expect(imeComposeSpy).toHaveBeenCalledTimes(1);
+      expect(imeComposeSpy.mock.calls[0][1]).toBe(QIAN);
+    });
+  });
+
   describe('scroll', () => {
     it('delegates to humanScroll for down scroll', async () => {
       const page = createMockPage();
@@ -1207,9 +1287,9 @@ describe('PuppeteerBackend', () => {
 
       const backend = new PuppeteerBackend(mockBrowser as any);
       await backend.takeSnapshot();
-      await backend.type('1', '咖啡', { delay: 100 });
+      await backend.type('1', 'hello', { delay: 100 });
 
-      expect(page.keyboard.type).toHaveBeenCalledWith('咖啡', { delay: 100 });
+      expect(page.keyboard.type).toHaveBeenCalledWith('hello', { delay: 100 });
     });
   });
 
