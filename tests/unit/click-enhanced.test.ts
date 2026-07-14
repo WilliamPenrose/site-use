@@ -179,30 +179,13 @@ describe('getClickEnhancementConfig', () => {
 });
 
 describe('clickWithTrajectory', () => {
-  it('returns throttled when correction path (phase 2) detects throttle', async () => {
-    // movePath's throttle probe: t0 = Date.now() → move → Date.now() - t0 > 1000?
-    // It only probes on i===0 of each movePath call.
-    // For overshoot (>500px), clickWithTrajectory calls movePath twice:
-    //   1st: overshoot path (Phase 1)
-    //   2nd: correction path (Phase 2)
-    // We want Phase 1 to pass (fast) and Phase 2 to detect throttle (slow).
-    //
-    // Strategy: track Date.now() calls. movePath calls Date.now exactly 2x per probe:
-    //   call A: t0 = Date.now()    (before move)
-    //   call B: Date.now() - t0    (after move)
-    // Phase 1 probe = Date.now calls #1 and #2 → return same value (fast)
-    // Phase 2 probe = Date.now calls #3 and #4 → return values 1500ms apart (slow)
-
-    let dateNowCallCount = 0;
-    const baseTime = 1000000;
+  it('returns throttled when the first move detects throttle', async () => {
+    let n = 0;
+    const base = 1_000_000;
     vi.spyOn(Date, 'now').mockImplementation(() => {
-      dateNowCallCount++;
-      if (dateNowCallCount <= 2) return baseTime;       // Phase 1: fast (0ms elapsed)
-      if (dateNowCallCount === 3) return baseTime;      // Phase 2: t0 capture
-      if (dateNowCallCount === 4) return baseTime + 1500; // Phase 2: check → 1500ms > 1000ms
-      return baseTime;
+      n++;
+      return n >= 2 ? base + 1500 : base; // first move probe: 1500ms > 1000ms
     });
-
     const page = {
       mouse: {
         move: vi.fn().mockResolvedValue(undefined),
@@ -210,18 +193,14 @@ describe('clickWithTrajectory', () => {
       },
     } as any;
 
-    // Distance > 500px to trigger overshoot path
     const result = await clickWithTrajectory(page, 800, 400, { stepDelayMs: 0 });
 
     vi.spyOn(Date, 'now').mockRestore();
-
-    // Phase 2 detected throttle → clickWithTrajectory returns 'throttled'
     expect(result).toBe('throttled');
-    // Should NOT have reached the final click
     expect(page.mouse.click).not.toHaveBeenCalled();
   });
 
-  it('returns ok and clicks when no throttle detected', async () => {
+  it('returns ok and clicks the exact target when not throttled', async () => {
     const page = {
       mouse: {
         move: vi.fn().mockResolvedValue(undefined),
@@ -229,10 +208,10 @@ describe('clickWithTrajectory', () => {
       },
     } as any;
 
-    // Short distance (no overshoot)
-    const result = await clickWithTrajectory(page, 50, 50, { stepDelayMs: 0 });
+    const result = await clickWithTrajectory(page, 640, 480, { stepDelayMs: 0 });
 
     expect(result).toBe('ok');
-    expect(page.mouse.click).toHaveBeenCalledWith(50, 50);
+    // Terminal accuracy: the click lands exactly on the requested target.
+    expect(page.mouse.click).toHaveBeenCalledWith(640, 480);
   });
 });

@@ -1,4 +1,5 @@
 import type { Page } from 'puppeteer-core';
+import { generateHumanizedPath, movePointerAlong } from './trajectory.js';
 
 export interface Point {
   x: number;
@@ -312,62 +313,13 @@ export async function waitForElementStable(
 }
 
 /**
- * Generate a random overshoot point near the target.
- * The overshoot lands within `radius` pixels past the target
- * along the general direction of travel, with random angular spread.
- */
-function generateOvershootPoint(
-  startX: number,
-  startY: number,
-  targetX: number,
-  targetY: number,
-  radius: number = 120,
-): Point {
-  const angle = Math.atan2(targetY - startY, targetX - startX);
-  // Overshoot in the general forward direction with ±60° angular spread
-  const spreadAngle = angle + (Math.random() - 0.5) * (Math.PI / 1.5);
-  const overshootDist = Math.random() * radius + 10;
-  return {
-    x: targetX + Math.cos(spreadAngle) * overshootDist,
-    y: targetY + Math.sin(spreadAngle) * overshootDist,
-  };
-}
-
-/** Distance threshold beyond which overshoot is applied (pixels). */
-const OVERSHOOT_THRESHOLD = 500;
-
-/** Threshold (ms): if a single CDP input event takes longer, input is throttled. */
-const THROTTLE_THRESHOLD_MS = 1000;
-
-/**
- * Execute a series of mouse.move calls along a path.
- * The first move doubles as a throttle probe: if it takes >1s,
- * returns 'throttled' immediately so the caller can fall back.
- */
-async function movePath(
-  page: Page,
-  path: Point[],
-  stepDelayMs: number,
-): Promise<'ok' | 'throttled'> {
-  for (let i = 0; i < path.length; i++) {
-    const t0 = i === 0 ? Date.now() : 0;
-    await page.mouse.move(path[i].x, path[i].y);
-    if (t0 && Date.now() - t0 > THROTTLE_THRESHOLD_MS) return 'throttled';
-    await new Promise((r) => setTimeout(r, stepDelayMs));
-  }
-  return 'ok';
-}
-
-/**
- * Move mouse along a Bezier curve from current position to (targetX, targetY),
- * then click with optional jitter.
- *
- * For long-distance moves (>500px), simulates human overshoot:
- * the cursor first moves past the target, then corrects back.
+ * Move the mouse from a random off-screen-ish start to (targetX, targetY) along a
+ * humanized sub-movement path (overshoot + corrective settle, curved arcs,
+ * non-uniform sampling), then click the exact target.
  *
  * Returns 'throttled' if CDP input events are being throttled (background
- * window). The first mouse.move doubles as a probe — no wasted time.
- * Caller should fall back to a non-CDP click (e.g. JS element.click()).
+ * window) — the first move doubles as the probe. Caller should fall back to a
+ * non-CDP click (e.g. JS element.click()).
  */
 export async function clickWithTrajectory(
   page: Page,
@@ -377,38 +329,13 @@ export async function clickWithTrajectory(
 ): Promise<'ok' | 'throttled'> {
   const { stepDelayMs = 18, overshoot = true } = options;
 
-  const startX = 0;
-  const startY = Math.round(Math.random() * 600);
+  const start = { x: 0, y: Math.round(Math.random() * 600) };
+  const target = { x: targetX, y: targetY };
 
-  const finalTarget = { x: targetX, y: targetY };
+  const path = generateHumanizedPath(start, target, { overshoot });
+  const result = await movePointerAlong(page, path, stepDelayMs);
+  if (result === 'throttled') return 'throttled';
 
-  const dx = finalTarget.x - startX;
-  const dy = finalTarget.y - startY;
-  const distance = Math.sqrt(dx * dx + dy * dy);
-
-  if (overshoot && distance > OVERSHOOT_THRESHOLD) {
-    // Phase 1: Move to overshoot point (past the target)
-    const overshootPt = generateOvershootPoint(startX, startY, finalTarget.x, finalTarget.y);
-    const pathToOvershoot = generateBezierPath(startX, startY, overshootPt.x, overshootPt.y);
-
-    const result = await movePath(page, pathToOvershoot, stepDelayMs);
-    if (result === 'throttled') return 'throttled';
-
-    // Brief pause at overshoot — human "oops" moment
-    await new Promise((r) => setTimeout(r, 40 + Math.random() * 60));
-
-    // Phase 2: Correction curve back to actual target
-    const correctionPath = generateBezierPath(overshootPt.x, overshootPt.y, finalTarget.x, finalTarget.y);
-    const correctionResult = await movePath(page, correctionPath, stepDelayMs);
-    if (correctionResult === 'throttled') return 'throttled';
-  } else {
-    // Direct path (short distance or overshoot disabled)
-    const path = generateBezierPath(startX, startY, finalTarget.x, finalTarget.y);
-
-    const result = await movePath(page, path, stepDelayMs);
-    if (result === 'throttled') return 'throttled';
-  }
-
-  await page.mouse.click(finalTarget.x, finalTarget.y);
+  await page.mouse.click(target.x, target.y);
   return 'ok';
 }
