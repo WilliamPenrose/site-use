@@ -49,9 +49,11 @@ function buildArcSegment(
   const py = dx / len;
 
   // Signed arc amplitude with a GUARANTEED magnitude (never near-straight),
-  // capped so long moves do not draw absurd loops.
+  // capped relative to segment length so it scales across distances without
+  // drawing absurd full loops.
   const sign = rng() < 0.5 ? -1 : 1;
-  const mag = Math.min((0.5 + rng() * 0.6) * arcSpreadFrac * len, 180);
+  const cap = Math.max(120, 0.7 * len);
+  const mag = Math.min((0.5 + rng() * 0.6) * arcSpreadFrac * len, cap);
   const amp = sign * mag;
 
   // Asymmetric control points along the chord (0.25 / 0.75 with jitter),
@@ -103,11 +105,15 @@ export function generateHumanizedPath(
   target: Point,
   opts: HumanizedPathOptions = {},
 ): Point[] {
+  // Defaults tuned against the zpAegis feature gate (500-sample lab): they land
+  // efficiency at median ~0.46 (trips <1%) and autocorrelationLag1 at median
+  // ~0.45 (trips ~5%), both well under their bot thresholds, with the guard
+  // features clean. See tests/unit/trajectory-detection-gate.test.ts.
   const rng = opts.rng ?? Math.random;
   const overshoot = opts.overshoot ?? true;
-  const arcSpreadFrac = opts.arcSpreadFrac ?? 1.0;
-  const stepJitter = opts.stepJitter ?? 0.6;
-  const [ofMin, ofMax] = opts.overshootFrac ?? [0.06, 0.16];
+  const arcSpreadFrac = opts.arcSpreadFrac ?? 1.3;
+  const stepJitter = opts.stepJitter ?? 1.1;
+  const [ofMin, ofMax] = opts.overshootFrac ?? [0.12, 0.28];
   const minSteps = opts.minSteps ?? 25;
 
   const D = dist(start, target);
@@ -131,15 +137,13 @@ export function generateHumanizedPath(
       y: target.y + Math.sin(ang + spread) * od,
     };
     waypoints.push(overshootPt);
-    // ~50% of the time, add a second smaller corrective waypoint between the
-    // overshoot and the target (adds another seam + reversal).
-    if (rng() < 0.5) {
-      const back = 0.25 + rng() * 0.25;
-      waypoints.push({
-        x: target.x + (overshootPt.x - target.x) * back,
-        y: target.y + (overshootPt.y - target.y) * back,
-      });
-    }
+    // Always add a second smaller corrective waypoint between the overshoot and
+    // the target (adds another seam + reversal, and more path length).
+    const back = 0.25 + rng() * 0.25;
+    waypoints.push({
+      x: target.x + (overshootPt.x - target.x) * back,
+      y: target.y + (overshootPt.y - target.y) * back,
+    });
   }
   waypoints.push(target);
 

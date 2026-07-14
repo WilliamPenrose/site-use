@@ -53,30 +53,27 @@ function lag1Autocorr(v: number[]): number {
   return den > 0 ? num / den : 0;
 }
 
-// Fraction of spatial variance lying ALONG the ideal first->last line.
-// 1 == perfectly straight (bot); curvy paths drop below 0.5.
-// APPROXIMATION of the decoded linearityScore.
+// Directional coherence: the resultant length of the unit step-direction
+// vectors. A perfectly straight path has every step pointing the same way, so
+// the resultant is ~1 (bot); a curved / reversing path has steps pointing many
+// ways that partly cancel, dropping it well below 0.5.
+// APPROXIMATION of the decoded linearityScore, but directionally faithful:
+// straight -> high, curvy -> low, which is the property the model keys on.
 function computeLinearity(points: Pt[]): number {
-  const n = points.length;
-  if (n < 3) return 1;
-  const first = points[0];
-  const last = points[n - 1];
-  const dx = last.x - first.x;
-  const dy = last.y - first.y;
-  const L = Math.hypot(dx, dy) || 1;
-  const ux = dx / L;
-  const uy = dy / L;
-  const along: number[] = [];
-  const perp: number[] = [];
-  for (const p of points) {
-    const rx = p.x - first.x;
-    const ry = p.y - first.y;
-    along.push(rx * ux + ry * uy);
-    perp.push(rx * -uy + ry * ux);
+  let sx = 0;
+  let sy = 0;
+  let n = 0;
+  for (let i = 1; i < points.length; i++) {
+    const dx = points[i].x - points[i - 1].x;
+    const dy = points[i].y - points[i - 1].y;
+    const l = Math.hypot(dx, dy);
+    if (l > 0) {
+      sx += dx / l;
+      sy += dy / l;
+      n++;
+    }
   }
-  const av = std(along) ** 2;
-  const pv = std(perp) ** 2;
-  return av + pv > 0 ? av / (av + pv) : 1;
+  return n > 0 ? Math.hypot(sx, sy) / n : 1;
 }
 
 // Normalized Shannon entropy of quantized turn angles.
