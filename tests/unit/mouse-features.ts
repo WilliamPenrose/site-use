@@ -81,7 +81,7 @@ function computeLinearity(points: Pt[]): number {
 function computeEntropy(angles: number[]): number {
   if (!angles.length) return 0;
   const bins = 8;
-  const hist = new Array(bins).fill(0);
+  const hist = Array.from({ length: bins }, () => 0);
   for (const a of angles) {
     const idx = Math.min(bins - 1, Math.floor(((a + Math.PI) / (2 * Math.PI)) * bins));
     hist[idx]++;

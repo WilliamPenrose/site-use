@@ -42,6 +42,8 @@ export {
   isPositionStable,
   waitForElementStable,
 } from './click-enhanced.js';
+export { generateHumanizedPath, movePointerAlong } from './trajectory.js';
+export type { HumanizedPathOptions } from './trajectory.js';
 export { createSecurePuppeteerPrimitives } from './secure-factory.js';
 export { createRuntimePrimitivesError, getResolvedClickEnhancementConfig } from './hooks.js';
 export {
