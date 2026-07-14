@@ -30,6 +30,7 @@
     "node": ">=22.14.0"
   },
   "dependencies": {
+    "pinyin-pro": "^3.28.1",
     "puppeteer-core": "^24.39.1"
   },
   "devDependencies": {
