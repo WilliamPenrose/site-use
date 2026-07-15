@@ -40,6 +40,7 @@ const mockClose = vi.fn().mockResolvedValue(undefined);
 const mockUrl = vi.fn().mockReturnValue('about:blank');
 const mockCreateCDPSession = vi.fn();
 let imeComposeSpy: ReturnType<typeof vi.fn>;
+let typeAsciiSpy: ReturnType<typeof vi.fn>;
 
 function createMockPage() {
   return {
@@ -82,6 +83,7 @@ beforeEach(async () => {
   vi.resetModules();
   vi.clearAllMocks();
   imeComposeSpy = vi.fn().mockResolvedValue(undefined);
+  typeAsciiSpy = vi.fn().mockResolvedValue(undefined);
   mockNewPage.mockClear();
   mockGoto.mockClear();
   mockEvaluate.mockClear();
@@ -102,6 +104,8 @@ beforeEach(async () => {
         getClickEnhancementConfig,
         imeCompose: (client: any, text: string, timing?: any) =>
           imeComposeSpy(client, text, timing),
+        typeAscii: (keyboard: any, text: string, options?: any) =>
+          typeAsciiSpy(keyboard, text, options),
       });
     }
   };
@@ -862,38 +866,42 @@ describe('PuppeteerBackend', () => {
       return backend;
     }
 
-    it('routes ASCII text through keyboard.type, never the IME hook', async () => {
+    it('routes ASCII text through the humanized ASCII typer, never the IME hook', async () => {
       const backend = await backendWithUid();
       mockCreateCDPSession.mockResolvedValue(mockFocusSession());
       const page = await (backend as any).getPage();
 
       await backend.type('1', 'abc');
 
-      expect(page.keyboard.type).toHaveBeenCalledWith('abc', { delay: 0 });
+      expect(typeAsciiSpy).toHaveBeenCalledTimes(1);
+      expect(typeAsciiSpy.mock.calls[0][0]).toBe(page.keyboard);
+      expect(typeAsciiSpy.mock.calls[0][1]).toBe('abc');
+      expect(typeAsciiSpy.mock.calls[0][2]).toEqual({ delayMs: 0 });
+      expect(page.keyboard.type).not.toHaveBeenCalled();
       expect(imeComposeSpy).not.toHaveBeenCalled();
     });
 
-    it('routes CJK text through the IME hook, not keyboard.type', async () => {
+    it('routes CJK text through the IME hook, not the ASCII typer', async () => {
       const backend = await backendWithUid();
       mockCreateCDPSession.mockResolvedValue(mockFocusSession());
-      const page = await (backend as any).getPage();
+      await (backend as any).getPage();
 
       await backend.type('1', QIAN + DUAN); // frontend
 
       expect(imeComposeSpy).toHaveBeenCalledTimes(1);
       expect(imeComposeSpy.mock.calls[0][1]).toBe(QIAN + DUAN);
-      expect(page.keyboard.type).not.toHaveBeenCalled();
+      expect(typeAsciiSpy).not.toHaveBeenCalled();
     });
 
-    it('routes mixed text: ASCII to keyboard.type, CJK to the IME hook, in order', async () => {
+    it('routes mixed text: ASCII to the humanized typer, CJK to the IME hook, in order', async () => {
       const backend = await backendWithUid();
       mockCreateCDPSession.mockResolvedValue(mockFocusSession());
-      const page = await (backend as any).getPage();
+      await (backend as any).getPage();
 
       await backend.type('1', 'a' + QIAN + 'b'); // a + Han + b
 
-      expect(page.keyboard.type).toHaveBeenCalledWith('a', { delay: 0 });
-      expect(page.keyboard.type).toHaveBeenCalledWith('b', { delay: 0 });
+      const asciiTexts = typeAsciiSpy.mock.calls.map((c) => c[1]);
+      expect(asciiTexts).toEqual(['a', 'b']);
       expect(imeComposeSpy).toHaveBeenCalledTimes(1);
       expect(imeComposeSpy.mock.calls[0][1]).toBe(QIAN);
     });
@@ -1246,8 +1254,8 @@ describe('PuppeteerBackend', () => {
 
       // Verify CDP DOM.focus called with backendNodeId
       expect(session.send).toHaveBeenCalledWith('DOM.focus', { backendNodeId: 101 });
-      // Verify keyboard.type called with text and default delay
-      expect(page.keyboard.type).toHaveBeenCalledWith('hello', { delay: 0 });
+      // Verify the humanized ASCII typer drove the text with the default delay
+      expect(typeAsciiSpy).toHaveBeenCalledWith(page.keyboard, 'hello', { delayMs: 0 });
     });
 
     it('wraps DOM.focus failure as ElementNotFound', async () => {
@@ -1280,7 +1288,7 @@ describe('PuppeteerBackend', () => {
       await expect(backend.type('1', 'hello')).rejects.toThrow(/Failed to focus element/);
     });
 
-    it('passes delay option to keyboard.type', async () => {
+    it('passes the delay option through as the ASCII inter-key gap', async () => {
       setupTypeMocks();
       const page = createMockPage();
       mockNewPage.mockResolvedValue(page);
@@ -1289,7 +1297,7 @@ describe('PuppeteerBackend', () => {
       await backend.takeSnapshot();
       await backend.type('1', 'hello', { delay: 100 });
 
-      expect(page.keyboard.type).toHaveBeenCalledWith('hello', { delay: 100 });
+      expect(typeAsciiSpy).toHaveBeenCalledWith(page.keyboard, 'hello', { delayMs: 100 });
     });
   });
 

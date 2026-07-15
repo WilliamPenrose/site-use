@@ -29,7 +29,13 @@ export type {
   CreateSecurePuppeteerPrimitivesOptions,
   SecurePrimitives,
 } from './secure-factory.js';
-export type { TextRun, PinyinChar, ImeTiming } from './keyboard-enhanced.js';
+export type {
+  TextRun,
+  PinyinChar,
+  ImeTiming,
+  KeyboardLike,
+  AsciiTypingOptions,
+} from './keyboard-enhanced.js';
 
 export { createAuthGuardedPrimitives } from './auth-guard.js';
 export {
@@ -61,4 +67,6 @@ export {
   segmentCjkWords,
   wordToPinyin,
   imeComposeText,
+  typeAsciiHumanized,
+  DEFAULT_KEY_DWELL_MS,
 } from './keyboard-enhanced.js';

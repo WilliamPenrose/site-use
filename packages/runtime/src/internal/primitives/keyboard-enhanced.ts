@@ -66,7 +66,16 @@ export interface ImeTiming {
   letterDelayMs?: () => number;
   wordStartDelayMs?: () => number;
   commitDelayMs?: () => number;
+  /** Key-hold (dwell) time between a key's keyDown and its keyUp, in ms. */
+  keyDwellMs?: () => number;
 }
+
+/**
+ * Default human key-hold (dwell) time: ~55-110ms between keyDown and keyUp.
+ * A real key press is held tens of ms; without this the per-key dwell series a
+ * detector reads (e.g. keystroke-timing biometrics) collapses to all-zero.
+ */
+export const DEFAULT_KEY_DWELL_MS = (): number => 55 + Math.random() * 55;
 
 /** keyCode during IME composition is always 229 ("Process") regardless of key. */
 const IME_KEYDOWN_KEYCODE = 229;
@@ -109,6 +118,8 @@ async function composeSpan(
       selectionStart: composed.length,
       selectionEnd: composed.length,
     });
+    // Hold the key for a human dwell before releasing it.
+    await wait(d.keyDwellMs());
     await client.send('Input.dispatchKeyEvent', {
       type: 'keyUp',
       windowsVirtualKeyCode: key?.keyCode ?? 0,
@@ -127,6 +138,7 @@ async function composeSpan(
     code: 'Space',
   });
   await client.send('Input.insertText', { text: hanzi });
+  await wait(d.keyDwellMs());
   await client.send('Input.dispatchKeyEvent', {
     type: 'keyUp',
     windowsVirtualKeyCode: SPACE_KEYCODE,
@@ -135,7 +147,11 @@ async function composeSpan(
   });
 }
 
-async function composeFallback(client: CDPSession, char: string): Promise<void> {
+async function composeFallback(
+  client: CDPSession,
+  char: string,
+  d: Required<ImeTiming>,
+): Promise<void> {
   await client.send('Input.dispatchKeyEvent', {
     type: 'keyDown',
     windowsVirtualKeyCode: IME_KEYDOWN_KEYCODE,
@@ -148,6 +164,7 @@ async function composeFallback(client: CDPSession, char: string): Promise<void> 
     selectionEnd: char.length,
   });
   await client.send('Input.insertText', { text: char });
+  await wait(d.keyDwellMs());
   await client.send('Input.dispatchKeyEvent', {
     type: 'keyUp',
     windowsVirtualKeyCode: IME_KEYDOWN_KEYCODE,
@@ -166,6 +183,7 @@ export async function imeComposeText(
     letterDelayMs: timing.letterDelayMs ?? (() => 80 + Math.random() * 90),
     wordStartDelayMs: timing.wordStartDelayMs ?? (() => 150 + Math.random() * 350),
     commitDelayMs: timing.commitDelayMs ?? (() => 200 + Math.random() * 400),
+    keyDwellMs: timing.keyDwellMs ?? DEFAULT_KEY_DWELL_MS,
   };
 
   for (const word of segmentCjkWords(runText)) {
@@ -173,7 +191,7 @@ export async function imeComposeText(
     let i = 0;
     while (i < chars.length) {
       if (chars[i].pinyin == null) {
-        await composeFallback(client, chars[i].char);
+        await composeFallback(client, chars[i].char, d);
         i++;
         continue;
       }
@@ -184,5 +202,57 @@ export async function imeComposeText(
       }
       await composeSpan(client, span, d);
     }
+  }
+}
+
+/** Minimal Puppeteer `page.keyboard` surface the ASCII typer depends on. */
+export interface KeyboardLike {
+  down(key: string): Promise<void>;
+  up(key: string): Promise<void>;
+  sendCharacter(char: string): Promise<void>;
+}
+
+export interface AsciiTypingOptions {
+  /** Key-hold (dwell) time between keyDown and keyUp, in ms. */
+  keyDwellMs?: () => number;
+  /** Inter-key gap after each character is released, in ms. */
+  delayMs?: number;
+}
+
+/**
+ * Type ASCII (non-IME) text with a human key-hold on each character.
+ *
+ * Drives per-character keyDown -> dwell -> keyUp so each key is held for a
+ * realistic duration, instead of Puppeteer's `keyboard.type` which releases
+ * every key within CDP round-trip latency (a degenerate ~0ms dwell). Characters
+ * that have no key definition (accented Latin, emoji, etc.) fall back to
+ * `sendCharacter`, matching `keyboard.type`'s own behavior.
+ */
+export async function typeAsciiHumanized(
+  keyboard: KeyboardLike,
+  text: string,
+  options: AsciiTypingOptions = {},
+): Promise<void> {
+  const keyDwellMs = options.keyDwellMs ?? DEFAULT_KEY_DWELL_MS;
+  const delayMs = options.delayMs ?? 0;
+
+  for (const char of text) {
+    let pressed = false;
+    try {
+      await keyboard.down(char);
+      pressed = true;
+    } catch {
+      // No key definition for this character; fall back to a raw text insert.
+      pressed = false;
+    }
+
+    if (pressed) {
+      await wait(keyDwellMs());
+      await keyboard.up(char);
+    } else {
+      await keyboard.sendCharacter(char);
+    }
+
+    await wait(delayMs);
   }
 }
