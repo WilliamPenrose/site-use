@@ -14,7 +14,11 @@ let browserInstance: Browser | null = null;
 export interface BrowserLifecycleHooks {
   injectCoordFix?: (page: Page) => Promise<void>;
   buildWelcomeHTML?: () => string;
-  ensureBrowser?: (opts?: { autoLaunch?: boolean; extraArgs?: string[] }) => Promise<Browser>;
+  ensureBrowser?: (opts?: {
+    autoLaunch?: boolean;
+    extraArgs?: string[];
+    passive?: boolean;
+  }) => Promise<Browser>;
   closeBrowser?: () => Promise<CloseResult>;
   safePages?: (browser: Browser) => Promise<Page[]>;
 }
@@ -457,8 +461,21 @@ async function waitForProcessExit(
   }
 }
 
+/**
+ * `passive: true` skips applyConnectionSetup entirely, so connecting touches no page.
+ *
+ * Connection setup exists to make the browser *drivable* — focus emulation, the MouseEvent
+ * screenX/screenY fix (a main-world hook on MouseEvent.prototype), and waking frozen pages.
+ * Read-only consumers need none of it, and each one is observable: the coord fix leaves a
+ * non-native accessor on a DOM prototype, and Page.setWebLifecycleState reloads a tab that
+ * Chrome had discarded.
+ *
+ * Note the module-level connection cache: within one process the first ensureBrowser call
+ * decides whether setup ran, and later calls reuse that connection regardless of their own
+ * `passive` value. A process that needs a driven browser must not connect passively first.
+ */
 export async function ensureBrowser(
-  opts: { autoLaunch?: boolean; extraArgs?: string[] } | undefined,
+  opts: { autoLaunch?: boolean; extraArgs?: string[]; passive?: boolean } | undefined,
   config: ResolvedRuntimeConfig,
   hooks: BrowserLifecycleHooks,
 ): Promise<Browser> {
@@ -507,7 +524,9 @@ export async function ensureBrowser(
   });
 
   await checkBrowserHealth(browserInstance, hooks);
-  await applyConnectionSetup(browserInstance, hooks);
+  if (!opts?.passive) {
+    await applyConnectionSetup(browserInstance, hooks);
+  }
   await applyProxyAuth(browserInstance, config, hooks);
 
   return browserInstance;

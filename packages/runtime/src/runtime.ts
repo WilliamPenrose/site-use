@@ -151,11 +151,13 @@ export function createRuntime<
   async function ensureBrowserConnection(opts?: {
     autoLaunch?: boolean;
     extraArgs?: string[];
+    passive?: boolean;
   }): Promise<Browser> {
     browser = await ensureBrowserLifecycle(
       {
         autoLaunch: opts?.autoLaunch ?? options.autoLaunch ?? true,
         extraArgs: opts?.extraArgs ?? options.extraArgs,
+        passive: opts?.passive,
       },
       config,
       hooks,
