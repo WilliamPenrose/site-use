@@ -1,5 +1,5 @@
 import puppeteer, { type Browser, type Page } from 'puppeteer-core';
-import { readFileSync, writeFileSync, unlinkSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, unlinkSync, existsSync, readlinkSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { isPidAlive } from './internal/pid.js';
@@ -116,22 +116,124 @@ async function findPidOnPort(port: number): Promise<number | undefined> {
   return undefined;
 }
 
+/**
+ * Pid of the Chrome instance holding this profile, or undefined if nothing holds it.
+ *
+ * macOS and Linux use `SingletonLock`, a symlink pointing at `<hostname>-<pid>` (the hostname
+ * may itself contain dashes, so the pid is the last segment). Windows uses a plain `lockfile`
+ * carrying no pid — 0 means "held, owner unknown", which callers resolve via the debug port.
+ */
+export function profileLockPid(chromeProfileDir: string): number | undefined {
+  try {
+    const target = readlinkSync(path.join(chromeProfileDir, 'SingletonLock'));
+    const pid = parseInt(target.slice(target.lastIndexOf('-') + 1), 10);
+    if (pid > 0 && isPidAlive(pid)) return pid;
+  } catch {
+    // no SingletonLock — fall through to the Windows-style lockfile
+  }
+  if (existsSync(path.join(chromeProfileDir, 'lockfile'))) return 0;
+  return undefined;
+}
+
+/** TCP ports a given process is listening on, for discovering a debug port with no file to read. */
+export async function listeningPortsForPid(pid: number): Promise<number[]> {
+  const { execSync } = await import('node:child_process');
+  const ports = new Set<number>();
+  try {
+    if (process.platform === 'win32') {
+      const output = execSync('netstat -ano -p TCP', { encoding: 'utf-8', timeout: 5000 });
+      for (const line of output.split('\n')) {
+        if (!line.includes('LISTENING')) continue;
+        const parts = line.trim().split(/\s+/);
+        if (parseInt(parts[parts.length - 1], 10) !== pid) continue;
+        const port = parseInt(parts[1].slice(parts[1].lastIndexOf(':') + 1), 10);
+        if (port > 0) ports.add(port);
+      }
+    } else {
+      const output = execSync(`lsof -a -p ${pid} -nP -iTCP -sTCP:LISTEN`, {
+        encoding: 'utf-8',
+        timeout: 5000,
+        stdio: ['ignore', 'pipe', 'ignore'],
+      });
+      // NAME column looks like `127.0.0.1:61526 (LISTEN)` — the trailing state is not an address.
+      for (const line of output.split('\n').slice(1)) {
+        const match = /:(\d+)\s+\(LISTEN\)\s*$/.exec(line);
+        if (match) ports.add(parseInt(match[1], 10));
+      }
+    }
+  } catch {
+    // no such process, or lsof/netstat unavailable
+  }
+  return [...ports];
+}
+
+/**
+ * Take `DevToolsActivePort` out of the way before a launch, keeping its contents so a failed
+ * launch can put them back. Chrome deletes this file on exit, so a stale one would otherwise be
+ * mistaken for the new instance's — but blindly deleting it strands a *running* Chrome, whose
+ * orphan recovery then has nothing left to find.
+ */
+export function snapshotDevToolsPort(chromeProfileDir: string): { restore: () => void } {
+  const dtapPath = path.join(chromeProfileDir, 'DevToolsActivePort');
+  let previous: string | null = null;
+  try {
+    previous = readFileSync(dtapPath, 'utf-8');
+    unlinkSync(dtapPath);
+  } catch {
+    previous = null;
+  }
+  return {
+    restore() {
+      // Only if the launch left nothing behind: a new Chrome's file must win.
+      if (previous === null || existsSync(dtapPath)) return;
+      try {
+        writeFileSync(dtapPath, previous);
+      } catch {}
+    },
+  };
+}
+
+/**
+ * The debug port of a Chrome we did not launch. `DevToolsActivePort` is the cheap path; when it
+ * is missing but something still holds the profile, scan that process's listening ports for a
+ * live CDP endpoint. (Older builds deleted this file on every failed launch, stranding the
+ * running Chrome with no record of its port.)
+ */
+async function findDebugPort(
+  chromeProfileDir: string,
+  lockPid: number | undefined,
+): Promise<number | undefined> {
+  try {
+    const lines = readFileSync(path.join(chromeProfileDir, 'DevToolsActivePort'), 'utf-8')
+      .trim()
+      .split('\n');
+    const port = parseInt(lines[0], 10);
+    if (port > 0 && lines[1]) return port;
+  } catch {
+    // fall through to the port scan
+  }
+
+  if (!lockPid) return undefined;
+  for (const port of await listeningPortsForPid(lockPid)) {
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/json/version`);
+      if (!response.ok) continue;
+      const data = (await response.json()) as { webSocketDebuggerUrl?: string };
+      if (data.webSocketDebuggerUrl) return port;
+    } catch {
+      // not a CDP endpoint
+    }
+  }
+  return undefined;
+}
+
 export async function recoverOrphanChrome(
   chromeProfileDir: string,
   chromeJsonPath: string,
 ): Promise<ChromeInfo | null> {
-  const dtapPath = path.join(chromeProfileDir, 'DevToolsActivePort');
-  if (!existsSync(dtapPath)) return null;
-
-  let port: number;
-  try {
-    const lines = readFileSync(dtapPath, 'utf-8').trim().split('\n');
-    if (lines.length < 2) return null;
-    port = parseInt(lines[0], 10);
-    if (!port || !lines[1]) return null;
-  } catch {
-    return null;
-  }
+  const lockPid = profileLockPid(chromeProfileDir);
+  const port = await findDebugPort(chromeProfileDir, lockPid);
+  if (!port) return null;
 
   try {
     const response = await fetch(`http://127.0.0.1:${port}/json/version`);
@@ -144,11 +246,13 @@ export async function recoverOrphanChrome(
     const pidFromBrowser = browser.process()?.pid;
     browser.disconnect();
 
-    const lockfilePath = path.join(chromeProfileDir, 'lockfile');
+    // A CDP-attached browser has no child process, so fall back to whoever holds the profile.
     let chromePid: number | undefined;
     if (pidFromBrowser) {
       chromePid = pidFromBrowser;
-    } else if (existsSync(lockfilePath)) {
+    } else if (lockPid) {
+      chromePid = lockPid;
+    } else if (lockPid === 0) {
       chromePid = await findPidOnPort(port);
     }
 
@@ -356,14 +460,16 @@ async function waitForDevToolsPort(
   timeoutMs = 30_000,
 ): Promise<string> {
   const dtapPath = path.join(chromeProfileDir, 'DevToolsActivePort');
-  try {
-    unlinkSync(dtapPath);
-  } catch {}
+  const snapshot = snapshotDevToolsPort(chromeProfileDir);
 
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (!isPidAlive(pid)) {
-      throw new BrowserDisconnected('Chrome exited before debug port was available');
+      // Typically the profile's singleton lock rejected us: leave the incumbent's file intact.
+      snapshot.restore();
+      throw new BrowserDisconnected(
+        'Chrome exited before debug port was available (another Chrome may already hold this profile)',
+      );
     }
     try {
       const content = readFileSync(dtapPath, 'utf-8').trim();
@@ -380,6 +486,7 @@ async function waitForDevToolsPort(
     }
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
+  snapshot.restore();
   throw new BrowserDisconnected('Timed out waiting for Chrome debug port');
 }
 
@@ -476,6 +583,13 @@ export async function ensureBrowser(
 
   let info = readChromeJson(config.chromeJsonPath);
 
+  // chrome.json can go missing while Chrome is still up (crash, manual cleanup, a competing
+  // launch). Adopt that instance instead of launching into its profile lock and failing.
+  if (!info) {
+    info = await recoverOrphanChrome(config.chromeProfileDir, config.chromeJsonPath);
+    if (info) console.error('[site-use] ensureBrowser: adopted a running Chrome');
+  }
+
   if (!info) {
     if (!autoLaunch) {
       throw new BrowserNotRunning(
@@ -492,13 +606,15 @@ export async function ensureBrowser(
       unlinkSync(config.chromeJsonPath);
     } catch {}
 
-    if (!autoLaunch) {
+    const adopted = await recoverOrphanChrome(config.chromeProfileDir, config.chromeJsonPath);
+
+    if (!adopted && !autoLaunch) {
       throw new BrowserNotRunning(
         'Chrome is not running (connection failed). Launch it first with: site-use browser launch',
       );
     }
 
-    info = await launchAndDetach(opts?.extraArgs, config, hooks);
+    info = adopted ?? (await launchAndDetach(opts?.extraArgs, config, hooks));
     browserInstance = await connectBrowser(info.wsEndpoint);
   }
 
