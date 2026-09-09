@@ -1,7 +1,11 @@
 import type { Page, CDPSession } from 'puppeteer-core';
 import type { BoundingBox, Point } from './click-enhanced.js';
 import type { HumanScrollOptions, ScrollIntoViewOptions } from './scroll-enhanced.js';
-import type { ImeTiming } from './keyboard-enhanced.js';
+import type {
+  ImeTiming,
+  KeyboardLike,
+  AsciiTypingOptions,
+} from './keyboard-enhanced.js';
 
 export interface PrimitivesErrorContext {
   url?: string;
@@ -71,6 +75,11 @@ export interface RuntimePrimitivesHooks {
     client: CDPSession,
     text: string,
     timing?: ImeTiming,
+  ) => Promise<void>;
+  typeAscii?: (
+    keyboard: KeyboardLike,
+    text: string,
+    options?: AsciiTypingOptions,
   ) => Promise<void>;
 }
 

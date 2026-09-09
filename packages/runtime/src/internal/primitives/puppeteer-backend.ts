@@ -30,7 +30,7 @@ import { mergeAxData, mergeDomSnapshot } from './snapshot/merge.js';
 import { filterNodes } from './snapshot/filter.js';
 import { buildSnapshotOutput } from './snapshot/output.js';
 import { RateLimitDetector } from './rate-limit-detect.js';
-import { splitCjkRuns, imeComposeText } from './keyboard-enhanced.js';
+import { splitCjkRuns, imeComposeText, typeAsciiHumanized } from './keyboard-enhanced.js';
 
 const DEFAULT_SITE = '_default';
 
@@ -541,11 +541,12 @@ export class PuppeteerBackend implements Primitives {
       }
 
       const imeCompose = this.hooks.imeCompose ?? imeComposeText;
+      const typeAscii = this.hooks.typeAscii ?? typeAsciiHumanized;
       for (const run of splitCjkRuns(text)) {
         if (run.cjk) {
           await imeCompose(client, run.text);
         } else {
-          await page.keyboard.type(run.text, { delay: options?.delay ?? 0 });
+          await typeAscii(page.keyboard, run.text, { delayMs: options?.delay ?? 0 });
         }
       }
     } finally {

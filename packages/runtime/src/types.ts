@@ -122,7 +122,12 @@ export interface Runtime<
   TRateLimitDetector = unknown,
   TSignal extends RuntimeRateLimitSignal = RuntimeRateLimitSignal,
 > {
-  ensureBrowser(opts?: { autoLaunch?: boolean; extraArgs?: string[] }): Promise<Browser>;
+  /** `passive: true` connects without touching any page — no injection, no focus emulation, no unfreeze. */
+  ensureBrowser(opts?: {
+    autoLaunch?: boolean;
+    extraArgs?: string[];
+    passive?: boolean;
+  }): Promise<Browser>;
   launchBrowser(extraArgs?: string[]): Promise<ChromeInfo>;
   readChromeJson(chromeJsonPath: string): ChromeInfo | null;
   writeChromeJson(chromeJsonPath: string, info: ChromeInfo): void;

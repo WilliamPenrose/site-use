@@ -5,6 +5,8 @@ import {
   segmentCjkWords,
   wordToPinyin,
   imeComposeText,
+  typeAsciiHumanized,
+  DEFAULT_KEY_DWELL_MS,
 } from '../../packages/runtime/src/internal/primitives/keyboard-enhanced.js';
 
 // CJK fixtures via code points (repo policy: no raw CJK chars in code files).
@@ -62,6 +64,7 @@ const NO_DELAY = {
   letterDelayMs: () => 0,
   wordStartDelayMs: () => 0,
   commitDelayMs: () => 0,
+  keyDwellMs: () => 0,
 };
 
 function mockClient() {
@@ -126,5 +129,127 @@ describe('imeComposeText', () => {
     expect(keydownIdx).toBeLessThan(compositionIdx);
     expect(compositionIdx).toBeLessThan(insertIdx);
     expect(insertIdx).toBeLessThan(keyupIdx);
+  });
+});
+
+describe('DEFAULT_KEY_DWELL_MS', () => {
+  it('returns a human key-hold in the ~55-110ms range', () => {
+    for (let i = 0; i < 200; i++) {
+      const v = DEFAULT_KEY_DWELL_MS();
+      expect(v).toBeGreaterThanOrEqual(55);
+      expect(v).toBeLessThanOrEqual(110);
+    }
+  });
+});
+
+/** Log dispatchKeyEvent order into `log`, interleaving a 'dwell' marker per keyDwellMs call. */
+function loggingClientWithDwell(log: string[]) {
+  const client = mockClient();
+  client.send.mockImplementation((method: string, params: any) => {
+    if (method === 'Input.dispatchKeyEvent') log.push(`${params.type}:${params.code}`);
+    return Promise.resolve(undefined);
+  });
+  const keyDwellMs = () => {
+    log.push('dwell');
+    return 0;
+  };
+  return { client, keyDwellMs };
+}
+
+describe('imeComposeText key dwell (hold time)', () => {
+  it('holds each letter key: a dwell wait sits between its keyDown and keyUp', async () => {
+    const log: string[] = [];
+    const { client, keyDwellMs } = loggingClientWithDwell(log);
+    await imeComposeText(client as any, QIAN, { ...NO_DELAY, keyDwellMs }); // pinyin: qian
+
+    for (const code of ['KeyQ', 'KeyI', 'KeyA', 'KeyN']) {
+      const down = log.indexOf(`keyDown:${code}`);
+      const up = log.indexOf(`keyUp:${code}`);
+      expect(down).toBeGreaterThanOrEqual(0);
+      expect(up).toBeGreaterThan(down);
+      expect(log.slice(down + 1, up)).toContain('dwell');
+    }
+  });
+
+  it('holds the Space commit key between its keyDown and keyUp', async () => {
+    const log: string[] = [];
+    const { client, keyDwellMs } = loggingClientWithDwell(log);
+    await imeComposeText(client as any, QIAN, { ...NO_DELAY, keyDwellMs });
+
+    const down = log.indexOf('keyDown:Space');
+    const up = log.indexOf('keyUp:Space');
+    expect(down).toBeGreaterThanOrEqual(0);
+    expect(up).toBeGreaterThan(down);
+    expect(log.slice(down + 1, up)).toContain('dwell');
+  });
+
+  it('holds the fallback key between its keyDown and keyUp', async () => {
+    const log: string[] = [];
+    const { client, keyDwellMs } = loggingClientWithDwell(log);
+    await imeComposeText(client as any, GA, { ...NO_DELAY, keyDwellMs }); // Hangul, no pinyin
+
+    const down = log.indexOf('keyDown:');
+    const up = log.indexOf('keyUp:');
+    expect(down).toBeGreaterThanOrEqual(0);
+    expect(up).toBeGreaterThan(down);
+    expect(log.slice(down + 1, up)).toContain('dwell');
+  });
+});
+
+describe('typeAsciiHumanized', () => {
+  function mockKeyboard(log: string[]) {
+    return {
+      down: vi.fn((k: string) => {
+        log.push(`down:${k}`);
+        return Promise.resolve();
+      }),
+      up: vi.fn((k: string) => {
+        log.push(`up:${k}`);
+        return Promise.resolve();
+      }),
+      sendCharacter: vi.fn((c: string) => {
+        log.push(`send:${c}`);
+        return Promise.resolve();
+      }),
+    };
+  }
+
+  it('presses, holds for the dwell, then releases each mappable char in order', async () => {
+    const log: string[] = [];
+    const kb = mockKeyboard(log);
+    const keyDwellMs = () => {
+      log.push('dwell');
+      return 0;
+    };
+    await typeAsciiHumanized(kb as any, 'ab', { keyDwellMs, delayMs: 0 });
+    expect(log).toEqual([
+      'down:a',
+      'dwell',
+      'up:a',
+      'down:b',
+      'dwell',
+      'up:b',
+    ]);
+  });
+
+  it('falls back to sendCharacter (no dwell, no up) when down() throws for an unmappable char', async () => {
+    const log: string[] = [];
+    const kb = mockKeyboard(log);
+    kb.down.mockImplementation((k: string) => {
+      if (k === 'é') return Promise.reject(new Error('no key definition'));
+      log.push(`down:${k}`);
+      return Promise.resolve();
+    });
+    await typeAsciiHumanized(kb as any, 'aé', { keyDwellMs: () => 0, delayMs: 0 });
+    expect(log).toEqual(['down:a', 'up:a', 'send:é']);
+    expect(kb.up).toHaveBeenCalledTimes(1); // never released the key that failed to press
+  });
+
+  it('presses and releases each char (default dwell) when no timing is supplied', async () => {
+    const log: string[] = [];
+    const kb = mockKeyboard(log);
+    await typeAsciiHumanized(kb as any, 'a', {});
+    // Default path still down/up-drives the key (real hold applied via DEFAULT_KEY_DWELL_MS).
+    expect(log).toEqual(['down:a', 'up:a']);
   });
 });

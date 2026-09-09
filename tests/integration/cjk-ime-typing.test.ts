@@ -12,6 +12,7 @@ const FAST = {
   letterDelayMs: () => 1,
   wordStartDelayMs: () => 1,
   commitDelayMs: () => 1,
+  keyDwellMs: () => 1,
 };
 
 describe.skipIf(!EXECUTABLE)('CJK IME typing (real browser)', () => {

@@ -6,7 +6,18 @@ let chromeJsonStore: Record<string, string> = {};
 let alivePids = new Set<number>();
 
 // Mock puppeteer-core before importing browser module
-const mockPage = { url: () => 'about:blank', close: vi.fn(), goto: vi.fn(), authenticate: vi.fn() };
+// createCDPSession / evaluateOnNewDocument are what connection setup reaches for: focus emulation
+// and unfreeze go through CDP, the MouseEvent coord fix through evaluateOnNewDocument. Spying on
+// them is how the passive-connect tests below prove no page was touched.
+const mockPageCdpSession = { send: vi.fn().mockResolvedValue({}), detach: vi.fn().mockResolvedValue(undefined) };
+const mockPage = {
+  url: () => 'about:blank',
+  close: vi.fn(),
+  goto: vi.fn(),
+  authenticate: vi.fn(),
+  createCDPSession: vi.fn().mockResolvedValue(mockPageCdpSession),
+  evaluateOnNewDocument: vi.fn().mockResolvedValue(undefined),
+};
 const mockTarget = { type: () => 'page', url: () => 'about:blank', page: vi.fn().mockResolvedValue(mockPage) };
 const mockCdpSession = { send: vi.fn().mockResolvedValue({}), detach: vi.fn().mockResolvedValue(undefined) };
 const mockBrowser = {
@@ -190,6 +201,9 @@ describe('browser', () => {
       return true;
     }) as typeof process.kill);
     mockSpawnProcess.unref.mockClear();
+    mockPage.createCDPSession.mockClear();
+    mockPage.evaluateOnNewDocument.mockClear();
+    mockPageCdpSession.send.mockClear();
     mockBrowser.on.mockClear();
     mockBrowser.connected = true;
     mockBrowser.disconnect.mockClear();
@@ -209,6 +223,42 @@ describe('browser', () => {
       proxy: undefined,
       proxySource: undefined,
     };
+  });
+
+  describe('ensureBrowser passive mode', () => {
+    it('touches every page on a normal connect', async () => {
+      await ensureBrowser({ autoLaunch: true });
+
+      // The coord fix is a main-world hook on MouseEvent.prototype.
+      expect(mockPage.evaluateOnNewDocument).toHaveBeenCalled();
+      expect(mockPageCdpSession.send).toHaveBeenCalledWith(
+        'Emulation.setFocusEmulationEnabled',
+        { enabled: true },
+      );
+      expect(mockPageCdpSession.send).toHaveBeenCalledWith(
+        'Page.setWebLifecycleState',
+        { state: 'active' },
+      );
+    });
+
+    it('touches no page when passive', async () => {
+      await ensureBrowser({ autoLaunch: true, passive: true });
+
+      expect(mockPage.evaluateOnNewDocument).not.toHaveBeenCalled();
+      expect(mockPage.createCDPSession).not.toHaveBeenCalled();
+      expect(mockPageCdpSession.send).not.toHaveBeenCalled();
+    });
+
+    it('still returns a usable connection when passive', async () => {
+      const browser = await ensureBrowser({ autoLaunch: true, passive: true });
+      expect(browser).toBe(mockConnectedBrowser);
+    });
+
+    it('does not register the targetcreated setup hook when passive', async () => {
+      await ensureBrowser({ autoLaunch: true, passive: true });
+      const events = mockConnectedBrowser.on.mock.calls.map((c: unknown[]) => c[0]);
+      expect(events).not.toContain('targetcreated');
+    });
   });
 
   describe('ensureBrowser', () => {

@@ -51,10 +51,20 @@ export async function launchAndDetach(extraArgs?: string[]): Promise<ChromeInfo>
   return await getRuntime().launchBrowser(extraArgs);
 }
 
-export async function ensureBrowser(opts?: { autoLaunch?: boolean; extraArgs?: string[] }): Promise<Browser> {
+/**
+ * `passive: true` connects read-only: no page is touched on connect, so nothing is injected
+ * into the main world and Chrome-discarded tabs are not woken (which reloads them). Use it for
+ * tools that only observe. Driving the browser requires the default, non-passive connection.
+ */
+export async function ensureBrowser(opts?: {
+  autoLaunch?: boolean;
+  extraArgs?: string[];
+  passive?: boolean;
+}): Promise<Browser> {
   return await getRuntime().ensureBrowser({
     autoLaunch: opts?.autoLaunch ?? false,
     extraArgs: opts?.extraArgs,
+    passive: opts?.passive,
   });
 }
 
